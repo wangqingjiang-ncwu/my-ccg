@@ -1,0 +1,48 @@
+name:                my-ccg
+version:             0.1.0.0
+github:              "wangqingjiang-ncwu/my-ccg"
+license:             BSD3
+author:              "China University of Water Resources and Electric Power"
+maintainer:          "wangqingjiang@ncwu.edu.cn"
+copyright:           "Copyright (c) 2019 China University of Water Resources and Electric Power"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Natural Language Understanding
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/wangqingjiang-ncwu/my-ccg#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+
+executables:
+  my-ccg-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - my-ccg
+
+tests:
+  my-ccg-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - my-ccg

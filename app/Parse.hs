@@ -1,24 +1,29 @@
+-- Copyright China University of Water Resources and Electric Power (c) 2019
+-- All rights reserved.
+
 module Parse (
     Start,         -- Int
     Span,          -- Int
     SecStart,      -- Int
-    PhraCate,      -- ((Start, Span), Category a, SecStart)
-    pclt,           -- PhraCate a -> PhraCate a -> Bool
-    stOfCate,      -- PhraCate a -> Start
-    spOfCate,      -- PhraCate a -> Span
-    caOfCate,      -- PhraCate a -> [Category a]
-    ssOfCate,      -- PhraCate a -> SecStart
-    cateComb,      -- PhraCate a -> PhraCate a -> [PhraCate a]
-    initPhraCate,  -- [Category a] -> [PhraCate a]
-    parse,         -- [PhraCate a] -> [PhraCate a]
-    getNuOfInputCates,       -- [PhraCate a] -> Int 
-    growForest,              -- [[PhraCate a]] -> [PhraCate a] -> [[PhraCate a]]
-    findCate,                -- (Int, Int) -> [PhraCate a] -> [PhraCate a]
-    findSplitCate,           -- PhraCate a -> [PhraCate a] -> [PhraCate a]
-    findTipsOfTree,          -- [PhraCate a] -> [PhraCate a] -> [PhraCate a]
-    findCateBySpan,          -- Int -> [PhraCate a] -> [PhraCate a]
-    divPhraCateBySpan,       -- [PhraCate a] -> [[PhraCate a]]
-    quickSort                -- [PhraCate a] -> [PhraCate a]
+    PhraCate,      -- ((Start, Span), Category, SecStart)
+    pclt,           -- PhraCate -> PhraCate -> Bool
+    stOfCate,      -- PhraCate -> Start
+    spOfCate,      -- PhraCate -> Span
+    caOfCate,      -- PhraCate -> [Category]
+    ssOfCate,      -- PhraCate -> SecStart
+    cateComb,      -- PhraCate -> PhraCate -> [PhraCate]
+    initPhraCate,  -- [Category] -> [PhraCate]
+    createPhraCate,-- Int -> Int -> Category -> Int -> PhraCate
+    parse,         -- [PhraCate] -> [PhraCate]
+    getNuOfInputCates,       -- [PhraCate] -> Int 
+    growForest,              -- [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
+    growTree,      -- [PhraCate] -> [PhraCate] -> [[PhraCate]]
+    findCate,                -- (Int, Int) -> [PhraCate] -> [PhraCate]
+    findSplitCate,           -- PhraCate -> [PhraCate] -> [PhraCate]
+    findTipsOfTree,          -- [PhraCate] -> [PhraCate] -> [PhraCate]
+    findCateBySpan,          -- Int -> [PhraCate] -> [PhraCate]
+    divPhraCateBySpan,       -- [PhraCate] -> [[PhraCate]]
+    quickSort                -- [PhraCate] -> [PhraCate]
     ) where
 
 import Category
@@ -30,10 +35,10 @@ type SecStart = Int      -- The position of spliting a phrase (category).
 
 -- When combining two phrase categories, there might be more than one rule available, resulting in multiple categories (Usually the resultant categories are same).
 
-type PhraCate a = ((Start, Span), [Category a], SecStart)
+type PhraCate = ((Start, Span), [Category], SecStart)
 
 -- Define relation 'less than' for two phrasal categories.
-pclt :: PhraCate a -> PhraCate a -> Bool
+pclt :: PhraCate -> PhraCate -> Bool
 pclt x y = (stx < sty) || ((stx == sty) && (spx < spy))
     where
     stx = stOfCate x
@@ -42,16 +47,16 @@ pclt x y = (stx < sty) || ((stx == sty) && (spx < spy))
     spy = spOfCate y
 
 -- The following functions are used to select an element from tuple PhraCate.
-stOfCate :: PhraCate a -> Start
+stOfCate :: PhraCate -> Start
 stOfCate (s, _, _) = fst s
 
-spOfCate :: PhraCate a -> Span
+spOfCate :: PhraCate -> Span
 spOfCate (s, _, _) = snd s
 
-caOfCate :: PhraCate a -> [Category a]
+caOfCate :: PhraCate -> [Category]
 caOfCate (_, c, _) = c
 
-ssOfCate :: PhraCate a -> SecStart
+ssOfCate :: PhraCate -> SecStart
 ssOfCate (_, _, s) = s
 
 --- Function cateComb combines two input (phrasal) categories into one result.
@@ -59,7 +64,7 @@ ssOfCate (_, _, s) = s
 -- Here phrase's categories are still modelled by list, actually there usually is only one category.
 -- Results ((-1,-1),[],-1) and ((x,y),[],z) respectively denote concatenative failure and no rule available.
 
-cateComb :: PhraCate a -> PhraCate a -> PhraCate a
+cateComb :: PhraCate -> PhraCate -> PhraCate
 cateComb pc1 pc2
     | st1 + sp1 + 1 /= st2 = ((-1,-1),[],-1)
     | otherwise = ((st1, sp1 + sp2 + 1), rcs, st2)
@@ -77,19 +82,25 @@ cateComb pc1 pc2
 
 -- Words are considered as minimal phrases, thus an universal phrase category models both words and phrases.
 -- Initialize the values of PhraCate for each word of a given sentence.
-initPhraCate :: [Category a] -> [PhraCate a]
+initPhraCate :: [Category] -> [PhraCate]
 initPhraCate [] = []
 initPhraCate [c] = [((0,0),[c],0)]          -- categories start at index 0
 initPhraCate (c:cs) = [((0,0),[c],0)] ++ [(((stOfCate pc)+1, 0), caOfCate pc, (stOfCate pc)+1) | pc <- (initPhraCate cs)]
 
+-- Create a phrasal category according to its specified contents.
+createPhraCate :: Int -> Int -> Category -> Int -> PhraCate
+createPhraCate start span c secStart
+    | c == getCateFromString "Nil" = ((start,span),[],secStart)
+    | otherwise = ((start,span),[c],secStart)
+
 -- Find the number of input categories from the closure of phrase categories.
 
-getNuOfInputCates :: [PhraCate a] -> Int
+getNuOfInputCates :: [PhraCate] -> Int
 getNuOfInputCates phraCateClosure = length [pc | pc <- phraCateClosure, spOfCate pc == 0]
 
--- Parsing a sequence of categories is actually to generate the clousure of phrase categories with categorial combinations.
+-- Parsing a sequence of categories is actually to generate the closure of phrase categories with categorial combinations.
 
-parse :: [PhraCate a] -> [PhraCate a]
+parse :: [PhraCate] -> [PhraCate]
 parse phraCateInput
     | phraCateInput == transition = phraCateInput
     | otherwise = parse transition
@@ -100,7 +111,7 @@ parse phraCateInput
 
 -- Merge all possible splits into the list [SecStart] for every (Start, Span).
 -- This function is obsolete. For identical (Start, Span), merging categories and merging SecStart's are terrible opertions because of losing relations between every resultant category and its parents, just like a room with many children and an another room with many pairs of parents.
---mergeSplit :: [PhraCate a] -> [PhraCate a]
+--mergeSplit :: [PhraCate] -> [PhraCate]
 --mergeSplit [] = []
 --mergeSplit [x] = [x]
 --mergeSplit (x:xs)
@@ -118,7 +129,7 @@ parse phraCateInput
 -- (1) If it is an empty forest without any tree, an empty forest is returned;
 -- (2) Otherwise, one forest is created for every tree in input forest, return the union of all created forests.
  
-growForest :: [[PhraCate a]] -> [PhraCate a] -> [[PhraCate a]]
+growForest :: [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
 growForest [] _ = []                    -- Empty forest
 growForest (t:ts) phraCateClosure       -- nonempty forest
     = (growTree t phraCateClosure) ++ (growForest ts phraCateClosure) 
@@ -128,36 +139,37 @@ growForest (t:ts) phraCateClosure       -- nonempty forest
 -- (1) Find all tips able to send forth leaves (The tips for initial categoies are no longer to grow);
 -- (2) For every such tip, find all splits (namely all pairs of leaves), and create a forest, of which every tree include the input tree and a distinc pair of leaves;
 -- (3) Based on merging two forests, all forests are mering into one forest. 
-growTree :: [PhraCate a] -> [PhraCate a] -> [[PhraCate a]]
+growTree :: [PhraCate] -> [PhraCate] -> [[PhraCate]]
 growTree t phraCateClosure
     | findTipsOfTree t phraCateClosure == [] = [t]      -- No tip can grow.
     | [t] == gf = [t]                                   -- Not grow.
     | otherwise = growForest gf phraCateClosure
         where
-        splOfAllTips = [findSplitCate tip phraCateClosure | tip <- (findTipsOfTree t phraCateClosure)]   -- [[(PhraCate a, PhraCate a)]]
+        splOfAllTips = [findSplitCate tip phraCateClosure | tip <- (findTipsOfTree t phraCateClosure)]   -- [[(PhraCate, PhraCate)]]
         forestByTipGrow = [map (\x -> [fst x | elem (fst x) t == False] ++ [snd x | elem (snd x) t == False] ++ t ) splOfATip | splOfATip <- splOfAllTips]
         gf = uniForest forestByTipGrow
 
 -- By growing at each tip, a tree grows and might become multiple trees because more than one split exists. 
 -- Suppose tree t becomes ti = [ti1,ti2,...tin] by growing at No.i tip, and tj = [tj1,tj2,...tjm] by growing at No.j tip. Both the two forests are from the same tree t, and should merge into forest tk, tk = ti X tj. Merging tix and tjy, x<-[1..n], y<-[1..m], is actually to do an union operation on two sets.
 
-uniForest :: [[[PhraCate a]]] -> [[PhraCate a]]
+uniForest :: [[[PhraCate]]] -> [[PhraCate]]
 uniForest [] = []                -- No forest
 uniForest [f] = f                -- Just one forest
 uniForest (f:fs)                 -- At least two forests
     = uniForest ((uniTwoForest f (head fs)):(tail fs)) 
 
 -- Merging two forest.
-uniTwoForest :: [[PhraCate a]] -> [[PhraCate a]] -> [[PhraCate a]]
+uniTwoForest :: [[PhraCate]] -> [[PhraCate]] -> [[PhraCate]]
 uniTwoForest f1 f2 = [uniTwoTree t1 t2 | t1<-f1, t2<-f2]
 
 -- Merging two trees.
-uniTwoTree :: [PhraCate a] -> [PhraCate a] -> [PhraCate a]
+uniTwoTree :: [PhraCate] -> [PhraCate] -> [PhraCate]
 uniTwoTree t1 t2 = t1 ++ [x | x<-t2, elem x t1 /= True]
 
 -- Find a phrase category by its (Start, Span). If does not, return []. 
-findCate :: (Start, Span) -> [PhraCate a] -> [PhraCate a]
-findCate (_, -1) _ = []         -- No categoy has span -1, used for find parents.
+findCate :: (Start, Span) -> [PhraCate] -> [PhraCate]
+findCate (_, -1) _ = []      -- No categoy has span -1 or -2, used for finding parents.
+findCate (_, -2) _ = []      -- For a leaf node, its non-existing parents have span -1 and -2.
 findCate (st, sp) [] = []
 findCate (st, sp) [x]
     | st == stOfCate x && sp == spOfCate x = [x]
@@ -167,7 +179,7 @@ findCate (st, sp) (x:xs)
     | otherwise = findCate (st, sp) xs
 
 -- Find splited (namely parent) categories for a given phrase category from the closure of phrase categories.
-findSplitCate :: PhraCate a -> [PhraCate a] -> [(PhraCate a, PhraCate a)]
+findSplitCate :: PhraCate -> [PhraCate] -> [(PhraCate, PhraCate)]
 findSplitCate pc phraCateClosure
     = zip (findCate (st1, sp1) phraCateClosure) (findCate (st2, sp2) phraCateClosure)
         where
@@ -177,19 +189,22 @@ findSplitCate pc phraCateClosure
         sp2 = spOfCate pc - sp1 - 1
  
 -- Find all growable tips of a tree from the closure of phrase categories.
+-- Those nodes whose parents already exist in the tree can't grow again.
 -- Those tips corresponding to initial categories are not growable.
 
-findTipsOfTree :: [PhraCate a] -> [PhraCate a] -> [PhraCate a]
+findTipsOfTree :: [PhraCate] -> [PhraCate] -> [PhraCate]
 findTipsOfTree [] _ = []
-findTipsOfTree [x] phraCateClosure
-    | findSplitCate x phraCateClosure /= [] = [x]
-    | otherwise = []
-findTipsOfTree (x:xs) phraCateClosure
-    | findSplitCate x phraCateClosure /= [] = x:(findTipsOfTree xs phraCateClosure)
-    | otherwise = findTipsOfTree xs phraCateClosure
-
+findTipsOfTree t phraCateClosure
+    | ppcs == [] = findTipsOfTree (tail ot) phraCateClosure      -- Leaves have no parents and can't grow.
+    | elem (snd (head ppcs)) ot = findTipsOfTree (tail ot) phraCateClosure  
+                      -- Middle node which already grew. The right parent is in phrasal series ot.
+    | otherwise = (head ot):findTipsOfTree (tail ot) phraCateClosure -- Middle node which doesn't yet grow.
+       where
+       ot = quickSort t    -- Such that there exists left parent << node << right parent for any node. 
+       ppcs = findSplitCate (head ot) phraCateClosure    -- Find the parent pairs of node (head ot).
+       
 -- Find phrase categories with given span.
-findCateBySpan :: Int -> [PhraCate a] -> [PhraCate a]
+findCateBySpan :: Int -> [PhraCate] -> [PhraCate]
 findCateBySpan sp  pcs = [x|x<-pcs, spOfCate x == sp]
 
 -- Phrasal categories in a tree are divided into some lists, each of which includes 
@@ -197,11 +212,11 @@ findCateBySpan sp  pcs = [x|x<-pcs, spOfCate x == sp]
 -- order on values of element Start, while these lists is arranged from 0 to 
 -- (getNuOfInputCates - 1).
 
-divPhraCateBySpan :: [PhraCate a] -> [[PhraCate a]]
+divPhraCateBySpan :: [PhraCate] -> [[PhraCate]]
 divPhraCateBySpan t = map quickSort (map (\sp -> findCateBySpan sp t) [0..(getNuOfInputCates t - 1)])
 
 -- Quick sort a list of phrasal categoies.
-quickSort :: [PhraCate a] -> [PhraCate a]
+quickSort :: [PhraCate] -> [PhraCate]
 quickSort [] = []
 quickSort [x] = [x]
 quickSort (x:xs) = (quickSort [y|y<-xs, pclt y x]) ++ [x] ++ (quickSort [y|y<-xs, pclt x y])

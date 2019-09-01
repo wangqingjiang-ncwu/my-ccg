@@ -1,2 +1,2 @@
 # my-ccg
-Haskell implemented Chinese parer for Combinatory Categorial Grammar
+Haskell implemented Chinese parser for Combinatory Categorial Grammar

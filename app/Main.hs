@@ -1,3 +1,6 @@
+-- Copyright China University of Water Resources and Electric Power (c) 2019
+-- All rights reserved.
+
 module Main where
 
 import Lib

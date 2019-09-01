@@ -1,22 +1,26 @@
+-- Copyright China University of Water Resources and Electric Power (c) 2019
+-- All rights reserved.
+
 module Category (
-    Category,
+    Category,      -- 范畴类型
     Slash,         -- String
     slashes,       -- [Slash]
     Prim,          -- String
     primitives,    -- [Prim]
-    nilCate,       -- Category a
-    isPrimitive,   -- Category a -> Bool
-    isDerivative,  -- Category a -> Bool
+    nilCate,       -- Category
+    isNil,         -- Category -> Bool
+    isPrimitive,   -- Category -> Bool
+    isDerivative,  -- Category -> Bool
     veriStrForCate,      -- String -> Bool
-    getCateFromString,   --String -> Category a
+    getCateFromString,   --String -> Category
     indexOfSlash,        -- Int -> Int -> String -> Int
     leftStr,       -- String -> String
     rightStr,      -- String -> String
     midSlashStr,   -- String -> Slash
-    leftCate,      -- Category a -> Category a
-    rightCate,     -- Category a -> Category a
-    midSlash,      -- Category a -> a
-    derivate       -- Category a -> Slash -> Category a -> Category a
+    leftCate,      -- Category -> Category
+    rightCate,     -- Category -> Category
+    midSlash,      -- Category -> a
+    derivate       -- Category -> Slash -> Category -> Category
     ) where
 
 type Slash = String
@@ -27,11 +31,12 @@ type Prim = String
 primitives :: [Prim]
 primitives = ["s", "np"]
 
-data Category a = Nil | Primitive Prim | Derivative (Category a) Slash (Category a) deriving (Eq)
+-- Define data type Category which is enumerable.
+data Category = Nil | Primitive Prim | Derivative Category Slash Category deriving (Eq)
 
 -- Define relation Ord between two categories such that two phrasal cagories also can be compared.
 
-instance Ord a => Ord (Category a) where 
+instance Ord Category where 
     Nil < Nil = False 
     Primitive a < Primitive b = (a<b)
     Derivative a _ b < Derivative c _ d = (a < c)||((a==c)&&(b<d))
@@ -45,7 +50,7 @@ instance Ord a => Ord (Category a) where
     Nil <= Derivative _ _ _ = False
     Primitive _ <= Derivative _ _ _ = False
 
-instance Show (Category a) where
+instance Show Category where
     show Nil = "Nil"
     show (Primitive p) = p
     show (Derivative c1 s c2)
@@ -56,18 +61,18 @@ instance Show (Category a) where
 
 
 -- Besides interior functions, data constructors are not seen from outside of modules. To have access to these constructors, related functions are defined.
-nilCate :: Category a
+nilCate :: Category
 nilCate = Nil
 
-isNil :: Category a -> Bool
+isNil :: Category -> Bool
 isNil Nil = True
 isNil _ = False
 
-isPrimitive :: Category a -> Bool
+isPrimitive :: Category -> Bool
 isPrimitive (Primitive _) = True
 isPrimitive _ = False
 
-isDerivative :: Category a -> Bool
+isDerivative :: Category -> Bool
 isDerivative (Derivative _ _ _) = True
 isDerivative _ = False
 
@@ -76,7 +81,7 @@ veriStrForCate str
     | indexOfSlash 0 0 str == -1 = elem str ["Nil","s","np"] 
     | otherwise = veriStrForCate (leftStr str) && elem (midSlashStr str) slashes && veriStrForCate (rightStr str)
 
-getCateFromString :: String -> Category a
+getCateFromString :: String -> Category
 getCateFromString str
     | veriStrForCate str /= True = error "getCateFromString"
     | index == -1 && str == "Nil" = Nil
@@ -124,18 +129,18 @@ midSlashStr str
         where
         index = indexOfSlash 0 0 str
 
-leftCate :: Category a -> Category a
+leftCate :: Category -> Category
 leftCate (Primitive a) = error "leftCate"
 leftCate (Derivative cate1 _ _) = cate1
 
-rightCate :: Category a -> Category a
+rightCate :: Category -> Category
 rightCate (Primitive a) = error "rightCate"
 rightCate (Derivative _ _ cate2) = cate2
 
-midSlash :: Category a -> Slash
+midSlash :: Category -> Slash
 midSlash (Primitive _) = error "midSlash"
 midSlash (Derivative _ s _) = s
 
-derivate :: Category a -> Slash -> Category a -> Category a
+derivate :: Category -> Slash -> Category -> Category
 derivate  cate1 slash cate2 = Derivative cate1 slash cate2
 

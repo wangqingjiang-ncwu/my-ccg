@@ -7,7 +7,7 @@ cabal-version: 1.12
 -- hash: 0863c03ea3fa580dcb47383743b0d53e7d1ea3b111f659b5ff8bb178e27096fa
 
 name:           my-ccg
-version:        0.1.0.0
+version:        0.1.1.0
 description:    Please see the README on GitHub at <https://github.com/wangqingjiang-ncwu/my-ccg#readme>
 homepage:       https://github.com/wangqingjiang-ncwu/my-ccg#readme
 bug-reports:    https://github.com/wangqingjiang-ncwu/my-ccg/issues

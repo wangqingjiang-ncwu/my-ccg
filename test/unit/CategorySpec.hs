@@ -15,10 +15,16 @@ spec = do
       head primitives `shouldBe` ("s" :: String)
     it "nilCate is the category Nil" $ do
       nilCate `shouldBe` nilCate
+    it "sCate is the category s" $ do
+      sCate `shouldBe` sCate
+    it "npCate is the category np" $ do
+      npCate `shouldBe` npCate
     it "Result of veriStrForCate \"s\\.np\" is True" $ do
       veriStrForCate "s\\.np" `shouldBe` (True :: Bool)
     it "Result of getCateFromString  \"s\\.np\" is category s\\.np" $ do
       show (getCateFromString "s\\.np") `shouldBe` "s\\.np"
+    it "Result of getCateFromString  \"(s\\.np)/.np\" is category (s\\.np)/.np" $ do
+      show (getCateFromString "(s\\.np)/.np") `shouldBe` "(s\\.np)/.np"
     it "Result of indexOfSlash 0 0 \"(s\\*np)/#(s\\*np)\" is 7" $ do
       indexOfSlash 0 0 "(s\\*np)/#(s\\*np)" `shouldBe` 7
     it "Result of leftStr (s\\*np)/#(s\\.np) is s\\*np" $ do

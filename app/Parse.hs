@@ -5,15 +5,18 @@ module Parse (
     Start,         -- Int
     Span,          -- Int
     SecStart,      -- Int
-    PhraCate,      -- ((Start, Span), Category, SecStart)
-    pclt,           -- PhraCate -> PhraCate -> Bool
+    Tag,           -- String
+    PhraCate,      -- ((Start, Span), [(Category, Tag)], SecStart)
+    pclt,          -- PhraCate -> PhraCate -> Bool
     stOfCate,      -- PhraCate -> Start
     spOfCate,      -- PhraCate -> Span
+    ctOfCate,      -- PhraCate -> [(Category, Tag)]
     caOfCate,      -- PhraCate -> [Category]
+    taOfCate,      -- PhraCate -> [String]
     ssOfCate,      -- PhraCate -> SecStart
     cateComb,      -- PhraCate -> PhraCate -> [PhraCate]
     initPhraCate,  -- [Category] -> [PhraCate]
-    createPhraCate,-- Int -> Int -> Category -> Int -> PhraCate
+    createPhraCate,-- Start -> Span -> Category -> Tag -> SecStart -> PhraCate
     parse,         -- [PhraCate] -> [PhraCate]
     getNuOfInputCates,       -- [PhraCate] -> Int 
     growForest,              -- [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
@@ -29,13 +32,14 @@ module Parse (
 import Category
 import Rule
 
-type Start = Int   -- The start position of a phrase (category) in sentences.
-type Span = Int    -- The span distance of a phrase (category) in sentences.
+type Start = Int         -- The start position of a phrase (category) in sentences.
+type Span = Int          -- The span distance of a phrase (category) in sentences.
 type SecStart = Int      -- The position of spliting a phrase (category).
+type Tag = String        -- The tag of rule used for creating this category. 
 
 -- When combining two phrase categories, there might be more than one rule available, resulting in multiple categories (Usually the resultant categories are same).
 
-type PhraCate = ((Start, Span), [Category], SecStart)
+type PhraCate = ((Start, Span), [(Category, Tag)], SecStart)
 
 -- Define relation 'less than' for two phrasal categories.
 pclt :: PhraCate -> PhraCate -> Bool
@@ -53,15 +57,25 @@ stOfCate (s, _, _) = fst s
 spOfCate :: PhraCate -> Span
 spOfCate (s, _, _) = snd s
 
+ctOfCate :: PhraCate -> [(Category, Tag)]
+ctOfCate (_, cts, _) = cts
+
 caOfCate :: PhraCate -> [Category]
-caOfCate (_, c, _) = c
+caOfCate pc = [fst ct | ct <- cts]
+    where
+    cts = ctOfCate pc
+
+taOfCate :: PhraCate -> [String]
+taOfCate pc = [snd ct | ct <- cts]
+    where
+    cts = ctOfCate pc
 
 ssOfCate :: PhraCate -> SecStart
 ssOfCate (_, _, s) = s
 
---- Function cateComb combines two input (phrasal) categories into one result.
+-- Function cateComb combines two input (phrasal) categories into one result.
 -- The two input categories satisfies concatenative requirements, and may have multiple resultant categories when multiple rules are available.
--- Here phrase's categories are still modelled by list, actually there usually is only one category.
+-- Here phrasal categories are still modelled by list. After introduing categorial conversion for Chinese structure overlapping, there may be more than one category.
 -- Results ((-1,-1),[],-1) and ((x,y),[],z) respectively denote concatenative failure and no rule available.
 
 cateComb :: PhraCate -> PhraCate -> PhraCate
@@ -73,8 +87,16 @@ cateComb pc1 pc2
         sp1 = spOfCate pc1
         st2 = stOfCate pc2
         sp2 = spOfCate pc2
-        cates = [rule cate1 cate2 | rule <- rules, cate1 <- caOfCate pc1, cate2 <- caOfCate pc2]
-        rcs = [rc | rc <- cates, rc /= nilCate]
+        cas1 = caOfCate pc1
+        cas2 = caOfCate pc2
+
+-- Categories getten by CCG standard rules.
+        catesBasic = [rule cate1 cate2 | rule <- rules, cate1 <- cas1, cate2 <- cas2]
+-- Categories getten by firstly converting sentence into nominal phrase, then using standard CCG rules. For each result (<category>, <tag>), the <tag> is changed as "Np/s-"++<tag> to remember the category conversion s->Np happens before using the standard rule <tag>.
+        caTags = [rule npCate cate2 | rule <- rules, elem sCate cas1, cate2 <- cas2] ++ [rule cate1 npCate | rule <- rules, cate1 <- cas1, elem sCate cas2]
+        catesBysToNp = [(fst ct, "Np/s-" ++ snd ct) | ct <- caTags]
+        cates = catesBasic ++ catesBysToNp
+        rcs = [rc | rc <- cates, (fst rc) /= nilCate]
 
 -- Context-based category conversion might be human brain's mechanism for syntax parsing, similiar to Chinese phrase-centric syntactic view. In the past, a phrase usually has a sequence of categories with the first as its classical category followed by non-classical ones.
 -- To suitable for two kinds of category views, Phrase category is defined as a triple, including start position, span, and a categorial list, although there is only one category in the list under category conversion.
@@ -82,16 +104,17 @@ cateComb pc1 pc2
 
 -- Words are considered as minimal phrases, thus an universal phrase category models both words and phrases.
 -- Initialize the values of PhraCate for each word of a given sentence.
+-- Initial categories are designated, so their tags are "Desig"
 initPhraCate :: [Category] -> [PhraCate]
 initPhraCate [] = []
-initPhraCate [c] = [((0,0),[c],0)]          -- categories start at index 0
-initPhraCate (c:cs) = [((0,0),[c],0)] ++ [(((stOfCate pc)+1, 0), caOfCate pc, (stOfCate pc)+1) | pc <- (initPhraCate cs)]
+initPhraCate [c] = [((0,0),[(c,"Desig")],0)]    -- categories start at index 0
+initPhraCate (c:cs) = [((0,0),[(c,"Desig")],0)] ++ [(((stOfCate pc)+1, 0), ctOfCate pc, (stOfCate pc)+1) | pc <- (initPhraCate cs)]
 
 -- Create a phrasal category according to its specified contents.
-createPhraCate :: Int -> Int -> Category -> Int -> PhraCate
-createPhraCate start span c secStart
-    | c == getCateFromString "Nil" = ((start,span),[],secStart)
-    | otherwise = ((start,span),[c],secStart)
+createPhraCate :: Start -> Span -> Category -> Tag -> SecStart -> PhraCate
+createPhraCate start span c tag secStart
+    | c == nilCate = ((start,span),[],secStart)
+    | otherwise = ((start,span),[(c, tag)],secStart)
 
 -- Find the number of input categories from the closure of phrase categories.
 
@@ -138,7 +161,7 @@ growForest (t:ts) phraCateClosure       -- nonempty forest
 -- The forest growing from a tree is done by the following:
 -- (1) Find all tips able to send forth leaves (The tips for initial categoies are no longer to grow);
 -- (2) For every such tip, find all splits (namely all pairs of leaves), and create a forest, of which every tree include the input tree and a distinc pair of leaves;
--- (3) Based on merging two forests, all forests are mering into one forest. 
+-- (3) Based on merging two forests, all forests are merged into one forest. 
 growTree :: [PhraCate] -> [PhraCate] -> [[PhraCate]]
 growTree t phraCateClosure
     | findTipsOfTree t phraCateClosure == [] = [t]      -- No tip can grow.
@@ -204,7 +227,7 @@ findTipsOfTree t phraCateClosure
        ppcs = findSplitCate (head ot) phraCateClosure    -- Find the parent pairs of node (head ot).
        
 -- Find phrase categories with given span.
-findCateBySpan :: Int -> [PhraCate] -> [PhraCate]
+findCateBySpan :: Span -> [PhraCate] -> [PhraCate]
 findCateBySpan sp  pcs = [x|x<-pcs, spOfCate x == sp]
 
 -- Phrasal categories in a tree are divided into some lists, each of which includes 

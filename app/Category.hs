@@ -8,6 +8,8 @@ module Category (
     Prim,          -- String
     primitives,    -- [Prim]
     nilCate,       -- Category
+    sCate,         -- Category
+    npCate,        -- Category
     isNil,         -- Category -> Bool
     isPrimitive,   -- Category -> Bool
     isDerivative,  -- Category -> Bool
@@ -63,6 +65,12 @@ instance Show Category where
 -- Besides interior functions, data constructors are not seen from outside of modules. To have access to these constructors, related functions are defined.
 nilCate :: Category
 nilCate = Nil
+
+sCate :: Category
+sCate = getCateFromString "s"
+
+npCate :: Category
+npCate = getCateFromString "np"
 
 isNil :: Category -> Bool
 isNil Nil = True

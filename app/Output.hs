@@ -136,7 +136,7 @@ getCateStartPos x ospls
         psp1 = ss - pst1 - 1
         pc1 = (findCate (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
 
--- PGiven a series of phrasal categories, show corresponding horizontal lines. 
+-- Given a series of phrasal categories, show corresponding horizontal lines. 
 -- These categories have same span and are ordered in ascending of Start.
 -- Here, the original result 'ospls' of divPhraCateBySpan is needed.
 -- The first category start at its Start position, followed by other categories.
@@ -147,12 +147,15 @@ showNCateLine _ [] _ = return ()             -- No phrasal category to display.
 showNCateLine _ [((_,_),[],_)] _ = return () -- No category to derive."
 showNCateLine curPos (x:xs) ospls = do
     nSpace (catPos - curPos)
-    drawLine (getCateWidth x ospls)
+    drawLine ((getCateWidth x ospls) - (length (catTag!!0))) 
+                                 -- leave space for rule tag.
+    putStr (catTag!!0)
     putStr " "                   -- Interval between two adjacent categories
     showNCateLine newPos xs ospls
     where
     catPos = getCateStartPos x ospls
     catWid = getCateWidth x ospls
+    catTag = taOfCate x
     newPos = catPos + catWid + 1
 
 -- Show symbol strings of phrasal categories in a certain span line. 

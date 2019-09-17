@@ -20,7 +20,7 @@ cateAnalyze
        let cateStrInput = words line
        putStr "You have inputed: "
        showNStr cateStrInput
-       let cateInput = map getCateFromString cateStrInput
+       let cateInput = getNCate cateStrInput
        putStr "Accepted category sequence: "
        showNCate cateInput
        putStr "\n"
@@ -40,5 +40,7 @@ cateAnalyze
        let forest = growForest [[t]|t<-roots] phraCateClosure
        putStrLn "Forests that no longer grow:"
        showForest forest
-       showForestCateStartPos forest      -- [OK]
+       showForestCateStartPos forest
+       putStr "\n" 
        showForestWithTreeStru forest 
+

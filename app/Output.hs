@@ -4,6 +4,9 @@
 module Output (
     showNStr,         -- [String] -> IO()
     showPhraCate,     -- PhraCate -> IO()
+    getSemStr,        -- String -> String
+    getCateStr,       -- String -> String
+    getNCate,         -- String -> [(Category, Seman)]
     showNCate,        -- [Category] -> IO()
     showNPhraCate,    -- [PhraCate] -> IO()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO()
@@ -23,6 +26,7 @@ module Output (
     ) where
 
 import Category
+import Rule
 import Parse
 
 showNStr :: [String] -> IO()
@@ -31,11 +35,33 @@ showNStr xs = do
     (putStr . (++ " ") . show) (head xs)
     showNStr (tail xs)
 
-showNCate :: [Category] -> IO()
+getSemStr :: String -> String
+getSemStr [] = []
+getSemStr (x:xs)
+    | x == ':' = "'"
+    | otherwise = x : getSemStr xs
+
+getCateStr :: String -> String
+getCateStr [] = []
+getCateStr (x:xs)
+    | x == ':' = xs
+    | otherwise = getCateStr xs
+
+getNCate :: [String] -> [(Category, Seman)]
+getNCate [] = []
+getNCate (w:ws) = (getCateFromString (getCateStr w), getSemStr w) : getNCate ws
+
+-- Show the list of tuple (Category, Seman).
+showNCate :: [(Category, Seman)] -> IO()
 showNCate [] = return ()
-showNCate [x] = (putStr . show) x
+showNCate [x] = do
+    (putStr . show) (fst x)
+    putStr ":"
+    putStr (snd x)
 showNCate (x:xs) = do 
-    (putStr . show) x
+    (putStr . show) (fst x)
+    putStr ":"
+    putStr (snd x)
     putStr ", "
     showNCate xs
 
@@ -103,12 +129,13 @@ nSpace w
 
 getCateWidth :: PhraCate -> [[PhraCate]] -> Int
 getCateWidth x ospls
-    | sp == 0 = (div (length (show (ca!!0))) 8 + 1) * 8 - 1
+    | sp == 0 = (div (length ((show (ca!!0)) ++ ":" ++ se!!0)) 8 + 1) * 8 - 1
     | otherwise = (getCateWidth pc1 ospls) + (getCateWidth pc2 ospls) + 1
         where
         st = stOfCate x
         sp = spOfCate x
         ca = caOfCate x
+        se = seOfCate x
         ss = ssOfCate x
         pst1 = st
         pst2 = ss
@@ -169,13 +196,14 @@ showNCateSymb _ [] _ = return ()                -- No category to display.
 showNCateSymb _ [((_,_),[],_)] _ = putStrLn "Here, fail to derive category."
 showNCateSymb curPos (x:xs) ospls = do
     nSpace (catPos - curPos)
-    showNCate (caOfCate x)            -- Usually onle one category. 
-    nSpace (catWid - ((length.show) ((caOfCate x)!!0)) + 1)   
+    showNCate cs            -- Usually onle one category. 
+    nSpace (catWid - (length ((show (fst (cs!!0))) ++ ":" ++ (snd (cs!!0)))) + 1)   
     showNCateSymb newPos xs ospls
     where
     catPos = getCateStartPos x ospls
     catWid = getCateWidth x ospls
     newPos = catPos + catWid + 1
+    cs = csOfCate x         -- [(category, seman)]
 
 -- Show the structure of a tree with the purpose of human's reading easily.
 -- The input is categorial lines with span from 0 to (getNuOfInputCates - 1).
@@ -210,7 +238,7 @@ showCateStartPos [pcs] ospls
     | pcs == [] = putStrLn ""
     | otherwise = do
         putStr " ("
-        (showNCate . caOfCate . head) pcs
+        (showNCate . csOfCate . head) pcs
         putStr ", "
         (putStr . show) (getCateStartPos (head pcs) ospls) 
         putStr ")"

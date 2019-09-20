@@ -9,6 +9,12 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "Category" $ do
+    it "returns the result of cateEqual s np is False" $ do
+      cateEqual sCate npCate `shouldBe` (False :: Bool)
+    it "returns the result of cateEqual s\\.np s\\*np is True" $ do
+      cateEqual (getCateFromString "s\\.np") (getCateFromString "s\\*np") `shouldBe` (True :: Bool)
+    it "returns the result of cateEqual (s\\.np)/.np (s\\.np)/xnp is True" $ do
+      cateEqual (getCateFromString "(s\\.np)/.np") (getCateFromString "(s\\.np)/xnp") `shouldBe` True
     it "returns the first element of slashes" $ do
       head slashes `shouldBe` ("/." :: String)
     it "returns the first element of primitives" $ do

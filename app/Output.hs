@@ -96,6 +96,7 @@ showForest :: [[PhraCate]] -> IO()
 showForest [] = putStrLn ""
 showForest ts = do
     showNPhraCate (head ts)
+    putStrLn ""
     showForest (tail ts)
 
 -- The following definition is same as the above, used to show a tree by printing all lines of phrasal categories in ascending order of spans. 

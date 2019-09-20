@@ -25,13 +25,16 @@ cateAnalyze
        showNCate cateInput
        putStr "\n"
        let phraCateInput = initPhraCate cateInput
-       putStr "Initial phrase categories: "
+       putStrLn "Initial phrase categories: "
        showNPhraCate phraCateInput    
        let phraCateClosure1 = parse phraCateInput
-       putStr "Parsing result: "
+       putStrLn "Parsing result: "
        showNPhraCate phraCateClosure1
-       let phraCateClosure = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
-       putStr "After deleting category [], parsing result: "
+       let phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
+       putStrLn "After deleting category [], parsing result: "
+       showNPhraCate phraCateClosure2
+       let phraCateClosure = atomizePhraCate phraCateClosure2
+       putStrLn "After unpacking phrasal categories into atomic phrasal categories, result:"
        showNPhraCate phraCateClosure
        let sp = getNuOfInputCates phraCateClosure - 1
        let roots = findCate (0, sp) phraCateClosure

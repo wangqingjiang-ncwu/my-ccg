@@ -7,6 +7,7 @@ module Parse (
     SecStart,      -- Int
     PhraCate,      -- ((Start, Span), [(Category, Tag, Seman)], SecStart)
     pclt,          -- PhraCate -> PhraCate -> Bool
+    pcBelong,      -- PhraCate -> PhraCate -> Bool
     stOfCate,      -- PhraCate -> Start
     spOfCate,      -- PhraCate -> Span
     ctsOfCate,     -- PhraCate -> [(Category, Tag, Seman)]
@@ -18,7 +19,9 @@ module Parse (
     cateComb,      -- PhraCate -> PhraCate -> [PhraCate]
     initPhraCate,  -- [(Category, Seman)] -> [PhraCate]
     createPhraCate,-- Start -> Span -> Category -> Tag -> Seman -> SecStart -> PhraCate
+    createPhraCate2, -- Start -> Span -> [(Category,Tag,Seman)] -> SecStart -> PhraCate
     parse,         -- [PhraCate] -> [PhraCate]
+    atomizePhraCate,         -- [PhraCate] -> [PhraCate]
     getNuOfInputCates,       -- [PhraCate] -> Int 
     growForest,              -- [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
     growTree,      -- [PhraCate] -> [PhraCate] -> [[PhraCate]]
@@ -50,6 +53,20 @@ pclt x y = (stx < sty) || ((stx == sty) && (spx < spy))
     sty = stOfCate y
     spx = spOfCate x
     spy = spOfCate y
+
+-- Define relation 'belong to' for two phrasal categories. They have same Start, Span, and SecStart, except that the componet [(Category,Tag,Seman)] of first phrasal category is subset of that of the second one. 
+pcBelong :: PhraCate -> PhraCate -> Bool
+pcBelong x y = (stx == sty) && (spx == spy) && (ssx == ssy) && belong
+    where
+    stx = stOfCate x
+    sty = stOfCate y
+    spx = spOfCate x
+    spy = spOfCate y
+    ssx = ssOfCate x
+    ssy = ssOfCate y
+    ctsx = ctsOfCate x
+    ctsy = ctsOfCate y
+    belong = foldr (&&) True (map (\x -> elem x ctsy) ctsx)
 
 -- The following functions are used to select an element from tuple PhraCate.
 stOfCate :: PhraCate -> Start
@@ -84,7 +101,7 @@ ssOfCate (_, _, s) = s
 
 -- Function cateComb combines two input (phrasal) categories into one result.
 -- The two input categories satisfies concatenative requirements, and may have multiple resultant categories when multiple rules are available.
--- Here phrasal categories are still modelled by list. After introduing categorial conversion for Chinese structure overlapping, there may be more than one category.
+-- Here every phrasal category is still modelled by list. After introduing categorial conversion for Chinese structure overlapping, there may be more than one category.
 -- Results ((-1,-1),[],-1) and ((x,y),[],z) respectively denote concatenative failure and no rule available.
 
 cateComb :: PhraCate -> PhraCate -> PhraCate
@@ -98,16 +115,47 @@ cateComb pc1 pc2
     sp2 = spOfCate pc2   -- Span of pc2
     cs1 = [(fst3 cts, thd3 cts)| cts <- ctsOfCate pc1]   -- [Category, Seman]
     cs2 = [(fst3 cts, thd3 cts)| cts <- ctsOfCate pc2]   -- [Category, Seman]
+    -- Categories getten by CCG standard rules.
+    catesBasic = [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cs2]
+
+    -- Categories getten by firstly converting sentence into nominal phrase, then using standard CCG rules. For each result (<category>, <tag>, <seman>), the <tag> is changed as "Np/s-"++<tag> to remember the category conversion s->Np which happens before using the standard rule <tag>. Actually, category "s" appears amid a sentence, that means it relates to a clause. The rule Np/s is always used together with a certain standard rule to implement two-category combination.
     cateS1 = [(npCate, snd cs) | cs <- cs1, fst cs == sCate]     -- [(npCate, Seman)]
     cateS2 = [(npCate, snd cs) | cs <- cs2, fst cs == sCate]     -- [(npCate, Seman)]
+    ctsBysToNp = [rule cate1 cate2 | rule <- rules, cate1 <- cateS1, cate2 <- cs2] ++ [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cateS2]
+    catesBysToNp = [(fst3 cate, "Np/s-" ++ snd3 cate, thd3 cate) | cate <- ctsBysToNp]
 
--- Categories getten by CCG standard rules.
-    catesBasic = [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cs2]
--- Categories getten by firstly converting sentence into nominal phrase, then using standard CCG rules. For each result (<category>, <tag>, <seman>), the <tag> is changed as "Np/s-"++<tag> to remember the category conversion s->Np happens before using the standard rule <tag>.
-    cts = [rule cate1 cate2 | rule <- rules, cate1 <- cateS1, cate2 <- cs2] ++ [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cateS2]
-    catesBysToNp = [(fst3 cate, "Np/s-" ++ snd3 cate, thd3 cate) | cate <- cts]
-    cates = catesBasic ++ catesBysToNp
-    rcs = [rc | rc <- cates, (fst3 rc) /= nilCate]
+    -- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, the conversion from s\.np, (s\.np)/.np, ((s\.np)/.np)/.np, or np/.np to np is allowed, noted as Np/v or Np/a. When used with some standard rules, two-category combination is labelled as "Np/v"++<tag> or "Np/a"++<tag>.
+    cateV1 = [(npCate, snd cs) | cs <- cs1, elem True (map (\x-> cateEqual x (fst cs)) cas)]  -- [(npCate, Seman)]
+        where
+        cas = map getCateFromString ["s\\.np","(s\\.np)/.np","((s\\.np)/.np)/.np"]
+    cateV2 = [(npCate, snd cs) | cs <- cs2, elem True (map (\x-> cateEqual x (fst cs)) cas)]  -- [(npCate, Seman)]
+        where
+        cas = map getCateFromString ["s\\.np","(s\\.np)/.np","((s\\.np)/.np)/.np"]
+    ctsByvToNp = [rule cate1 cate2 | rule <- rules, cate1 <- cateV1, cate2 <- cs2] ++ [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cateV2]
+    catesByvToNp = [(fst3 cate, "Np/v-" ++ snd3 cate, thd3 cate) | cate <- ctsByvToNp]
+    
+    -- When np is at the left, then the conversion from np/.np to s\.np is allowed, and noted as P/a.
+    cateA1 = [(npCate, snd cs) | cs <- cs1, cateEqual (fst cs) cateAdj]  -- [(npCate, Seman)]
+        where
+        cateAdj = getCateFromString "np/.np"
+    cateA2 = [(npCate, snd cs) | cs <- cs2, cateEqual (fst cs) cateAdj]  -- [(npCate, Seman)]
+        where
+        cateAdj = getCateFromString "np/.np"
+    ctsByaToNp = [rule cate1 cate2 | rule <- rules, cate1 <- cateA1, cate2 <- cs2] ++ [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cateA2]
+    catesByaToNp = [(fst3 cate, "Np/a-" ++ snd3 cate, thd3 cate) | cate <- ctsByaToNp]
+
+    -- The categories getten by all rules.
+    cates = catesBasic ++ catesBysToNp ++ catesByvToNp ++ catesByaToNp
+
+    -- Remove Nil's resultant cateories and duplicate ones.
+    rcs = ctsRemoveDup [rc | rc <- cates, (fst3 rc) /= nilCate]
+        where
+        ctsRemoveDup [] = []
+        ctsRemoveDup [x] = [x]
+        ctsRemoveDup (x:xs)
+            | elem x xs = ctsRemoveDup xs
+            | otherwise = x:(ctsRemoveDup xs)
+        -- ctsRemoveDup is used to remove duplicate elements in a list.
 
 -- Context-based category conversion might be human brain's mechanism for syntax parsing, similiar to Chinese phrase-centric syntactic view. In the past, a phrase usually has a sequence of categories with the first as its classical category followed by non-classical ones.
 -- To suitable for two kinds of category views, Phrase category is defined as a triple, including start position, span, and a categorial list, although there is only one category in the list under category conversion.
@@ -126,6 +174,10 @@ createPhraCate :: Start -> Span -> Category -> Tag -> Seman -> SecStart -> PhraC
 createPhraCate start span c tag seman secStart
     | c == nilCate = ((start,span),[],secStart)
     | otherwise = ((start,span),[(c, tag, seman)],secStart)
+
+-- Create a phrasal category that includes more than one category, respectively via different rules and with different semantic components.
+createPhraCate2 :: Start -> Span -> [(Category, Tag, Seman)] -> SecStart -> PhraCate
+createPhraCate2 start span cts secStart = ((start,span),cts,secStart)
 
 -- Find the number of input categories from the closure of phrase categories.
 
@@ -149,6 +201,18 @@ parse phraCateInput
                 | elem x xs = cbsRemoveDup xs
                 | otherwise = x:(cbsRemoveDup xs)
         -- cbsRemoveDup is used to remove duplicate elements in a list.
+
+-- In the result of function parse, one phrasal category is defined as ((Start,Span),[(Category,Tag,Seman)],SecStart), that is, one phrasal category can have more than one triple (<category>,<tag>,<seman>).
+-- The following function atomizePhraCate is used to unpack one phrasal category which has not only one category, to create some phrasal categories, one for each (<category>,<tag>,<seman>), but with same Start, Span, and SecStart. 
+atomizePhraCate :: [PhraCate] -> [PhraCate]
+atomizePhraCate [] = []
+atomizePhraCate [pc] = [((st,sp),[cts1],ss) | cts1 <- cts]
+    where
+    st = stOfCate pc
+    sp = spOfCate pc
+    cts = ctsOfCate pc
+    ss = ssOfCate pc
+atomizePhraCate (x:xs) = (atomizePhraCate [x]) ++ (atomizePhraCate xs)
 
 -- Merge all possible splits into the list [SecStart] for every (Start, Span).
 -- This function is obsolete. For identical (Start, Span), merging categories and merging SecStart's are terrible opertions because of losing relations between every resultant category and its parents, just like a room with many children and an another room with many pairs of parents.
@@ -187,6 +251,13 @@ growTree t phraCateClosure
     | otherwise = growForest gf phraCateClosure
         where
         splOfAllTips = [findSplitCate tip phraCateClosure | tip <- (findTipsOfTree t phraCateClosure)]   -- [[(PhraCate, PhraCate)]]
+        
+        -- For every tip, there may be multiple splits， so it may have multiple pairs of parent categories.
+        -- For every split, there may be multiple pairs of parent categories owing to multiple rules available.
+        -- The function uniForest is used for composing grows at different tips, not for composing two kind of grows at an identical tip.
+        -- Before growing a tree or a forest from a root category, the category closure has been atomized.
+        -- When considering growing at a certain tip, every pair of parent categories will be selected.
+        
         forestByTipGrow = [map (\x -> [fst x | elem (fst x) t == False] ++ [snd x | elem (snd x) t == False] ++ t ) splOfATip | splOfATip <- splOfAllTips]
         gf = uniForest forestByTipGrow
 
@@ -197,7 +268,7 @@ uniForest :: [[[PhraCate]]] -> [[PhraCate]]
 uniForest [] = []                -- No forest
 uniForest [f] = f                -- Just one forest
 uniForest (f:fs)                 -- At least two forests
-    = uniForest ((uniTwoForest f (head fs)):(tail fs)) 
+    = foldl uniTwoForest f fs 
 
 -- Merging two forest.
 uniTwoForest :: [[PhraCate]] -> [[PhraCate]] -> [[PhraCate]]
@@ -209,8 +280,7 @@ uniTwoTree t1 t2 = t1 ++ [x | x<-t2, elem x t1 /= True]
 
 -- Find a phrase category by its (Start, Span). If does not, return []. 
 findCate :: (Start, Span) -> [PhraCate] -> [PhraCate]
-findCate (_, -1) _ = []      -- No categoy has span -1 or -2, used for finding parents.
-findCate (_, -2) _ = []      -- For a leaf node, its non-existing parents have span -1 and -2.
+findCate (_, -1) _ = []      -- For a leaf node, its non-existing parents have span -1 and 0.
 findCate (st, sp) [] = []
 findCate (st, sp) [x]
     | st == stOfCate x && sp == spOfCate x = [x]
@@ -220,16 +290,18 @@ findCate (st, sp) (x:xs)
     | otherwise = findCate (st, sp) xs
 
 -- Find splited (namely parent) categories for a given phrase category from the closure of phrase categories. 
--- Here, every phrasal category in the closure satisfies its [category, tag, seman)] has only one tuple element.
+-- Here, every phrasal category has only one tuple element its component [(category, tag, seman)].
 findSplitCate :: PhraCate -> [PhraCate] -> [(PhraCate, PhraCate)]
 findSplitCate pc phraCateClosure
-    = [pct | pct <- pcTuples, cateComb (fst pct) (snd pct) == pc]
+    = [pct | pct <- pcTuples, pcBelong pc (cateComb (fst pct) (snd pct))]  
+                      -- Using pcBelong not (==),The function cateComb might create multiple categories.
         where
         st1 = stOfCate pc
         st2 = ssOfCate pc
-        sp1 = st2 - st1 - 1
-        sp2 = spOfCate pc - sp1 - 1
-        pcTuples = [(x, y) | x <- (findCate (st1, sp1) phraCateClosure), y <- (findCate (st2, sp2) phraCateClosure)] 
+        sp1 = st2 - st1 - 1                -- When pc is a leaf, sp1 is -1.
+        sp2 = spOfCate pc - sp1 - 1        -- When pc is a leaf, sp2 is 0, that is, the second parent is pc.
+        pcTuples = [(x, y) | x <- (findCate (st1, sp1) phraCateClosure), y <- (findCate (st2, sp2) phraCateClosure)]
+                                           -- When pc is a leaf pcTuples is []. 
  
 -- Find all growable tips of a tree from the closure of phrase categories.
 -- Those nodes whose parents already exist in the tree can't grow again.
@@ -263,12 +335,5 @@ quickSort :: [PhraCate] -> [PhraCate]
 quickSort [] = []
 quickSort [x] = [x]
 quickSort (x:xs) = (quickSort [y|y<-xs, pclt y x]) ++ [x] ++ (quickSort [y|y<-xs, pclt x y])
-
-
-
-    
-        
-        
-    
 
 

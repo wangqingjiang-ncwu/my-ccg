@@ -7,6 +7,7 @@ module Category (
     slashes,       -- [Slash]
     Prim,          -- String
     primitives,    -- [Prim]
+    cateEqual,      -- Category -> Category -> Bool
     nilCate,       -- Category
     sCate,         -- Category
     npCate,        -- Category
@@ -37,7 +38,6 @@ primitives = ["s", "np"]
 data Category = Nil | Primitive Prim | Derivative Category Slash Category deriving (Eq)
 
 -- Define relation Ord between two categories such that two phrasal cagories also can be compared.
-
 instance Ord Category where 
     Nil < Nil = False 
     Primitive a < Primitive b = (a<b)
@@ -52,6 +52,7 @@ instance Ord Category where
     Nil <= Derivative _ _ _ = False
     Primitive _ <= Derivative _ _ _ = False
 
+-- Define how a category shows as a letter string.
 instance Show Category where
     show Nil = "Nil"
     show (Primitive p) = p
@@ -61,6 +62,13 @@ instance Show Category where
         | isPrimitive c1 && isDerivative c2 = (show c1)++s++"("++(show c2)++")" 
         | otherwise = "("++(show c1)++")"++s++"("++(show c2)++")"
 
+-- Define the nonstrict equality between two categories, namely not considering slash types.
+cateEqual :: Category -> Category -> Bool
+cateEqual cate1 cate2
+    | isPrimitive cate1 && isPrimitive cate2 = cate1 == cate2
+    | isPrimitive cate1 && isPrimitive cate2 == False = False
+    | isPrimitive cate1 == False && isPrimitive cate2 = False
+    | otherwise = ((midSlash cate1)!!0 == (midSlash cate2)!!0) && (cateEqual (leftCate cate1) (leftCate cate2)) && (cateEqual (rightCate cate1) (rightCate cate2))
 
 -- Besides interior functions, data constructors are not seen from outside of modules. To have access to these constructors, related functions are defined.
 nilCate :: Category

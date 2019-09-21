@@ -307,7 +307,7 @@ spec = do
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       findSplitCate pc12 pcClo `shouldBe` [(pc02,pc03)]
 
-    it "The result of findSplitCate ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1)  [((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],2), ((0,1),[(np,\"Np/v->\",\"Good' is_better_than'\")],1), ((0,1),[(s/.np,\"Np/a->T->B\",\"Good' is_better_than'\")],1), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2), ((1,1),[(s\\.np,\"Np/a->\",\"is_better_than' bad'\")],2), ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1), ((0,2),[(s/.np,\"Np/a->T->B\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s/.np,\">B\",\"(Good' is_better_than') bad'\")],2), ((0,2),[(s,\"Np/a->\",\"(Good' is_better_than') bad'\")],2)] is [(((1,0),[(s\\np/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],1))]" $ do
+ {-   it "The result of findSplitCate ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1)  [((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],2), ((0,1),[(np,\"Np/v->\",\"Good' is_better_than'\")],1), ((0,1),[(s/.np,\"Np/a->T->B\",\"Good' is_better_than'\")],1), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2), ((1,1),[(s\\.np,\"Np/a->\",\"is_better_than' bad'\")],2), ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1), ((0,2),[(s/.np,\"Np/a->T->B\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s/.np,\">B\",\"(Good' is_better_than') bad'\")],2), ((0,2),[(s,\"Np/a->\",\"(Good' is_better_than') bad'\")],2)] is [(((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2)), (((0,0),[(np/.np,\"Desig\",\"Good'\"),0),((1,1),[(s\\.np,\"Np/a->\",\"is_better_than' bad'\")],2)]" $ do
       let c01 = getCateFromString "np/.np"
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = getCateFromString "np/.np"
@@ -320,7 +320,6 @@ spec = do
       let c23 = getCateFromString "s/.np"
       let c24 = getCateFromString "s/.np"
       let c25 = sCate
-      
       let pc01 = createPhraCate 0 0 c01 "Desig" "Good'" 0
       let pc02 = createPhraCate 1 0 c02 "Desig" "is_better_than'" 1
       let pc03 = createPhraCate 2 0 c03 "Desig" "bad'" 2
@@ -334,9 +333,8 @@ spec = do
       let pc24 = createPhraCate 0 2 c24 ">B" "(Good' is_better_than') bad'" 2
       let pc25 = createPhraCate 0 2 c25 "Np/a->" "(Good' is_better_than') bad'" 2
       let pcClo = [pc01,pc02,pc03,pc11,pc12,pc13,pc14,pc21,pc22,pc23,pc24,pc25]
-  
       findSplitCate pc21 pcClo `shouldBe` [(pc01,pc13),(pc01,pc14)]
-
+-}
     it "The result of findTipsOfTree [((1,1),[(s,\"<\",\"wins' Frank'\")],2)] [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\"],2), ((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2), ((0,2),[np,\"Np/s->\",\"Brave' (wins' Frank')\"],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\")],2)] is [((1,1),[(s,\"<\",\"wins' Frank'\")],2)]" $ do
       let c01 = getCateFromString "np/.np"
       let c02 = npCate
@@ -374,6 +372,34 @@ spec = do
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       findTipsOfTree [pc22,pc11,pc03] pcClo `shouldBe` [pc11]
+
+    it "The result of findTipsOfTree [((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2) ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1)] [(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1)  [((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],2), ((0,1),[(np,\"Np/v->\",\"Good' is_better_than'\")],1), ((0,1),[(s/.np,\"Np/a->T->B\",\"Good' is_better_than'\")],1), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2), ((1,1),[(s\\.np,\"Np/a->\",\"is_better_than' bad'\")],2), ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1), ((0,2),[(s/.np,\"Np/a->T->B\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s/.np,\">B\",\"(Good' is_better_than') bad'\")],2), ((0,2),[(s,\"Np/a->\",\"(Good' is_better_than') bad'\")],2)] is [((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2), ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1)]" $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = getCateFromString "(s\\.np)/.np"
+      let c03 = getCateFromString "np/.np"
+      let c11 = npCate
+      let c12 = getCateFromString "s/.np"
+      let c13 = getCateFromString "(s\\.np)/.np"
+      let c14 = getCateFromString "s\\.np"
+      let c21 = npCate
+      let c22 = sCate
+      let c23 = getCateFromString "s/.np"
+      let c24 = getCateFromString "s/.np"
+      let c25 = sCate
+      let pc01 = createPhraCate 0 0 c01 "Desig" "Good'" 0
+      let pc02 = createPhraCate 1 0 c02 "Desig" "is_better_than'" 1
+      let pc03 = createPhraCate 2 0 c03 "Desig" "bad'" 2
+      let pc11 = createPhraCate 0 1 c11 "Np/v->" "Good' is_better_than'" 1
+      let pc12 = createPhraCate 0 1 c12 "Np/a->T->B" "Good' is_better_than'" 1
+      let pc13 = createPhraCate 1 1 c13 ">B" "is_better_than' bad'" 2
+      let pc14 = createPhraCate 1 1 c14 "Np/a->" "is_better_than' bad'" 2
+      let pc21 = createPhraCate 0 2 c21 "Np/v->" "Good' (is_better_than' bad')" 1
+      let pc22 = createPhraCate 0 2 c22 "Np/a-<" "(is_better_than' bad') Good'" 1
+      let pc23 = createPhraCate 0 2 c23 "Np/a->T->B" "Good' (is_better_than' bad')" 1
+      let pc24 = createPhraCate 0 2 c24 ">B" "(Good' is_better_than') bad'" 2
+      let pc25 = createPhraCate 0 2 c25 "Np/a->" "(Good' is_better_than') bad'" 2
+      let pcClo = [pc01,pc02,pc03,pc11,pc12,pc13,pc14,pc21,pc22,pc23,pc24,pc25]
+      findTipsOfTree [pc01,pc13,pc21] pcClo `shouldBe` [pc13]
 
     it "The result of findCateBySpan 1 [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\"],2), ((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2), ((0,2),[np,\"Np/s->\",\"Brave' (wins' Frank')\"],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\")],2)] is [((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2)]" $ do
       let c01 = getCateFromString "np/.np"
@@ -485,6 +511,34 @@ spec = do
       let pc22 = createPhraCate 0 2 c22 ">" "(Frank' loves') Mary'" 2
       let pcClo = [pc01,pc02,pc03,pc11,pc12,pc21,pc22]
       growTree [pc21] pcClo `shouldBe` [[pc02,pc03,pc01,pc12,pc21]]
+
+    it "The result of growTree ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1)  [((0,0),[(np/.np,\"Desig\",\"Good'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],2), ((0,1),[(np,\"Np/v->\",\"Good' is_better_than'\")],1), ((0,1),[(s/.np,\"Np/a->T->B\",\"Good' is_better_than'\")],1), ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\")],2), ((1,1),[(s\\.np,\"Np/a->\",\"is_better_than' bad'\")],2), ((0,2),[(np,\"Np/v->\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s,\"Np/a-<\",\"(is_better_than' bad') Good'\")],1), ((0,2),[(s/.np,\"Np/a->T->B\",\"Good' (is_better_than' bad')\")],1), ((0,2),[(s/.np,\">B\",\"(Good' is_better_than') bad'\")],2), ((0,2),[(s,\"Np/a->\",\"(Good' is_better_than') bad'\")],2)] is [(((1,0),[(s\\np/.np,\"Desig\",\"is_better_than'\")],1), ((2,0),[(np/.np,\"Desig\",\"bad'\")],1))]" $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = getCateFromString "(s\\.np)/.np"
+      let c03 = getCateFromString "np/.np"
+      let c11 = npCate
+      let c12 = getCateFromString "s/.np"
+      let c13 = getCateFromString "(s\\.np)/.np"
+      let c14 = getCateFromString "s\\.np"
+      let c21 = npCate
+      let c22 = sCate
+      let c23 = getCateFromString "s/.np"
+      let c24 = getCateFromString "s/.np"
+      let c25 = sCate
+      let pc01 = createPhraCate 0 0 c01 "Desig" "Good'" 0
+      let pc02 = createPhraCate 1 0 c02 "Desig" "is_better_than'" 1
+      let pc03 = createPhraCate 2 0 c03 "Desig" "bad'" 2
+      let pc11 = createPhraCate 0 1 c11 "Np/v->" "Good' is_better_than'" 1
+      let pc12 = createPhraCate 0 1 c12 "Np/a->T->B" "Good' is_better_than'" 1
+      let pc13 = createPhraCate 1 1 c13 ">B" "is_better_than' bad'" 2
+      let pc14 = createPhraCate 1 1 c14 "Np/a->" "is_better_than' bad'" 2
+      let pc21 = createPhraCate 0 2 c21 "Np/v->" "Good' (is_better_than' bad')" 1
+      let pc22 = createPhraCate 0 2 c22 "Np/a-<" "(is_better_than' bad') Good'" 1
+      let pc23 = createPhraCate 0 2 c23 "Np/a->T->B" "Good' (is_better_than' bad')" 1
+      let pc24 = createPhraCate 0 2 c24 ">B" "(Good' is_better_than') bad'" 2
+      let pc25 = createPhraCate 0 2 c25 "Np/a->" "(Good' is_better_than') bad'" 2
+      let pcClo = [pc01,pc02,pc03,pc11,pc12,pc13,pc14,pc21,pc22,pc23,pc24,pc25]
+      growTree [pc21] pcClo `shouldBe` [[pc02,pc03,pc01,pc13,pc21],[pc02,pc03,pc01,pc14,pc21]]
 
     it "The result of growForest [[((0,2),[(s, \"<\", \"(loves' Mary') Frank'\")],1)], [((0,2),[(s, \">\",\"(loves' Frank') Mary'\")],2)]]  [((0,0),[(np, \"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np, \"Desig\",\"loves'\")],1), ((2,0),[(np, \"Desig\",\"Mary'\")],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\")],1), ((1,1),[(s\\.np, \"<\",\"loves' Frank'\")],2), ((0,2),[(s, \"<\",\"(loves' Mary') Frank'\")],1), ((0,2),[(s, \">\", \"(Frank' loves') Mary'\")],2) is [[((1,0),[(s\\.np/.np, \"Desig\",\"loves'\")],1), ((2,0),[(np, \"Desig\",\"Mary'\")],2), ((0,0),[(np, \"Desig\",\"Frank'\")],0), ((1,1),[(s\\.np, \">\",\"loves' Mary'\")],2), ((0,2),[(s, \"<\", \"(loves' Mary') Frank'\")],1)], [((0,0),[(np, \"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np, \"Desig\",\"loves'\")],1), ((0,1),[(s/.np, \">T->B\",\"Frank' loves'\")],1), ((2,0),[(np, \"Desig\",\"Mary'\")],2), ((0,2),[(s, \">\",\"(Frank' loves') Mary'\")],2)]]" $ do
       let c01 = npCate

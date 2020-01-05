@@ -5,7 +5,6 @@ module Main (
     main      -- IO()
     ) where
 
-import Lib
 import Category
 import Rule
 import Parse

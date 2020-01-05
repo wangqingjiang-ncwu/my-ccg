@@ -89,10 +89,11 @@ spec = do
     it "The result of cateComb ((0,0),[(np, \"Desig\", \"Frank'\")],0) ((1,0),[(s\\.np, \"Desig\", \"smiles\")],1) is ((0,1),[(s, \"<\", \"smiles' Frank'\")],1)" $ do
       let c1 = npCate
       let c2 = getCateFromString "s\\.np"
-      let c3 = sCate
+      let c31 = sCate
+      let c32 = getCateFromString "s/.np"
       let pc1 = createPhraCate 0 0 c1 "Desig" "Frank'" 0
       let pc2 = createPhraCate 1 0 c2 "Desig" "smiles'" 1
-      let pc3 = createPhraCate 0 1 c3 "<" "smiles' Frank'" 1
+      let pc3 = createPhraCate2 0 1 [(c31,"<","smiles' Frank'"),(c32,"A/n-<Bx","smiles' Frank'")] 1
       cateComb pc1 pc2 `shouldBe` pc3
 
     it "The result of cateComb ((0,0),[(np, \"Desig\", \"Frank'\")],0) ((1,0),[(s\\.np,\"Desig\",\"smiles'\")],1) is NOT ((0,1),[(np,\"Desig\",\"smiles' Frank'\"],1)" $ do
@@ -174,39 +175,47 @@ spec = do
       let pcClo = pcs ++ [pc3]
       parse pcs `shouldBe` pcClo
 
-    it "The result of parse [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary'\")],2)] is [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary'\")],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\")],1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\")],2), ((0,2),[(s,\"<\",\"(loves' Mary') Frank'\")],1), ((0,2),[(s,\">\",\"(Frank' loves') Mary'\")],2)], without considering element order." $ do
+    it "The result of parse [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary'\")],2)] is [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary'\")],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\")],1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\"),((s\\.np)/.np,\"A/n->B\",\"loves' Mary'\")],2), ((0,2),[(s,\"<\",\"(loves' Mary') Frank'\"),(s/.np,\">T->B\",\"Frank' (loves' Mary')\"),(s/.np,\"A/n-<Bx\",\"(loves' Mary') Frank'\")],1), ((0,2),[(s,\">\",\"(Frank' loves') Mary'\"),(s/.np,\"A/n->B\",\"(Frank' loves') Mary'\")],2)], without considering element order." $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
       let c11 = getCateFromString "s/.np"
-      let c12 = getCateFromString "s\\.np"
-      let c2 = sCate
+      let c121 = getCateFromString "s\\.np"
+      let c122 = getCateFromString "(s\\.np)/.np"
+      let c211 = sCate
+      let c212 = getCateFromString "s/.np"
+      let c213 = getCateFromString "s/.np"
+      let c221 = sCate
+      let c222 = getCateFromString "s/.np"
       let pc01 = createPhraCate 0 0 c01 "Desig" "Frank'" 0
       let pc02 = createPhraCate 1 0 c02 "Desig" "loves'" 1
       let pc03 = createPhraCate 2 0 c03 "Desig" "Mary'" 2
       let pc11 = createPhraCate 0 1 c11 ">T->B" "Frank' loves'" 1
-      let pc12 = createPhraCate 1 1 c12 ">" "loves' Mary'" 2
-      let pc21 = createPhraCate 0 2 c2 "<" "(loves' Mary') Frank'" 1
-      let pc22 = createPhraCate 0 2 c2 ">" "(Frank' loves') Mary'" 2 
+      let pc12 = createPhraCate2 1 1 [(c121,">","loves' Mary'"),(c122,"A/n->B","loves' Mary'")] 2
+      let pc21 = createPhraCate2 0 2 [(c211,"<","(loves' Mary') Frank'"),(c212,">T->B","Frank' (loves' Mary')"),(c213,"A/n-<Bx","(loves' Mary') Frank'")] 1
+      let pc22 = createPhraCate2 0 2 [(c221,">","(Frank' loves') Mary'"),(c222,"A/n->B","(Frank' loves') Mary'")] 2 
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       parse pcs `shouldBe` pcClo
 
-    it "The result of parse [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\",\"wins'\")],2)] is [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\",\"wins'\")],2), ((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2), ((0,2),[(np,\"Np/s->\",\"Brave' (wins' Frank')\")],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\")],2)], without considering element order." $ do
+    it "The result of parse [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\",\"wins'\")],2)] is [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\",\"wins'\")],2), ((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\"),(np/.np,\"A/n->B\",\"Brave' Frank'\")],2), ((0,2),[(np,\"Np/s->\",\"Brave' (wins' Frank')\")],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\"),(np,\"Np/v->\",\"(Brave' Frank') wins'\"),(s,\"Np/a-<\",\"wins' (Brave' Frank')\")],2)], without considering element order." $ do
       let c01 = getCateFromString "np/.np"
       let c02 = npCate
       let c03 = getCateFromString "s\\*np"
-      let c11 = npCate
+      let c111 = npCate
+      let c112 = getCateFromString "np/.np"
       let c12 = sCate
       let c21 = npCate
-      let c22 = sCate
+      let c221 = sCate
+      let c222 = npCate
+      let c223 = sCate
       let pc01 = createPhraCate 0 0 c01 "Desig" "Brave'" 0
       let pc02 = createPhraCate 1 0 c02 "Desig" "Frank'" 1
       let pc03 = createPhraCate 2 0 c03 "Desig" "wins'" 2
-      let pc11 = createPhraCate 0 1 c11 ">" "Brave' Frank'" 1
+      let pc11 = createPhraCate2 0 1 [(c111,">","Brave' Frank'"),(c112,"A/n->B","Brave' Frank'")] 1
       let pc12 = createPhraCate 1 1 c12 "<" "wins' Frank'" 2
       let pc21 = createPhraCate 0 2 c21 "Np/s->" "Brave' (wins' Frank')" 1
-      let pc22 = createPhraCate 0 2 c22 "<" "wins' (Brave' Frank')" 2 
+      let pc22 = createPhraCate2 0 2 [(c221,"<","wins' (Brave' Frank')"),(c222,"Np/v->","(Brave' Frank') wins'"),(c223,"Np/a-<","wins' (Brave' Frank')")] 2 
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       parse pcs `shouldBe` pcClo

@@ -47,6 +47,8 @@ semComb se1 se2
 appF :: (Category, Seman) -> (Category, Seman) -> (Category, Tag, Seman)
 appF cate1 cate2
     | isPrimitive ca1 = (nilCate, ">", "")
+    | ca1 == getCateFromString "(X\\*X)/*X" = (derivate ca2 "\\*" ca2, ">", semComb se1 se2)
+    | ca2 == getCateFromString "(X\\*X)/*X" = (nilCate, ">", "")
     | head (midSlash ca1) == '/' && rightCate ca1 == ca2 = (leftCate ca1, ">", semComb se1 se2)
     | otherwise = (nilCate, ">", "")
     where

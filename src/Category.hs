@@ -7,11 +7,13 @@ module Category (
     slashes,       -- [Slash]
     Prim,          -- String
     primitives,    -- [Prim]
-    cateEqual,      -- Category -> Category -> Bool
+    cateEqual,     -- Category -> Category -> Bool
     nilCate,       -- Category
+    xCate,         -- Category
     sCate,         -- Category
     npCate,        -- Category
     isNil,         -- Category -> Bool
+    isX,           -- Category -> Bool
     isPrimitive,   -- Category -> Bool
     isDerivative,  -- Category -> Bool
     veriStrForCate,      -- String -> Bool
@@ -35,31 +37,42 @@ primitives :: [Prim]
 primitives = ["s", "np"]
 
 -- Define data type Category which is enumerable.
-data Category = Nil | Primitive Prim | Derivative Category Slash Category deriving (Eq)
+data Category = Nil | X | Primitive Prim | Derivative Category Slash Category deriving (Eq)
 
 -- Define relation Ord between two categories such that two phrasal cagories also can be compared.
 instance Ord Category where 
-    Nil < Nil = False 
+    Nil < Nil = False
+    X < X = False 
     Primitive a < Primitive b = (a<b)
     Derivative a _ b < Derivative c _ d = (a < c)||((a==c)&&(b<d))
+    Nil < X = True
     Nil < Primitive _ = True
-    Primitive _ < Nil = False
-    Primitive _ < Derivative _ _ _ = True
-    Derivative _ _ _ < Primitive _ = False
     Nil < Derivative _ _ _ = True
+    X < Primitive _ = True
+    X < Derivative _ _ _ = True
+    Primitive _ < Derivative _ _ _ = True
+    X < Nil = False
+    Primitive _ < Nil = False
     Derivative _ _ _ < Nil = False
+    Primitive _ < X = False
+    Derivative _ _ _ < X = False
+    Derivative _ _ _ < Primitive _ = False
+    Nil <= X = False
     Nil <= Primitive _ = False
     Nil <= Derivative _ _ _ = False
+    X <= Primitive _ = False
+    X <= Derivative _ _ _ = False
     Primitive _ <= Derivative _ _ _ = False
 
 -- Define how a category shows as a letter string.
 instance Show Category where
     show Nil = "Nil"
+    show X = "X"
     show (Primitive p) = p
     show (Derivative c1 s c2)
-        | isPrimitive c1 && isPrimitive c2 = (show c1)++s++(show c2) 
-        | isDerivative c1 && isPrimitive c2 = "("++(show c1)++")"++s++(show c2) 
-        | isPrimitive c1 && isDerivative c2 = (show c1)++s++"("++(show c2)++")" 
+        | (isPrimitive c1 || isX c1) && (isPrimitive c2 || isX c2) = (show c1)++s++(show c2) 
+        | isDerivative c1 && (isPrimitive c2 || isX c2) = "("++(show c1)++")"++s++(show c2) 
+        | (isPrimitive c1 || isX c1) && isDerivative c2 = (show c1)++s++"("++(show c2)++")" 
         | otherwise = "("++(show c1)++")"++s++"("++(show c2)++")"
 
 -- Define the nonstrict equality between two categories, namely not considering slash types.
@@ -74,6 +87,9 @@ cateEqual cate1 cate2
 nilCate :: Category
 nilCate = Nil
 
+xCate :: Category
+xCate = X
+
 sCate :: Category
 sCate = getCateFromString "s"
 
@@ -83,6 +99,10 @@ npCate = getCateFromString "np"
 isNil :: Category -> Bool
 isNil Nil = True
 isNil _ = False
+
+isX :: Category -> Bool
+isX X = True
+isX _ = False
 
 isPrimitive :: Category -> Bool
 isPrimitive (Primitive _) = True
@@ -94,13 +114,14 @@ isDerivative _ = False
 
 veriStrForCate :: String -> Bool
 veriStrForCate str
-    | indexOfSlash 0 0 str == -1 = elem str ["Nil","s","np"] 
+    | indexOfSlash 0 0 str == -1 = elem str ["Nil","s","np","X"]  
     | otherwise = veriStrForCate (leftStr str) && elem (midSlashStr str) slashes && veriStrForCate (rightStr str)
 
 getCateFromString :: String -> Category
 getCateFromString str
     | veriStrForCate str /= True = error "getCateFromString"
     | index == -1 && str == "Nil" = Nil
+    | index == -1 && str == "X" = X
     | index == -1 && str == "s" = Primitive "s"
     | index == -1 && str == "np" = Primitive "np"
     | otherwise = derivate (getCateFromString (leftStr str)) (midSlashStr str) (getCateFromString (rightStr str))

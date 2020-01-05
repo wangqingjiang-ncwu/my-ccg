@@ -1,5 +1,5 @@
 name:                my-ccg
-version:             0.1.0.0
+version:             0.1.1.0
 github:              "wangqingjiang-ncwu/my-ccg"
 license:             BSD3
 author:              "China University of Water Resources and Electric Power"
@@ -11,8 +11,8 @@ extra-source-files:
 - ChangeLog.md
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Natural Language Understanding
+synopsis:            A package for CCG-based Chinese language processing
+category:            Natural Language Understanding
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
@@ -21,6 +21,12 @@ description:         Please see the README on GitHub at <https://github.com/wang
 
 dependencies:
 - base >= 4.7 && < 5
+- HDBC
+- HDBC-mysql 
+- hspec
+- MissingH
+- io-streams
+- bytestring
 
 library:
   source-dirs: src
@@ -46,3 +52,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - my-ccg
+    - hspec
+    - MissingH
+

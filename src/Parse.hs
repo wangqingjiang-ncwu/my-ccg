@@ -115,6 +115,7 @@ cateComb pc1 pc2
     sp2 = spOfCate pc2   -- Span of pc2
     cs1 = csOfCate pc1   -- [(Category, Seman)]
     cs2 = csOfCate pc2   -- [(Category, Seman)]
+    
     -- Categories getten by CCG standard rules.
     catesBasic = [rule cate1 cate2 | rule <- rules, cate1 <- cs1, cate2 <- cs2]
 

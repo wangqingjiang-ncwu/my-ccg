@@ -1,4 +1,4 @@
--- Copyright China University of Water Resources and Electric Power (c) 2019
+-- Copyright (c) 2019-2020 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Main (

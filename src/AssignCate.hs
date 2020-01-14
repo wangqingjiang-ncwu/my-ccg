@@ -1,9 +1,10 @@
 -- -# LANGUAGE OverloadedStrings #-
 
--- Copyright China University of Water Resources and Electric Power (c) 2019
+-- Copyright China University of Water Resources and Electric Power (c) 2019-2020
 -- All rights reserved.
 
 module AssignCate (
+    getConn,            -- IO Connection
     psToCate,           -- IO()
     POS,                -- String
     pos,                -- [POS]
@@ -62,8 +63,8 @@ posCate = [("n","np"),
            ("nn","np"),
            ("ni","np"),
            ("nz","np"),
-           ("v","s\\.np|(s\\.np)/.np"),
-           ("vt","(s\\.np)/.np"),
+           ("v","s\\.np|(s\\.np)/.np|((s\\.np)/.np)/.np"),
+           ("vt","(s\\.np)/.np|((s\\.np)/.np)/.np"),
            ("vi","s\\.np"),
            ("vl","(s\\.np)/.np"),
            ("vu","(s\\.np)/#(s\\.np)"),
@@ -73,7 +74,7 @@ posCate = [("n","np"),
            ("as","np/.np"),
            ("f","np/*np"),
            ("m","np"),
-           ("q","(np/*np)\\*np"),
+           ("q","np\\*np"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\*(s\\.np))/*np|(s/*s)/*np"),
@@ -149,11 +150,11 @@ rawToCate :: [[SqlValue]] -> [[SqlValue]]
 rawToCate [] = [] 
 rawToCate (row:rows) = ([toSql $ psToCateInASent $ fromSql $ head row]++[last row]):rawToCate rows
 
--- Translate <word>/<pos> into <cate>:<word'> in a String, 
+-- Translate <word>/<pos> into <word>:<cate> in a String, 
 -- here <word> and <pos> are concrete word and its part of speech.
 psToCateInASent :: String -> String
 psToCateInASent [] = []
-psToCateInASent xs = unwords $ map (\w -> getCateSymbFromPos (last $ split "/" w) posCate ++ ":" ++ (head $ split "/" w) ++ "'") (words xs)
+psToCateInASent xs = unwords $ map (\w -> (head $ split "/" w) ++ ":" ++ getCateSymbFromPos (last $ split "/" w) posCate) (words xs)
     
 -- Get the category symbol from a part of speech, according to the list posCate.
 getCateSymbFromPos :: POS -> [(POS, CateSymb)] -> CateSymb

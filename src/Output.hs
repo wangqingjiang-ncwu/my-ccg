@@ -1,4 +1,4 @@
--- Copyright China University of Water Resources and Electric Power (c) 2019
+-- Copyright (c) 2019-2020 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Output (
@@ -16,6 +16,7 @@ module Output (
     showTree,         -- [[PhraCate]] -> IO()
     showTreeStru,     -- [[PhraCate]] -> [[PhraCate]] -> IO()
     showNCateLine,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
+    dispWidth,        -- String -> Int
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
     getCateStartPos,  -- PhraCate -> [[PhraCate]] -> Int
@@ -28,6 +29,7 @@ module Output (
 import Category
 import Rule
 import Parse
+import Data.Char
 
 showNStr :: [String] -> IO()
 showNStr [] = putStrLn ""
@@ -96,7 +98,7 @@ showForest :: [[PhraCate]] -> IO()
 showForest [] = putStrLn ""
 showForest ts = do
     showNPhraCate (head ts)
-    putStrLn ""
+    putStrLn $ "  ##### Parsing Tree No." ++ show (length ts)
     showForest (tail ts)
 
 -- The following definition is same as the above, used to show a tree by printing all lines of phrasal categories in ascending order of spans. 
@@ -122,6 +124,14 @@ nSpace w
         putStr " "
         nSpace (w-1)        
 
+-- Get the display width of a string, one-character width for each ASCII character, 
+-- and two-characters width for each Chinese character.
+dispWidth :: String -> Int
+dispWidth [] = 0
+dispWidth (c:cs)
+    | isAscii c = 1 + dispWidth cs
+    | otherwise = 2 + dispWidth cs 
+
 -- Compute the width of a phrasal category with letter number as unit.
 -- For the initial phrasal (word) category in each line, 
 -- its width = upper rounding of ((category string length / 8) + 1) * 8 - 1. 
@@ -130,7 +140,7 @@ nSpace w
 
 getCateWidth :: PhraCate -> [[PhraCate]] -> Int
 getCateWidth x ospls
-    | sp == 0 = (div (length ((show (ca!!0)) ++ ":" ++ se!!0)) 8 + 1) * 8 - 1
+    | sp == 0 = (div (dispWidth ((show (ca!!0)) ++ ":" ++ se!!0)) 8 + 1) * 8 - 1
     | otherwise = (getCateWidth pc1 ospls) + (getCateWidth pc2 ospls) + 1
         where
         st = stOfCate x
@@ -198,7 +208,7 @@ showNCateSymb _ [((_,_),[],_)] _ = putStrLn "Here, fail to derive category."
 showNCateSymb curPos (x:xs) ospls = do
     nSpace (catPos - curPos)
     showNCate cs            -- Usually onle one category. 
-    nSpace (catWid - (length ((show (fst (cs!!0))) ++ ":" ++ (snd (cs!!0)))) + 1)   
+    nSpace (catWid - dispWidth (show (fst (cs!!0)) ++ ":" ++ (snd (cs!!0))) + 1)   
     showNCateSymb newPos xs ospls
     where
     catPos = getCateStartPos x ospls
@@ -226,7 +236,8 @@ showTreeStru spls ospls = do
 showForestWithTreeStru :: [[PhraCate]] -> IO()
 showForestWithTreeStru [] = putStrLn ""
 showForestWithTreeStru ts = do
-    showTreeStru spls spls       
+    showTreeStru spls spls
+    putStrLn $ "   ##### Parsing Tree No." ++ show (length ts)
     showForestWithTreeStru (tail ts)
     where
     spls = divPhraCateBySpan (head ts)        -- Span lines

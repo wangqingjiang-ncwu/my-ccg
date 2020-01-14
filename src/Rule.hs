@@ -1,4 +1,4 @@
--- Copyright China University of Water Resources and Electric Power (c) 2019
+-- Copyright (c) 2019-2020 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Rule (
@@ -57,7 +57,7 @@ appF cate1 cate2
     ca2 = fst cate2
     se2 = snd cate2
 
--- CCG backward application
+-- CCG backward application, here using nonstrict equality.
 appB :: (Category, Seman) -> (Category, Seman) -> (Category, Tag, Seman)
 appB cate1 cate2
     | isPrimitive ca2 = (nilCate, "<", "")

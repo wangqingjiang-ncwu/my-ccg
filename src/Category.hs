@@ -136,7 +136,8 @@ indexOfSlash nlb i str
     | i == length str = -1
     | x == '(' = indexOfSlash (nlb + 1) (i+1) str
     | x == ')' = indexOfSlash (nlb - 1) (i+1) str
-    | (x == '/' || x == '\\') && nlb == 0 = i
+    | (x == '/' || x == '\\') && nlb == 0 && indexOfSlash nlb (i+1) str == -1 = i
+    | (x == '/' || x == '\\') && nlb == 0 && indexOfSlash nlb (i+1) str /= -1 = error "indexOfSlash: Category symbol does not conform two-division style."
     | otherwise = indexOfSlash nlb (i+1) str
         where
         x = str!!i 
@@ -144,7 +145,9 @@ indexOfSlash nlb i str
 leftStr :: String -> String
 leftStr str
     | index == -1 = error "leftStr"
-    | head(lStr)=='(' = tail (init lStr)  
+    | head lStr == '(' && last lStr /= ')' = error "leftStr lost ')'"
+    | head lStr /= '(' && last lStr == ')' = error "leftStr lost '('"
+    | head lStr == '(' && last lStr == ')' = tail (init lStr)
     | otherwise = lStr
         where
         index = indexOfSlash 0 0 str
@@ -153,7 +156,9 @@ leftStr str
 rightStr :: String -> String
 rightStr str
     | index == -1 = error "rightStr"
-    | head(rStr)=='(' = tail (init rStr)
+    | head rStr == '(' && last rStr /= ')' = error "rightStr lost ')'"
+    | head rStr /= '(' && last rStr == ')' = error "rightStr lost '('"
+    | head rStr == '(' && last rStr == ')' = tail (init rStr)
     | otherwise = rStr
         where
         index = indexOfSlash 0 0 str

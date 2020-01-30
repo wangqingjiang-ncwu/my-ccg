@@ -3,22 +3,28 @@
 
 module Output (
     showNStr,         -- [String] -> IO()
-    showPhraCate,     -- PhraCate -> IO()
     getSemStr,        -- String -> String
     getCateStr,       -- String -> String
     getNCate,         -- String -> [(Category, Seman)]
-    showNCate,        -- [Category] -> IO()
+    showNCate,        -- [(Category, Seman)] -> IO()
+    showNCate2,       -- [(Category, Seman)] -> IO()
+    showNSeman2,      -- [(Category, Seman)] -> IO()
+    showPhraCate,     -- PhraCate -> IO()
+    getNCTS_String,   -- [(Category, Tag, Seman)] -> String
     showNPhraCate,    -- [PhraCate] -> IO()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO()
     showAllSplitCate, -- [[(PhraCate, PhraCate)]] -> IO()
     showForest,       -- [[PhraCate]] -> IO()
-    showForestWithTreeStru,       -- [[PhraCate]] -> IO()
     showTree,         -- [[PhraCate]] -> IO()
+    showATree,        -- Int -> [[PhraCate]] -> IO()
+    showForestWithTreeStru,       -- [[PhraCate]] -> IO()
     showTreeStru,     -- [[PhraCate]] -> [[PhraCate]] -> IO()
     showNCateLine,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
     dispWidth,        -- String -> Int
+    dispWidth2,       -- Category -> Seman -> Int
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
+    showNSemanSymb,   -- Int -> [PhraCate] -> [[PhraCate]] -> IO()
     getCateStartPos,  -- PhraCate -> [[PhraCate]] -> Int
     showForestCateStartPos,      -- [[PhraCate]] -> IO()
     showCateStartPos,            -- [[PhraCate]] -> [[PhraCate]] -> IO()
@@ -30,6 +36,8 @@ import Category
 import Rule
 import Parse
 import Data.Char
+import Data.List
+import Data.Tuple.Utils
 
 showNStr :: [String] -> IO()
 showNStr [] = putStrLn ""
@@ -67,16 +75,39 @@ showNCate (x:xs) = do
     putStr ", "
     showNCate xs
 
+-- Show the list of Category symbols.
+showNCate2 :: [(Category, Seman)] -> IO()
+showNCate2 [] = return ()
+showNCate2 [x] = do
+    (putStr . show) (fst x)
+showNCate2 (x:xs) = do 
+    (putStr . show) (fst x)
+    putStr ", "
+    showNCate2 xs
+
+-- Show the list of Semantic symbols.
+showNSeman2 :: [(Category, Seman)] -> IO()
+showNSeman2 [] = return ()
+showNSeman2 [x] = do
+    putStr (snd x)
+showNSeman2 (x:xs) = do
+    putStr (snd x)
+    putStr ", "
+    showNSeman2 xs
+
 showPhraCate :: PhraCate -> IO()
 showPhraCate pc = do 
     putStr (show pc)
     putStrLn ""
 
+getNCTS_String :: [(Category, Tag, Seman, Act)] -> String
+getNCTS_String cts = show cts 
+
 showNPhraCate :: [PhraCate] -> IO()
-showNPhraCate [] = putStrLn ""
-showNPhraCate xs = do
-    (putStr . (++ " ") . show) (head xs)
-    showNPhraCate (tail xs)   
+showNPhraCate xs = (putStrLn . show) xs
+
+getNPhraCate_String :: [PhraCate] -> String
+getNPhraCate_String xs = show xs
 
 showNSplitCate :: [(PhraCate, PhraCate)] -> IO()
 showNSplitCate [] = putStrLn ""
@@ -97,9 +128,9 @@ showAllSplitCate xs = do
 showForest :: [[PhraCate]] -> IO()
 showForest [] = putStrLn ""
 showForest ts = do
-    showNPhraCate (head ts)
+    showForest (take (length ts - 1) ts)
     putStrLn $ "  ##### Parsing Tree No." ++ show (length ts)
-    showForest (tail ts)
+    showNPhraCate (last ts)
 
 -- The following definition is same as the above, used to show a tree by printing all lines of phrasal categories in ascending order of spans. 
 showTree :: [[PhraCate]] -> IO()
@@ -107,6 +138,13 @@ showTree [] = putStrLn ""
 showTree spls = do
     showNPhraCate (head spls)
     showTree (tail spls)
+
+showATree :: Int -> [[PhraCate]] -> IO()
+showATree ind pcss
+    | notElem ind [1..length pcss] = error "Tree index is out of range."
+    | otherwise = do
+        putStrLn $ "  ##### Parsing Tree No." ++ show ind
+        showNPhraCate (pcss!!(ind-1))
 
 -- Draw a horizontal line of width 'w'
 drawLine :: Int -> IO()
@@ -124,13 +162,22 @@ nSpace w
         putStr " "
         nSpace (w-1)        
 
--- Get the display width of a string, one-character width for each ASCII character, 
--- and two-characters width for each Chinese character.
+-- Get the display width of a string, one-character width for each ASCII character, and two-characters width for each Chinese character.
 dispWidth :: String -> Int
 dispWidth [] = 0
 dispWidth (c:cs)
     | isAscii c = 1 + dispWidth cs
     | otherwise = 2 + dispWidth cs 
+
+-- Get the display width of a phrasal category.
+-- The category and its corresponding semantics on different lines.
+dispWidth2 :: Category -> Seman -> Int
+dispWidth2 cate sem 
+    | lc >= ls = lc
+    | otherwise = ls
+    where
+      lc = length $ show cate
+      ls = dispWidth sem + 1       -- Adding 1, is for colon symbol.
 
 -- Compute the width of a phrasal category with letter number as unit.
 -- For the initial phrasal (word) category in each line, 
@@ -140,7 +187,7 @@ dispWidth (c:cs)
 
 getCateWidth :: PhraCate -> [[PhraCate]] -> Int
 getCateWidth x ospls
-    | sp == 0 = (div (dispWidth ((show (ca!!0)) ++ ":" ++ se!!0)) 8 + 1) * 8 - 1
+    | sp == 0 = (div (dispWidth2 (ca!!0) (se!!0)) 8 + 1) * 8 - 1
     | otherwise = (getCateWidth pc1 ospls) + (getCateWidth pc2 ospls) + 1
         where
         st = stOfCate x
@@ -207,9 +254,31 @@ showNCateSymb _ [] _ = return ()                -- No category to display.
 showNCateSymb _ [((_,_),[],_)] _ = putStrLn "Here, fail to derive category."
 showNCateSymb curPos (x:xs) ospls = do
     nSpace (catPos - curPos)
-    showNCate cs            -- Usually onle one category. 
-    nSpace (catWid - dispWidth (show (fst (cs!!0)) ++ ":" ++ (snd (cs!!0))) + 1)   
+    showNCate2 cs            -- Usually onle one category. 
+    nSpace (catWid - length (show (fst (cs!!0))) + 1)   
     showNCateSymb newPos xs ospls
+    where
+    catPos = getCateStartPos x ospls
+    catWid = getCateWidth x ospls
+    newPos = catPos + catWid + 1
+    cs = csOfCate x         -- [(category, seman)]
+
+-- Show symbol strings of phrasal categories' semantics in a certain span line. 
+-- The input is phrasal categories with same span and in order of ascending of Start.
+-- Here, the original result 'ospls' of divPhraCateBySpan is needed.
+-- The first category start at its Start position, followed by other categories.
+-- Int value 'curPos' means the position where the remaining categories will be printed.
+
+showNSemanSymb :: Int -> [PhraCate] -> [[PhraCate]] -> IO()
+showNSemanSymb _ [] _ = return ()           -- No phrasal category to display.
+showNSemanSymb _ [((_,_),[],_)] _ = putStrLn "Here, fail to derive category."
+showNSemanSymb curPos (x:xs) ospls = do
+    nSpace (catPos - curPos)
+    putStr ":"                -- The leading flag for semantic expression.
+    showNSeman2 cs            -- Usually onle one semantic symbol. 
+    nSpace (catWid - dispWidth (snd (cs!!0))) 
+                              -- The inter-category space offsets position occupying of leading colon.
+    showNSemanSymb newPos xs ospls
     where
     catPos = getCateStartPos x ospls
     catWid = getCateWidth x ospls
@@ -230,17 +299,19 @@ showTreeStru spls ospls = do
     putStrLn ""                                  -- Line feed
     showNCateSymb 0 (head spls) ospls
     putStrLn ""                                  -- Line feed
+    showNSemanSymb 0 (head spls) ospls
+    putStrLn ""                                  -- Line feed
     showTreeStru (tail spls) ospls
 
 -- Show a forest with tree structures
 showForestWithTreeStru :: [[PhraCate]] -> IO()
 showForestWithTreeStru [] = putStrLn ""
 showForestWithTreeStru ts = do
+    showForestWithTreeStru (take (length ts - 1) ts)
+    putStrLn $ "  ##### Parsing Tree No." ++ show (length ts)
     showTreeStru spls spls
-    putStrLn $ "   ##### Parsing Tree No." ++ show (length ts)
-    showForestWithTreeStru (tail ts)
     where
-    spls = divPhraCateBySpan (head ts)        -- Span lines
+      spls = divPhraCateBySpan (last ts)         -- Span lines
 
 -- Show Start positions for all phrasal categories.
 -- Here the original result 'ospls' of divPhraCateBySpan is needed.

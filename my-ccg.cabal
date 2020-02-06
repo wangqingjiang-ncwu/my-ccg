@@ -7,7 +7,7 @@ cabal-version: 1.12
 -- hash: 1fc22a608b3435927618d06a67226736a7e951ea47a3b4727afb97da1704d780
 
 name:           my-ccg
-version:        0.1.1.0
+version:        0.1.3.0
 synopsis:       A package for CCG-based Chinese language processing
 description:    Please see the README on GitHub at <https://github.com/wangqingjiang-ncwu/my-ccg#readme>
 category:       Natural Language Understanding
@@ -36,10 +36,12 @@ library
       Parse
       Rule
       SentParse
+      Test
   other-modules:
       Paths_my_ccg
   hs-source-dirs:
       src
+      app
   build-depends:
       HDBC
     , HDBC-mysql

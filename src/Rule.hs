@@ -73,11 +73,11 @@ appB cate1 cate2
     se2 = snd cate2
 
 -- CCG forward harmonic composition
--- To now, the rule is only used for "adverbal + transitive verb" structure.
+-- Obsoletely, the rule is only used for "adverbal + transitive verb" structure.
 comFh :: (Category, Seman) -> (Category, Seman) -> (Category, Tag, Seman, Act)
 comFh cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">B", "", False)
-    | ca2 /= getCateFromString "(s\\.np)/.np" = (nilCate, ">B", "", False)
+--  | ca2 /= getCateFromString "(s\\.np)/.np" = (nilCate, ">B", "", False)
     | (midSlash ca1 == "/#" || midSlash ca1 == "/.") && (midSlash ca2 == "/#" || midSlash ca2 == "/.") && rightCate ca1 == leftCate ca2 = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb se1 se2, True)
     | otherwise = (nilCate, ">B", "", False)
     where
@@ -92,7 +92,7 @@ comFh2 :: (Category, Seman) -> (Category, Seman) -> (Category, Tag, Seman, Act)
 comFh2 cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">B2", "", False)
     | isPrimitive (leftCate ca2) = (nilCate, ">B2", "", False)
-    | ca2 /= getCateFromString "((s\\.np)/.np)/.np" = (nilCate, ">B2", "", False)
+    | ca2 /= getCateFromString "((s\\.np)/.np)/.np" && ca2 /= getCateFromString "((s\\.np)/#np)/.np" = (nilCate, ">B2", "", False)
     | (midSlash ca1 == "/#" || midSlash ca1 == "/.") && (midSlash lCate2 == "/#" || midSlash lCate2 == "/.") && rightCate ca1 == leftCate lCate2 = (derivate (derivate (leftCate ca1) (midSlash lCate2) (rightCate lCate2)) (midSlash ca2) (rightCate ca2), ">B2", semComb se1 se2, True)
     | otherwise = (nilCate, ">B2", "", False)
     where

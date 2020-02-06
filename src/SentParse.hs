@@ -50,45 +50,45 @@ parseClause :: String -> String -> IO ()
 parseClause onOff clause = do
     let nPCs0 = initPhraCate $ getNCate $ words clause
     putStrLn $ "Initial phrasal categories: " ++ show (length nPCs0)
---  showNPhraCate nPCs0
-    let nPCs1 = newSpanPCs onOff [] nPCs0
+    showNPhraCate nPCs0
+    let nPCs1 = newSpanPCs onOff nPCs0
     putStrLn $ "New span (>0) phrasal categories: " ++ show (length nPCs1)
---  showNPhraCate nPCs1
-    let nPCs2 = newSpanPCs onOff nPCs0 nPCs1
+    showNPhraCate (sortBySpan nPCs1)
+    let nPCs2 = newSpanPCs onOff nPCs1
     putStrLn $ "New span (>1) phrasal categories: " ++ show (length nPCs2)
---  showNPhraCate nPCs2
-    let nPCs3 = newSpanPCs onOff (nPCs0 ++ nPCs1) nPCs2
+    showNPhraCate (sortBySpan nPCs2)
+    let nPCs3 = newSpanPCs onOff nPCs2
     putStrLn $ "New span (>2) phrasal categories: " ++ show (length nPCs3)
---  showNPhraCate nPCs3
-    let nPCs4 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2) nPCs3
+    showNPhraCate (sortBySpan nPCs3)
+    let nPCs4 = newSpanPCs onOff nPCs3
     putStrLn $ "New span (>3) phrasal categories: " ++ show (length nPCs4)
---  showNPhraCate nPCs4
-    let nPCs5 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2 ++ nPCs3) nPCs4
+    showNPhraCate (sortBySpan nPCs4)
+    let nPCs5 = newSpanPCs onOff nPCs4
     putStrLn $ "New span (>4) phrasal categories: " ++ show (length nPCs5)
---  showNPhraCate nPCs5
-    let nPCs6 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2 ++ nPCs3 ++ nPCs4) nPCs5 
+    showNPhraCate (sortBySpan nPCs5)
+    let nPCs6 = newSpanPCs onOff nPCs5 
     putStrLn $ "New span (>5) phrasal categories: " ++ show (length nPCs6)
---  showNPhraCate nPCs6
-    let nPCs7 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2 ++ nPCs3 ++ nPCs4 ++ nPCs5) nPCs6
+    showNPhraCate (sortBySpan nPCs6)
+    let nPCs7 = newSpanPCs onOff nPCs6
     putStrLn $ "New span (>6) phrasal categories: " ++ show (length nPCs7)
---  showNPhraCate nPCs7
-    let nPCs8 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2 ++ nPCs3 ++ nPCs4 ++ nPCs5 ++ nPCs6) nPCs7
+    showNPhraCate (sortBySpan nPCs7)
+    let nPCs8 = newSpanPCs onOff nPCs7
     putStrLn $ "New span (>7) phrasal categories: " ++ show (length nPCs8)
---  showNPhraCate nPCs8
-    let nPCs9 = newSpanPCs onOff (nPCs0 ++ nPCs1 ++ nPCs2 ++ nPCs3 ++ nPCs4 ++ nPCs5 ++ nPCs6 ++ nPCs7) nPCs8
+    showNPhraCate (sortBySpan nPCs8)
+    let nPCs9 = newSpanPCs onOff nPCs8
     putStrLn $ "New span (>8) phrasal categories: " ++ show (length nPCs9)
---  showNPhraCate nPCs9
+    showNPhraCate (sortBySpan nPCs9)
 
-    let phraCateClosure1 = parse onOff [] $ initPhraCate $ getNCate $ words clause
+    let phraCateClosure1 = parse onOff $ initPhraCate $ getNCate $ words clause
     putStrLn $ "Num. of phrasal categories in closure 1 is " ++ (show $ length phraCateClosure1)
---  showNPhraCate phraCateClosure1
+--  showNPhraCate (sortBySpan phraCateClosure1)
     let phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
     putStrLn $ "Num. of phrasal categories in closure 2 is " ++ (show $ length phraCateClosure1)
---  showNPhraCate phraCateClosure2
+--  showNPhraCate (sortBySpan phraCateClosure2)
     let phraCateClosure = atomizePhraCate phraCateClosure2
     putStrLn $ "Num. of phrasal categories in atomized closure is " ++ (show $ length phraCateClosure)
 --  putStrLn "After atomized, phraCateClosure :"
---  showNPhraCate phraCateClosure
+--  showNPhraCate (sortBySpan phraCateClosure)
     let sp = getNuOfInputCates phraCateClosure - 1
     putStrLn $ "Maximal span is " ++ (show sp)
 
@@ -117,7 +117,7 @@ parseSent onOff cs = do
  
 parseClause2 :: String -> Int -> String -> IO ()
 parseClause2 onOff ind clause = do
-    let phraCateClosure1 = parse onOff [] $ initPhraCate $ getNCate $ words clause
+    let phraCateClosure1 = parse onOff $ initPhraCate $ getNCate $ words clause
     let phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
     let phraCateClosure = atomizePhraCate phraCateClosure2
     let sp = getNuOfInputCates phraCateClosure - 1
@@ -166,7 +166,7 @@ getNPhraCate_String (pc:pcs) = getPhraCate_String pc ++ "&" ++ getNPhraCate_Stri
 parseClause2_String :: String -> Int -> String -> String
 parseClause2_String onOff ind clause = "[" ++ getNPhraCate_String (forest!!(ind-1)) ++ "]"
     where
-      phraCateClosure1 = parse onOff [] $ initPhraCate $ getNCate $ words clause
+      phraCateClosure1 = parse onOff $ initPhraCate $ getNCate $ words clause
       phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
       phraCateClosure = atomizePhraCate phraCateClosure2
       sp = getNuOfInputCates phraCateClosure - 1

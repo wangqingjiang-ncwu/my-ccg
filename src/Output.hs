@@ -10,14 +10,16 @@ module Output (
     showNCate2,       -- [(Category, Seman)] -> IO()
     showNSeman2,      -- [(Category, Seman)] -> IO()
     showPhraCate,     -- PhraCate -> IO()
+    putCtsa,          -- [(Category,Tag,Seman,Act)] -> IO()
     getNCTS_String,   -- [(Category, Tag, Seman)] -> String
     showNPhraCate,    -- [PhraCate] -> IO()
+    putNPC,           -- [PhraCate] -> IO()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO()
     showAllSplitCate, -- [[(PhraCate, PhraCate)]] -> IO()
     showForest,       -- [[PhraCate]] -> IO()
     showTree,         -- [[PhraCate]] -> IO()
     showATree,        -- Int -> [[PhraCate]] -> IO()
-    showForestWithTreeStru,       -- [[PhraCate]] -> IO()
+    showForestWithTreeStru,      -- [[PhraCate]] -> IO()
     showTreeStru,     -- [[PhraCate]] -> [[PhraCate]] -> IO()
     showNCateLine,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
     dispWidth,        -- String -> Int
@@ -97,14 +99,39 @@ showNSeman2 (x:xs) = do
 
 showPhraCate :: PhraCate -> IO()
 showPhraCate pc = do 
-    putStr (show pc)
-    putStrLn ""
+--  putStr (show pc)       -- Function 'show' converts Chinese characters to [char].
+    putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
+    putCtsa (ctsaOfCate pc)
+    putStr $ "]," ++ show (ssOfCate pc) ++ ")"
+
+putCtsa :: [(Category,Tag,Seman,Act)] -> IO()
+putCtsa [] = putStr ""
+putCtsa [x] = putStr $ "(" ++ show (fst4 x) ++ "," ++ (snd4 x) ++ "," ++ (thd4 x) ++ "," ++ show (fth4 x) ++ ")" 
+putCtsa (x:xs) = do
+    putStr $ "(" ++ show (fst4 x) ++ "," ++ (snd4 x) ++ "," ++ (thd4 x) ++ "," ++ show (fth4 x) ++ "),"
+    putCtsa xs
 
 getNCTS_String :: [(Category, Tag, Seman, Act)] -> String
 getNCTS_String cts = show cts 
 
 showNPhraCate :: [PhraCate] -> IO()
-showNPhraCate xs = (putStrLn . show) xs
+showNPhraCate [] = putStrLn "[]"
+showNPhraCate [x] = do
+    putStr "["
+    showPhraCate x
+    putStrLn "]"
+showNPhraCate (x:xs) = do
+    putStr "["
+    putNPC (x:xs)
+    putStrLn "]"
+    
+putNPC :: [PhraCate] -> IO()
+putNPC [] = putStr ""
+putNPC [x] = showPhraCate x
+putNPC (x:xs) = do
+    showPhraCate x
+    putStr ","
+    putNPC xs
 
 getNPhraCate_String :: [PhraCate] -> String
 getNPhraCate_String xs = show xs

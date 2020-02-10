@@ -78,9 +78,12 @@ instance Show Category where
 -- Define the nonstrict equality between two categories, namely not considering slash types.
 cateEqual :: Category -> Category -> Bool
 cateEqual cate1 cate2
+    | isX cate1 && isX cate2 = True
+    | isX cate1 && not (isX cate2) = False
+    | not (isX cate1) && isX cate2 = False
     | isPrimitive cate1 && isPrimitive cate2 = cate1 == cate2
-    | isPrimitive cate1 && isPrimitive cate2 == False = False
-    | isPrimitive cate1 == False && isPrimitive cate2 = False
+    | isPrimitive cate1 && not (isPrimitive cate2) = False
+    | not (isPrimitive cate1) && isPrimitive cate2 = False
     | otherwise = ((midSlash cate1)!!0 == (midSlash cate2)!!0) && (cateEqual (leftCate cate1) (leftCate cate2)) && (cateEqual (rightCate cate1) (rightCate cate2))
 
 -- Besides interior functions, data constructors are not seen from outside of modules. To have access to these constructors, related functions are defined.
@@ -172,11 +175,15 @@ midSlashStr str
         index = indexOfSlash 0 0 str
 
 leftCate :: Category -> Category
+leftCate Nil = error "leftCate: Nil"
+leftCate X = error "leftCate: X"
 leftCate (Primitive a) = error "leftCate"
 leftCate (Derivative cate1 _ _) = cate1
 
 rightCate :: Category -> Category
-rightCate (Primitive a) = error "rightCate"
+rightCate Nil = error "rightCate: Nil"
+rightCate X = error "rightCate: X"
+rightCate (Primitive a) = error $ "rightCate: " ++ show (Primitive a)
 rightCate (Derivative _ _ cate2) = cate2
 
 midSlash :: Category -> Slash

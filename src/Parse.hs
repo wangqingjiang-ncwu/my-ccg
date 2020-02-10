@@ -56,8 +56,8 @@ import Utils
 -- After introduing categorial conversion for Chinese structure overlapping, there might be even more categories.
 -- Results ((-1,-1),[],-1) and ((x,y),[],z) respectively denote concatenative failure and no rule available.
 -- Here includes a set of Context-Sensitive category conversion rules.
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 cateComb_CS :: OnOff -> PhraCate -> PhraCate -> PhraCate
 cateComb_CS onOff pc1 pc2
@@ -127,17 +127,28 @@ cateComb_CS onOff pc1 pc2
         csc_1 = removeDup [x| x<- csc1, fst3 x == npCate]
     catesByaToP = [(fst5 cate, "P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctscaByaToP]
 
+    -- The conversion from np/.np to np\.np is noted as C/a.
+    cateA4 = removeDup [(cateComp, snd3 csc, thd3 csc) | csc <- csc2, cateEqual (fst3 csc) cateAdj]  -- [(np\.np, Seman, ComName)]
+        where
+        cateAdj = getCateFromString "np/.np"
+        cateComp = getCateFromString "np\\.np"
+    -- cateA4 happens adjective phrases act as complement of noun constituent, namely cate1 is 'np'.
+    ctscaByaToC = [rule cate1 cate2 | rule <- [appB], cate1 <- csc_1, cate2 <- cateA4, onOff!!4 == '+']
+        where
+        csc_1 = removeDup [x| x<- csc1, fst3 x == npCate]
+    catesByaToC = [(fst5 cate, "C/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctscaByaToC]
+    
     -- The conversion from np to np/.np is ONLY allowed when nouns act as attribute, and noted as A/n.
     cateN1 = removeDup [(cateAdj, snd3 csc, thd3 csc) | csc <- csc1, (fst3 csc) == npCate]  -- [(np/.np, Seman, ComName)]
         where
         cateAdj = getCateFromString "np/.np"
-    ctscaBynToA = [rule cate1 cate2 | rule <- [appF], cate1 <- cateN1, cate2 <- csc_2, onOff!!4 == '+']
+    ctscaBynToA = [rule cate1 cate2 | rule <- [appF], cate1 <- cateN1, cate2 <- csc_2, onOff!!5 == '+']
         where
         csc_2 = removeDup [x| x<- csc2, fst3 x == npCate]
     catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctscaBynToA]
 
     -- The categories getten by all rules.
-    cates = catesBasic ++ catesBysToNp ++ catesByvToNp ++ catesByaToNp ++ catesByaToP ++ catesBynToA
+    cates = catesBasic ++ catesBysToNp ++ catesByvToNp ++ catesByaToNp ++ catesByaToP ++ catesByaToC ++ catesBynToA
 
     -- Remove Nil's resultant cateories and duplicate ones.
     rcs = removeDup [rc | rc <- cates, (fst5 rc) /= nilCate]
@@ -171,8 +182,8 @@ getNuOfInputCates :: [PhraCate] -> Int
 getNuOfInputCates phraCateClosure = length [pc | pc <- phraCateClosure, spOfCate pc == 0]
 
 -- New span's phrasal categories generted from One trip of transition.
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 newSpanPCs :: OnOff -> [PhraCate] -> [PhraCate]
 newSpanPCs onOff trans = trans2
@@ -185,8 +196,8 @@ newSpanPCs onOff trans = trans2
 -- Later, phrasal categories have the attribute of activity. Only active categories can take part in combination with other active categories, while inactive categories can't. True means categories are active, while False means categories inactive. Those who have taken part in some combinations are inactive, and can become active when the categories they generated are removed later. 
 -- In every transition, all existing categories including initial categories are inputed, from which every pair of categories will be tried to combine. Then, every two active categories will be checked whether they are overlapping. For every pair of overlapping categories, lower-priority category is removed, and its parent categories are recovered active. Recursively calling the above check, until no overlapping active categories exist.
 -- When transition creates no new category, the categorial set is closed.
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 -- To reduce the size of phrasal closure as much as possible, linguistic knowledge about parsing tree is again introduced. From so-called semantic distance, adverbals close verbs nearer than complements, and objects close verbs nearer than subjects. A priority about categorial combinations is built. If a phrase takes part in two category combinations, usually with left phrase and right phrase respectively, the two combination should compare their priorities, and only higher one is conducted while the lower one is banned, the categories forming the higher combination will be set inactive, namely they are no longer allowed to form new category combiantions. The final closure is comprised of an root category and other inactive phrasal categories.
 
 parse :: OnOff -> [PhraCate] -> [PhraCate]
@@ -201,7 +212,7 @@ parse onOff trans
 -- Originally, a high-to-low priority list of categorial combinations is used, in which all kinds of categorial combinations are listed. MQ: quantity phrase, XX: conjunction phrase; DHv: adverbial-verb (headword) phrase; HvC: verb (headword)-complement phrase; DHa: adverbial-adjective (headword) phrase; AHn: attribute-noun (headword) phrase; HnC: noun (headword)-complement phrase; VO: verb-object phrase; OE: object extraction phrase; U1P: 1-auxiliary word phrase; U2P: 2-auxiliary word phrase; U3P: 3-auxiliary word phrase; PO: preposition object phrase; SP: subject-predicate phrase; EM: exclamation mood. For uniformity, initial categories are named "DE", meaning designated, with the lowest priority.
 
 priorList :: [ComName]
-priorList = ["MQ","XX","DHv","HvC","DHa","AHn","HnC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
+priorList = ["MQ","XX","DHv","HvC","DHa","HaC","AHn","HnC","VO","OE","U1P","U2P","U3P","PO","SP","EM","CC","DE","NR"]
 
 -- Compare two phrasal categories and point out which one is prior. True for the first, and False for the second.
 -- The lower priority combination is baned, for an example, (s\.np)/.np np -> (s\.np)/.np [A/n ->B]
@@ -232,8 +243,8 @@ priorList2 :: [PriElem]
 -- Then, do a mandatory check for the same pair of combinations on non-linear 'priorList2'. If a opposite indication is obtained, it's final.
 
 priorList2 = [
-    ("ANY","AHn","AHn","ANY",0)          -- Two overlapping AHn(s), the right AHn is prior.
-    
+    ("ANY","AHn","AHn","ANY",0),          -- Two overlapping AHn(s), the right AHn is prior.
+    ("ANY","HaC","HaC","ANY",1)           -- Two overlapping HnC(s), the left HaC is prior.
 
     ]
 
@@ -282,7 +293,7 @@ match (x:xs) pe
       mt = (lnx == "ANY" || lnx == lnp) && (lox == lop) && (rox == rop) && (rox == "ANY" || rox == rop)
 
 -- Like pruning in game search, any phrasal category not appearing in the final parsing tree is thrown out after just generated, and any phrasal category having taken part in category combination should be set inactive, not allowed to combine with other categories again. When removing a category, its parent categories should be set active.
--- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
+-- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
 -- The second parameter is one-way transition result without pruning. Among <trans2>, every two elements overlapping their spans will be compared on their combination priorities, and the lower one will be removed. 
  
 prune :: OnOff -> [PhraCate] -> [PhraCate]
@@ -329,7 +340,7 @@ isOverlap pc1 pc2
 
 -- Remove a given phrasal category, and active its parents.
 -- If the category to be removed is inactive, it combined with aother category to a bigger-phrased category, and the category should be removed too. Recursively, the new bigger-phrased category is removed. Apparently, the final removed category is active.
--- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
+-- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
 
 removeOnePC :: OnOff -> PhraCate -> [PhraCate] -> [PhraCate]
 removeOnePC onOff pc clo = changeAct onOff [x| x <- clo, notElem x (pc:descens)]
@@ -350,8 +361,8 @@ removeOnePC2 onOff pc clo
 -- Check every category among a transition result, and set its correct activity.
 -- For those phrasal categories used for generating some other categories, they are set inactive, and the others are set active. Any two phrasal categories are impossible of overlapping.
 -- Here, every phrasal category has ONLY ONE element in its component [(category, tag, seman, act)].
--- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 changeAct :: OnOff -> [PhraCate] -> [PhraCate]
 changeAct onOff trans = [deactOnePC x | x <- parents] ++ [actOnePC x | x <- not_married]
@@ -400,8 +411,8 @@ growForest onOff (t:ts) phraCateClosure       -- nonempty forest
 -- (2) For every such tip, find all splits (namely all pairs of leaves), and create a forest, of which every tree include the input tree and a distinc pair of leaves;
 -- (3) Based on merging two forests, all forests are merged into one forest. 
 
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 growTree :: OnOff -> [PhraCate] -> [PhraCate] -> [[PhraCate]]
 growTree onOff t phraCateClosure
@@ -461,8 +472,8 @@ findActCateByStart st1 (x:xs)
 
 -- Find splited (namely parent) categories for a given phrase category from the closure of phrase categories. 
 -- Here, every phrasal category has only one element in its component [(category, tag, seman, comName, act)].
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 findSplitCate :: OnOff -> PhraCate -> [PhraCate] -> [(PhraCate, PhraCate)]
 findSplitCate onOff pc phraCateClosure
@@ -477,8 +488,8 @@ findSplitCate onOff pc phraCateClosure
                                            -- When pc is a leaf, pcTuples is []. 
 
 -- Find descendants of a given phrasal category from the transition closure of phrasal categories.
--- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
--- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
+-- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, C/a-, and A/n- rules.
+-- For examples, "+-++--" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
 findDescen :: OnOff -> PhraCate -> [PhraCate] -> [PhraCate]
 findDescen onOff pc clo

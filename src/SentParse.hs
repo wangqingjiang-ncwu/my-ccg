@@ -90,9 +90,9 @@ parseClause onOff clause = do
     showNPhraCate (sortBySpan nPCs12)
 -}
     let phraCateClosure = parse onOff $ initPhraCate $ getNCate $ words clause
-    putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length phraCateClosure)
+{-  putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length phraCateClosure)
     showNPhraCate (sortBySpan phraCateClosure)
-{-  let phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
+    let phraCateClosure2 = [pc | pc <- phraCateClosure1, caOfCate pc /= []]
     putStrLn $ "Num. of phrasal categories in closure 2 is " ++ (show $ length phraCateClosure1)
     showNPhraCate (sortBySpan phraCateClosure2)
     let phraCateClosure = atomizePhraCate phraCateClosure2
@@ -155,13 +155,15 @@ treeSelect onOff ids cs = do
 
 -- Get the string of a phrasal category.
 getPhraCate_String :: PhraCate -> String
-getPhraCate_String pc = "((" ++ show st ++ "," ++ show sp ++ "),[(" ++ show (ca!!0) ++ "," ++ (ta!!0) ++ "," ++ (se!!0) ++ ")]," ++ show ss ++ ")"
+getPhraCate_String pc = "((" ++ show st ++ "," ++ show sp ++ "),[(" ++ show (ca!!0) ++ "," ++ (ta!!0) ++ "," ++ (se!!0) ++ "," ++ (cn!!0) ++ "," ++ show (ac!!0) ++ ")]," ++ show ss ++ ")"
     where
     st = stOfCate pc
     sp = spOfCate pc
     ca = caOfCate pc
     ta = taOfCate pc
     se = seOfCate pc
+    cn = cnOfCate pc
+    ac = acOfCate pc
     ss = ssOfCate pc
 
 -- Get the string of [PhraCate], using delimiter '&'.
@@ -201,8 +203,8 @@ storeTree :: OnOff -> [Int] -> Int -> [String] -> IO()
 storeTree _ [] _ _ = putStrLn "No tree is selected!"
 storeTree onOff ids sn cs = do
     conn <- getConn
-    sth <- prepare conn ("update raw_corpus set tree = ? where serial_num = " ++ show sn)
-    execute sth [toSql $ getTree_String onOff ids cs]
+    sth <- prepare conn ("update raw_corpus set tree = ?, onOff = ? where serial_num = " ++ show sn)
+    execute sth [toSql $ getTree_String onOff ids cs, toSql onOff]
     commit conn
     disconnect conn
 

@@ -119,7 +119,7 @@ veriStrForCate str
 
 getCateFromString :: String -> Category
 getCateFromString str
-    | veriStrForCate str /= True = error "getCateFromString"
+    | veriStrForCate str /= True = error $ "getCateFromString: " ++ str
     | index == -1 && str == "Nil" = Nil
     | index == -1 && str == "X" = X
     | index == -1 && str == "s" = Primitive "s"

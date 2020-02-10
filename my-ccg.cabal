@@ -36,6 +36,7 @@ library
       Parse
       Rule
       SentParse
+      Utils
       Test
   other-modules:
       Paths_my_ccg

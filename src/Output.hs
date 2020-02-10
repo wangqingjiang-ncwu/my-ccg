@@ -10,8 +10,8 @@ module Output (
     showNCate2,       -- [(Category, Seman)] -> IO()
     showNSeman2,      -- [(Category, Seman)] -> IO()
     showPhraCate,     -- PhraCate -> IO()
-    putCtsa,          -- [(Category,Tag,Seman,Act)] -> IO()
-    getNCTS_String,   -- [(Category, Tag, Seman)] -> String
+    putCtsca,         -- [(Category, Tag, Seman, ComName, Act)] -> IO()
+    getNCtsca_String, -- [(Category, Tag, Seman, ComName, Act)] -> String
     showNPhraCate,    -- [PhraCate] -> IO()
     putNPC,           -- [PhraCate] -> IO()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO()
@@ -37,6 +37,7 @@ module Output (
 import Category
 import Rule
 import Parse
+import Utils
 import Data.Char
 import Data.List
 import Data.Tuple.Utils
@@ -101,18 +102,18 @@ showPhraCate :: PhraCate -> IO()
 showPhraCate pc = do 
 --  putStr (show pc)       -- Function 'show' converts Chinese characters to [char].
     putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
-    putCtsa (ctsaOfCate pc)
+    putCtsca (ctscaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
-putCtsa :: [(Category,Tag,Seman,Act)] -> IO()
-putCtsa [] = putStr ""
-putCtsa [x] = putStr $ "(" ++ show (fst4 x) ++ "," ++ (snd4 x) ++ "," ++ (thd4 x) ++ "," ++ show (fth4 x) ++ ")" 
-putCtsa (x:xs) = do
-    putStr $ "(" ++ show (fst4 x) ++ "," ++ (snd4 x) ++ "," ++ (thd4 x) ++ "," ++ show (fth4 x) ++ "),"
-    putCtsa xs
+putCtsca :: [(Category,Tag,Seman,ComName,Act)] -> IO()
+putCtsca [] = putStr ""
+putCtsca [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")" 
+putCtsca (x:xs) = do
+    putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ "),"
+    putCtsca xs
 
-getNCTS_String :: [(Category, Tag, Seman, Act)] -> String
-getNCTS_String cts = show cts 
+getNCtsca_String :: [(Category, Tag, Seman, ComName, Act)] -> String
+getNCtsca_String ctsca = show ctsca 
 
 showNPhraCate :: [PhraCate] -> IO()
 showNPhraCate [] = putStrLn "[]"

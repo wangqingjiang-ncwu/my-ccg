@@ -9,6 +9,7 @@ import Category
 import Rule
 import Parse
 import Output
+import Utils
 
 main :: IO ()
 main = cateAnalyze

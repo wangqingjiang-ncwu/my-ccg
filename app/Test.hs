@@ -2,7 +2,7 @@
 -- All rights reserved.
 
 module Test (
-    pc01,pc02,pc03,pc04,pc05,pc06,pc07,clo1,clo2
+    pc0,pc1,pc2,pc3,pc4,pc5,pc6,clo1
 
     ) where
 
@@ -12,15 +12,15 @@ import Parse
 import Output
 import Utils
 
-pc01 = createPhraCate 0 0 (getCateFromString "np/.np") "Desig" "good'" "DE" True 0
-pc02 = createPhraCate 1 0 (getCateFromString "(s\\.np)/.np") "Desig" "than'" "DE" True 1
-pc03 = createPhraCate 2 0 (getCateFromString "np/.np") "Desig" "bad'" "DE" True 2
-pc04 = createPhraCate 0 1 (getCateFromString "s/.np") "Np/a->T->B" "good' than'" "OE"  True 1
-pc05 = createPhraCate 1 1 (getCateFromString "(s\\.np)/.np") ">B" "than' bad'" "VO" True 2
-pc06 = createPhraCate 1 1 (getCateFromString "s\\.np") "Np/a->" "than' bad'" "AHn" True 2
-pc07 = createPhraCate 0 2 sCate "Np/a-<" "(than' bad') good'" "SP" True 1
+pc0 = createPhraCate 0 0 (getCateFromString "((s\\.np)/#(s\\.np))/*np") "Desig" "在'" "DE" True 0
+pc1 = createPhraCate 1 0 (getCateFromString "(s\\.np)/.np") "Desig" "开展'" "DE" True 1
+pc2 = createPhraCate 2 0 npCate "Desig" "文明'" "DE" True 2
+pc3 = createPhraCate 3 0 npCate "Desig" "班级'" "DE" True 3
+pc4 = createPhraCate 4 0 (getCateFromString "s\\.np") "Desig" "评比'" "DE"  True 4
+pc5 = createPhraCate 5 0 npCate "Desig" "活动'" "DE" True 5
+pc6 = createPhraCate 6 0 (getCateFromString "np\\*np") "Desig" "中'" "DE" True 6
 
-clo1 = [pc01,pc02,pc03,pc04,pc05,pc06]
-clo2 = [deactOnePC pc01,deactOnePC pc02,deactOnePC pc03,deactOnePC pc06,pc07]
-clo3 = [deactOnePC pc01,deactOnePC pc02,deactOnePC pc03,deactOnePC pc04,deactOnePC pc05,deactOnePC pc06, pc07]
+clo1 = [pc0,pc1,pc2,pc3,pc4,pc5,pc6]
+
+
 

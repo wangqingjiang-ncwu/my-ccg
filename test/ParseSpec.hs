@@ -209,12 +209,12 @@ spec = do
       let pcs = [pc1,pc2,pc3]
       getNuOfInputCates pcs `shouldBe` 2
 
-    it "The result of isOverlap ((0,1),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,1),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],2) is True" $ do
+    it "The result of getOverType ((0,1),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,1),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],2) is True" $ do
       let c1 = npCate
       let c2 = getCateFromString "(s\\.np)/.np"
       let pc1 = createPhraCate 0 1 c1 "Desig" "Frank'" "DE" True 1
       let pc2 = createPhraCate 1 1 c2 "Desig" "loves'" "DE" True 2
-      isOverlap pc1 pc2 `shouldBe` True
+      getOverType pc1 pc2 `shouldBe` True
 
     it "The result of getOverlap [((0,1),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((1,1),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],2)] is [(((0,1),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((1,1),[(s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],2))]" $ do
       let c1 = npCate

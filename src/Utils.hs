@@ -19,6 +19,12 @@ module Utils (
     thd5,          -- (a,b,c,d,e) -> c
     fth5,          -- (a,b,c,d,e) -> d
     fif5,          -- (a,b,c,d,e) -> e
+    fst6,          -- (a,b,c,d,e,f) -> a
+    snd6,          -- (a,b,c,d,e,f) -> b                       
+    thd6,          -- (a,b,c,d,e,f) -> c
+    fth6,          -- (a,b,c,d,e,f) -> d
+    fif6,          -- (a,b,c,d,e,f) -> e
+    sth6,          -- (a,b,c,d,e,f) -> f
     PhraCate,      -- ((Start, Span), [(Category, Tag, Seman, ComName, Act)], SecStart)
     pcBelong,      -- PhraCate -> PhraCate -> Bool
     pcBelong',     -- PhraCate -> PhraCate -> Bool
@@ -90,6 +96,25 @@ fth5 (_,_,_,d,_) = d
 
 fif5 :: (a,b,c,d,e) -> e
 fif5 (_,_,_,_,e) = e
+
+-- Six tuple functions.
+fst6 :: (a,b,c,d,e,f) -> a
+fst6 (a,_,_,_,_,_) = a
+
+snd6 :: (a,b,c,d,e,f) -> b
+snd6 (_,b,_,_,_,_) = b
+
+thd6 :: (a,b,c,d,e,f) -> c
+thd6 (_,_,c,_,_,_) = c
+
+fth6 :: (a,b,c,d,e,f) -> d
+fth6 (_,_,_,d,_,_) = d
+
+fif6 :: (a,b,c,d,e,f) -> e
+fif6 (_,_,_,_,e,_) = e
+
+sth6 :: (a,b,c,d,e,f) -> f
+sth6 (_,_,_,_,_,f) = f
 
 -- When combining two phrase categories, there might be more than one rule available, resulting in multiple categories (Usually the resultant categories are same).
 

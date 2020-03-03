@@ -49,7 +49,7 @@ getSent sent = return $ split " \65292:" sent    -- \65292 is Chinese comma.
 
 parseClause :: OnOff -> String -> IO ()
 parseClause onOff clause = do
-{-  let nPCs0 = initPhraCate $ getNCate $ words clause
+    let nPCs0 = initPhraCate $ getNCate $ words clause
     putStrLn $ "Initial phrasal categories: " ++ show (length nPCs0)
     showNPhraCate nPCs0
     let nPCs1 = newSpanPCs onOff nPCs0
@@ -88,7 +88,7 @@ parseClause onOff clause = do
     let nPCs12 = newSpanPCs onOff nPCs11
     putStrLn $ "New span (>11) phrasal categories: " ++ show (length nPCs12)
     showNPhraCate (sortBySpan nPCs12)
--}
+
     let phraCateClosure = parse onOff $ initPhraCate $ getNCate $ words clause
 {-  putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length phraCateClosure)
     showNPhraCate (sortBySpan phraCateClosure)
@@ -115,11 +115,13 @@ parseClause onOff clause = do
 -- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
 -- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
-parseSent :: OnOff -> [String] -> IO ()
-parseSent _ [] = putStrLn ""
-parseSent onOff cs = do
-    parseSent onOff (take (length cs - 1) cs)
-    putStrLn $ "  ===== Clause No." ++ show (length cs)
+parseSent :: [String] -> IO ()
+parseSent [] = putStrLn ""
+parseSent cs = do
+    parseSent (take (length cs - 1) cs)
+    putStrLn $ "  ===== Clause No." ++ show (length cs) ++ ", please input '+'/'-' to turn on/off the following rules:"
+    putStrLn "Np/s-, A/s-, Np/v-, A/v-, Np/a-, P/a-, Ca/a-, Cv/a-, A/n-"
+    onOff <- getLine
     parseClause onOff (last cs)
 
 -- Parse a clause, give out the designed tree by index.
@@ -150,7 +152,9 @@ treeSelect :: OnOff -> [Int] -> [String] -> IO()
 treeSelect _ [] _ = putStrLn ""
 treeSelect onOff ids cs = do
     treeSelect onOff (take (length ids - 1) ids) (take (length ids - 1) cs)
-    putStrLn $ "  ===== Clause No." ++ show (length cs)
+    putStrLn $ "  ===== Clause No." ++ show (length cs) ++ ", please input '+'/'-' to turn on/off the following rules:"
+    putStrLn "Np/s-, A/s-, Np/v-, A/v-, Np/a-, P/a-, Ca/a-, Cv/a-, A/n-"
+    onOff <- getLine
     parseClause2 onOff (last ids) (last cs)
 
 -- Get the string of a phrasal category.
@@ -190,21 +194,21 @@ parseClause2_String onOff ind clause = "[" ++ getNPhraCate_String (forest!!(ind-
 -- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
 -- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
-getTree_String :: OnOff -> [Int] -> [String] -> String
+getTree_String :: [OnOff] -> [Int] -> [String] -> String
 getTree_String _ [] _ = ""
-getTree_String onOff ids cs = getTree_String onOff (take (length ids - 1) ids) (take (length ids - 1) cs) ++ ";" ++ parseClause2_String onOff (last ids) (last cs)
+getTree_String onOffs ids cs = getTree_String (init onOffs) (init ids) (init cs) ++ ";" ++ parseClause2_String (last onOffs) (last ids) (last cs)
 
 -- Input the selected tree of each clause into database.
 -- Input an [Int] to give tree indices for all clauses, a Int to indicate which sentence will be updated, and a Monad Input String which will be parsed.
 -- The first input parameter is On/Off string, for turning on/off Np/s-, Np/v-, Np/a-, P/a-, and A/n- rules.
 -- For examples, "+-++-" means using Np/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
 
-storeTree :: OnOff -> [Int] -> Int -> [String] -> IO()
+storeTree :: [OnOff] -> [Int] -> Int -> [String] -> IO()
 storeTree _ [] _ _ = putStrLn "No tree is selected!"
-storeTree onOff ids sn cs = do
+storeTree onOffs ids sn cs = do
     conn <- getConn
     sth <- prepare conn ("update raw_corpus set tree = ?, onOff = ? where serial_num = " ++ show sn)
-    execute sth [toSql $ getTree_String onOff ids cs, toSql onOff]
+    execute sth [toSql $ getTree_String onOffs ids cs, toSql (show onOffs)]
     commit conn
     disconnect conn
 

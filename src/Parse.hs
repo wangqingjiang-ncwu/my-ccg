@@ -221,14 +221,16 @@ newSpanPCs onOff trans = trans2
       trans2 = prune onOff $ changeAct onOff $ trans ++ [cb | cb <- combs, ctscaOfCate cb /= []]
 
 -- Parsing a sequence of categories is actually to generate the category closure from the initial phrase categories. 
--- From the scratch, phrasal categories have no activity attribute, and during each transition, every category tries to combine with others, which results in explosive increase of new generated categories.
--- Later, phrasal categories have the attribute of activity. Only active categories can take part in combination with other active categories, while inactive categories can't. True means categories are active, while False means categories inactive. Those who have taken part in some combinations are inactive, and can become active when the categories they generated are removed later. 
--- In every transition, all existing categories including initial categories are inputed, from which every pair of categories will be tried to combine. Then, every two active categories will be checked whether they are overlapping. For every pair of overlapping categories, lower-priority category is removed, and its parent categories are recovered active. Recursively calling the above check, until no overlapping active categories exist.
--- When transition creates no new category, the categorial set is closed.
+-- Originally designed in every transition, every two phrases are tested whether they can be combined into a new phrase under the CCG for Chinese. In the later experiments, an explosive increase of phrase number is always observed, sometimes the transition closure can not be obtained after limited time. So, a pruning process is introduced in every trip of transition, and some restrictions on phrase combinations are added. 
+-- From the scratch, word categories are active, which means every word can participate in construction of phrases. In later every transition, two adjacent active phrases can be combined into a new phrase, while one active phrase and one inactive phrase can also be combined. Once participating in phrase building, no matter a word or a phrase will become inactive. That is, only words or phrases without descendants are active. 
+-- Both an active and an inactive phrase can be removed later, owing that they overlap some phrases with higher priorities. An inactive phrase can become active again after its child phrase is removed. Only allowing two active phrases to combine implies all inactive phrases are in final parsing tree, but it is not true.
+-- Every transition consists of two steps, the first step is to generate new phrases, and the second step is to remove redundant phrases called pruning. In the two steps, there exists the at-least-one-active phenomenon. That is, For the first step, when two phrases are to be combined into a new phrase, they include at least one active phrase. For the second step, when one of two overlapping phrases is to be removed, at least one of which has to be active phrase. Actually, it is impossible that two inactive phrases are overlapping.  
+-- For every pair of overlapping phrases, lower-priority phrase and its descendants are removed, and its parent phraseis recovered active.
+-- Linguistic knowledge can be used in pruning, for examples, adverbals close verbs nearer than complements, objects close verbs nearer than subjects, but inter-phrases priority relations may vary in different context. 
+-- The final closure is comprised of an root category and other inactive phrasal categories.
 -- The first input parameter is On/Off string, for turning on/off Np/s-, A/s-, Np/v-, A/v-, Np/a-, P/a-, Ca/a-, Cv/a-, and A/n- rules.
--- For examples, "++-+++---" means using Np/s-, A/s-, Np/a-, and P/a- rules, but denying Np/v- and A/n- rules.
--- To reduce the size of phrasal closure as much as possible, linguistic knowledge about parsing tree is again introduced. From so-called semantic distance, adverbals close verbs nearer than complements, and objects close verbs nearer than subjects. A priority about categorial combinations is built. If a phrase takes part in two category combinations, usually with left phrase and right phrase respectively, the two combination should compare their priorities, and only higher one is conducted while the lower one is banned, the categories forming the higher combination will be set inactive, namely they are no longer allowed to form new category combiantions. The final closure is comprised of an root category and other inactive phrasal categories.
--- Parameter <banPCs> records the banned phrasal categories by pruning.
+-- For examples, "++-+++---" means using Np/s-, A/s-, A/v-, Np/a-, and P/a- rules, but denying Np/v-, Ca/a-, Cv/a-, and A/n- rules.
+-- Apparently, the removed phrases should be not generated again, and recorded in parameter <banPCs>.
 
 parse :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 parse onOff trans banPCs
@@ -242,13 +244,15 @@ parse onOff trans banPCs
         trans2 = prune onOff $ changeAct onOff $ trans1             -- After pruning, activities are corrected.
         banPCs2 = banPCs ++ [cb| cb <-trans1, notElem cb trans2]    -- Update the list of banned phrasal categories.
 
--- Originally, a high-to-low priority list of categorial combinations is used, in which all kinds of categorial combinations are listed. MQ: quantity phrase, XX: conjunction phrase; DHv: adverbial-verb (headword) phrase; HvC: verb (headword)-complement phrase; DHa: adverbial-adjective (headword) phrase; AHn: attribute-noun (headword) phrase; HnC: noun (headword)-complement phrase; VO: verb-object phrase; OE: object extraction phrase; U1P: 1-auxiliary word phrase; U2P: 2-auxiliary word phrase; U3P: 3-auxiliary word phrase; PO: preposition object phrase; SP: subject-predicate phrase; EM: exclamation mood. For uniformity, initial categories are named "DE", meaning designated, with the lowest priority.
+-- Originally, a high-to-low priority list of categorial combinations is used, in which all kinds of categorial combinations are listed. MQ: quantity phrase, XX: conjunction phrase; DHv: adverbial-verb (headword) phrase; HvC: verb (headword)-complement phrase; DHa: adverbial-adjective (headword) phrase; AHn: attribute-noun (headword) phrase; HnC: noun (headword)-complement phrase; VO: verb-object phrase; OE: object extraction phrase; U1P: 1-auxiliary word phrase; U2P: 2-auxiliary word phrase; U3P: 3-auxiliary word phrase; PO: preposition object phrase; SP: subject-predicate phrase; EM: exclamation mood. Word categories are not obtained by combinations instead by designations, so named "DE". Some combinations are illegal and not recognized, so named "NR".
 
+-- The following list is obsolete.
 priorList :: [ComName]
 priorList = ["MQ","XX","DHv","HvC","DHa","HaC","AHn","HnC","VO","OE","U1P","U2P","U3P","PO","SP","EM","CC","DE","NR"]
 
 -- Compare two phrasal categories and point out which one is prior. True for the first, and False for the second.
 -- The lower priority combination is baned, for an example, (s\.np)/.np np -> (s\.np)/.np [A/n ->B]
+-- But priorities of combinations do not fully follow a linear relation, while this linear priority list is subjectively determined, and short of statistical evidence. So the priority list 'priorList' is abandoned, while funciton 'isPrior' is obsolete.
 
 isPrior :: PhraCate -> PhraCate -> Bool
 isPrior pc1 pc2
@@ -262,9 +266,13 @@ isPrior pc1 pc2
     ind2 = elemIndex n2 priorList
     i2 = maybe (-1) (0+) ind2
 
--- But priorities of combinations do not fully follow a linear relation, while this linear priority list is subjectively determined, and short of statistical evidence. So the priority list is abandoned.
--- To give priority to which one phrase in an overlapping pair, the left-overlapping active phrase and right-overlapping active phrase should be considered.
--- PriElem is 6-tuple (<lefteExtend>, <leftOver>, <rightOver>, <rightExtend>, <overType>, <prior>), here <leftExtend> is the longest phrase with the first word of <leftOver> as end, <rightExtend> is the longest phrase with the last word of <rightOver> as head, and <leftOver> and <rightOver> are the left-to-right overlapping phrases, with <overType> to indicate overlapping type, and with <prior> to indicate which is prior to exist. Selecting the longest phrase among all those phrases with one word as end or head reflects the overlapping `active
+-- We adopt pruning method to remove those banned phrases, and have some axioms.
+-- Axiom 1. The pruned phrases are no longer generated.
+-- Axiom 2. The type-2 overlappings are no need to consider pruning. 
+-- Inference 1. After pruning type-0 and type-1 overlappings, the remaining type-2 overlappings are reasonable.
+
+-- To indicate which one in an overlapping phrase pair should be remained, the left-extend overlapping phrases and right-extend overlapping phrases should be considered.
+-- PriGene is 6-tuple (<lefteExtend>, <leftOver>, <rightOver>, <rightExtend>, <overType>, <prior>), here <leftExtend> is overlapping phrases with type 1/2, <rightExtend> is all overlapping phrases with type 1/2, and <leftOver> and <rightOver> are the left-to-right overlapping phrases, with <overType> to indicate overlapping type, and with <prior> to indicate which is prior to exist. Selecting the longest phrase among all those phrases with one word as end or head reflects the overlapping `active
 
 type LeftExtend = (Tag, ComName)    -- Active left extend, including rule tag and combination name.
 type LeftOver = (Tag, ComName)      -- Overlapping left phrase, including rule tag and combination name.

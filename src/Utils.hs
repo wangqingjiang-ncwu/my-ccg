@@ -6,7 +6,7 @@ module Utils (
     Span,          -- Int
     Tag,           -- String
     Seman,         -- String
-    ComName,       -- String
+    PhraStru,      -- String
     Act,           -- Bool
     SecStart,      -- Int
     OnOff,         -- String
@@ -25,25 +25,25 @@ module Utils (
     fth6,          -- (a,b,c,d,e,f) -> d
     fif6,          -- (a,b,c,d,e,f) -> e
     sth6,          -- (a,b,c,d,e,f) -> f
-    PhraCate,      -- ((Start, Span), [(Category, Tag, Seman, ComName, Act)], SecStart)
+    PhraCate,      -- ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart)
     pcBelong,      -- PhraCate -> PhraCate -> Bool
     pcBelong',     -- PhraCate -> PhraCate -> Bool
     stOfCate,      -- PhraCate -> Start
     spOfCate,      -- PhraCate -> Span
-    ctscaOfCate,    -- PhraCate -> [(Category, Tag, Seman, ComName, Act)]
-    ctscaOfActCate, -- PhraCate -> [(Category, Tag, Seman, ComName, Act)]
-    ctscOfCate,    -- PhraCate -> [(Category, Tag, Seman, ComName)]
-    ctscOfActCate, -- PhraCate -> [(Category, Tag, Seman, ComName)]
-    cscOfCate,     -- PhraCate -> [(Category, Seman, ComName)]
-    cscOfActCate,  -- PhraCate -> [(Category, Seman, ComName)]
+    ctscaOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
+    ctscaOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
+    ctscOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
+    ctscOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
+    cscOfCate,     -- PhraCate -> [(Category, Seman, PhraStru)]
+    cscOfActCate,  -- PhraCate -> [(Category, Seman, PhraStru)]
     caOfCate,      -- PhraCate -> [Category]
     caOfActCate,   -- PhraCate -> [Category]
     taOfCate,      -- PhraCate -> [Tag]
     taOfActCate,   -- PhraCate -> [Tag]
     seOfCate,      -- PhraCate -> [Seman]
     seOfActCate,   -- PhraCate -> [Seman]
-    cnOfCate,      -- PhraCate -> [ComName]
-    cnOfActCate,   -- PhraCate -> [ComName]
+    cnOfCate,      -- PhraCate -> [PhraStru]
+    cnOfActCate,   -- PhraCate -> [PhraStru]
     acOfCate,      -- PhraCate -> [Act]
     acOfActCate,   -- PhraCate -> [Act]
     csOfCate,      -- PhraCate -> [(Category, Seman)]
@@ -63,7 +63,7 @@ type Start = Int      -- The start position of a phrase (category) in sentences.
 type Span = Int       -- The span distance of a phrase (category) in sentences.
 type Tag = String        -- The tag of rule used for creating this category.
 type Seman = String      -- The semantic component of this phrasal category.
-type ComName = String    -- The name of combination for creating this category.
+type PhraStru = String   -- The name of phrasal structure.
 type Act = Bool          -- The activity of a category, True for active, and False for inactive.
 type SecStart = Int      -- The position of spliting a phrase (category).
 type OnOff = String   -- The char string to represent turning on/off certain category-converting rules
@@ -118,7 +118,7 @@ sth6 (_,_,_,_,_,f) = f
 
 -- When combining two phrase categories, there might be more than one rule available, resulting in multiple categories (Usually the resultant categories are same).
 
-type PhraCate = ((Start, Span), [(Category, Tag, Seman, ComName, Act)], SecStart)
+type PhraCate = ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart)
 
 -- Define relation 'belong to' between two phrasal categories. They have same Start, Span, and SecStart, except that the component [(Category,Tag,Seman)] of first phrasal category is subset of that of the second one.
 pcBelong :: PhraCate -> PhraCate -> Bool
@@ -155,22 +155,22 @@ stOfCate (s, _, _) = fst s
 spOfCate :: PhraCate -> Span
 spOfCate (s, _, _) = snd s
 
-ctscaOfCate :: PhraCate -> [(Category, Tag, Seman, ComName, Act)]
+ctscaOfCate :: PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
 ctscaOfCate (_, ctsca, _) = ctsca
 
-ctscaOfActCate :: PhraCate -> [(Category, Tag, Seman, ComName, Act)]
+ctscaOfActCate :: PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
 ctscaOfActCate (_, ctsca, _) = [x| x <- ctsca, fif5 x]
 
-ctscOfCate :: PhraCate -> [(Category, Tag, Seman, ComName)]
+ctscOfCate :: PhraCate -> [(Category, Tag, Seman, PhraStru)]
 ctscOfCate (_, ctsca, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) ctsca
 
-ctscOfActCate :: PhraCate -> [(Category, Tag, Seman, ComName)]
+ctscOfActCate :: PhraCate -> [(Category, Tag, Seman, PhraStru)]
 ctscOfActCate (_, ctsca, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) [y| y <- ctsca, fif5 y]
 
-cscOfCate :: PhraCate -> [(Category, Seman, ComName)]
+cscOfCate :: PhraCate -> [(Category, Seman, PhraStru)]
 cscOfCate (_, ctsca, _) = map (\x -> (fst5 x, thd5 x, fth5 x)) ctsca
 
-cscOfActCate :: PhraCate -> [(Category, Seman, ComName)]
+cscOfActCate :: PhraCate -> [(Category, Seman, PhraStru)]
 cscOfActCate (_, ctsca, _) = map (\x -> (fst5 x, thd5 x, fth5 x)) [y| y <- ctsca, fif5 y]
 
 caOfCate :: PhraCate -> [Category]
@@ -203,12 +203,12 @@ seOfActCate pc = [thd5 c | c <- ctsca, fif5 c == True]
     where
     ctsca = ctscaOfCate pc
 
-cnOfCate :: PhraCate -> [ComName]
+cnOfCate :: PhraCate -> [PhraStru]
 cnOfCate pc = [fth5 c | c <- ctsca]
     where
     ctsca = ctscaOfCate pc
 
-cnOfActCate :: PhraCate -> [ComName]
+cnOfActCate :: PhraCate -> [PhraStru]
 cnOfActCate pc = [fth5 c | c <- ctsca, fif5 c == True]
     where
     ctsca = ctscaOfCate pc

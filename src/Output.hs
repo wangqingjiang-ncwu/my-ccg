@@ -10,8 +10,8 @@ module Output (
     showNCate2,       -- [(Category, Seman)] -> IO()
     showNSeman2,      -- [(Category, Seman)] -> IO()
     showPhraCate,     -- PhraCate -> IO()
-    putCtsca,         -- [(Category, Tag, Seman, ComName, Act)] -> IO()
-    getNCtsca_String, -- [(Category, Tag, Seman, ComName, Act)] -> String
+    putCtsca,         -- [(Category, Tag, Seman, PhraStru, Act)] -> IO()
+    getNCtsca_String, -- [(Category, Tag, Seman, PhraStru, Act)] -> String
     showNPhraCate,    -- [PhraCate] -> IO()
     putNPC,           -- [PhraCate] -> IO()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO()
@@ -27,7 +27,7 @@ module Output (
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO()
     showNSemanSymb,   -- Int -> [PhraCate] -> [[PhraCate]] -> IO()
-    getCateStartPos,  -- PhraCate -> [[PhraCate]] -> Int
+    findPhraStartPos, -- PhraCate -> [[PhraCate]] -> Int
     showForestCateStartPos,      -- [[PhraCate]] -> IO()
     showCateStartPos,            -- [[PhraCate]] -> [[PhraCate]] -> IO()
     drawLine,         -- Int -> IO()
@@ -36,6 +36,7 @@ module Output (
 
 import Category
 import Rule
+import Phrase
 import Parse
 import Utils
 import Data.Char
@@ -102,18 +103,18 @@ showPhraCate :: PhraCate -> IO()
 showPhraCate pc = do 
 --  putStr (show pc)       -- Function 'show' converts Chinese characters to [char].
     putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
-    putCtsca (ctscaOfCate pc)
+    putCtsca (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
-putCtsca :: [(Category,Tag,Seman,ComName,Act)] -> IO()
+putCtsca :: [(Category,Tag,Seman,PhraStru,Act)] -> IO()
 putCtsca [] = putStr ""
 putCtsca [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")" 
 putCtsca (x:xs) = do
     putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ "),"
     putCtsca xs
 
-getNCtsca_String :: [(Category, Tag, Seman, ComName, Act)] -> String
-getNCtsca_String ctsca = show ctsca 
+getNCtsca_String :: [(Category, Tag, Seman, PhraStru, Act)] -> String
+getNCtsca_String ctspa = show ctspa 
 
 showNPhraCate :: [PhraCate] -> IO()
 showNPhraCate [] = putStrLn "[]"
@@ -227,27 +228,27 @@ getCateWidth x ospls
         pst2 = ss
         psp1 = pst2 - pst1 - 1
         psp2 = sp - psp1 - 1
-        pc1 = (findCate (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
-        pc2 = (findCate (pst2, psp2) (ospls!!psp2))!!0     -- In a tree, only one category
+        pc1 = (getPhraBySS (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
+        pc2 = (getPhraBySS (pst2, psp2) (ospls!!psp2))!!0     -- In a tree, only one category
 
 -- Compute the start position of given category before printing tree structure.
 -- For span 0, the start position of given category is computed.
 -- For other spans, the start position of only first category is meaningful.
 -- Here the original result 'ospls' of divPhraCateBySpan is needed.
 
-getCateStartPos :: PhraCate -> [[PhraCate]] -> Int
-getCateStartPos x ospls
+findPhraStartPos :: PhraCate -> [[PhraCate]] -> Int
+findPhraStartPos x ospls
     | sp == 0 = foldr (+) 0 [(getCateWidth pc ospls) + 1 | pc <- (ospls!!0), stOfCate pc < st]
                                     -- Initial phrasal (word) category
 --    | x /= (ospls!!sp)!!0 = -1      -- Not a first category
-    | otherwise = getCateStartPos pc1 ospls  -- Equal to the start position of its first parent.
+    | otherwise = findPhraStartPos pc1 ospls  -- Equal to the start position of its first parent.
         where
         st = stOfCate x
         sp = spOfCate x
         ss = ssOfCate x
         pst1 = st
         psp1 = ss - pst1 - 1
-        pc1 = (findCate (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
+        pc1 = (getPhraBySS (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
 
 -- Given a series of phrasal categories, show corresponding horizontal lines. 
 -- These categories have same span and are ordered in ascending of Start.
@@ -266,7 +267,7 @@ showNCateLine curPos (x:xs) ospls = do
     putStr " "                   -- Interval between two adjacent categories
     showNCateLine newPos xs ospls
     where
-    catPos = getCateStartPos x ospls
+    catPos = findPhraStartPos x ospls
     catWid = getCateWidth x ospls
     catTag = taOfCate x
     newPos = catPos + catWid + 1
@@ -286,7 +287,7 @@ showNCateSymb curPos (x:xs) ospls = do
     nSpace (catWid - length (show (fst (cs!!0))) + 1)   
     showNCateSymb newPos xs ospls
     where
-    catPos = getCateStartPos x ospls
+    catPos = findPhraStartPos x ospls
     catWid = getCateWidth x ospls
     newPos = catPos + catWid + 1
     cs = csOfCate x         -- [(category, seman)]
@@ -308,7 +309,7 @@ showNSemanSymb curPos (x:xs) ospls = do
                               -- The inter-category space offsets position occupying of leading colon.
     showNSemanSymb newPos xs ospls
     where
-    catPos = getCateStartPos x ospls
+    catPos = findPhraStartPos x ospls
     catWid = getCateWidth x ospls
     newPos = catPos + catWid + 1
     cs = csOfCate x         -- [(category, seman)]
@@ -351,7 +352,7 @@ showCateStartPos [pcs] ospls
         putStr " ("
         (showNCate . csOfCate . head) pcs
         putStr ", "
-        (putStr . show) (getCateStartPos (head pcs) ospls) 
+        (putStr . show) (findPhraStartPos (head pcs) ospls) 
         putStr ")"
         showCateStartPos [tail pcs] ospls
 showCateStartPos (l:ls) ospls = do

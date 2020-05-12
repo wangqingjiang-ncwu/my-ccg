@@ -2,7 +2,7 @@
 -- All rights reserved.
 
 module Category (
-    Category,      -- 范畴类型
+    Category(..),  -- Category and its all Constructors
     Slash,         -- String
     slashes,       -- [Slash]
     Prim,          -- String
@@ -25,7 +25,16 @@ module Category (
     leftCate,      -- Category -> Category
     rightCate,     -- Category -> Category
     midSlash,      -- Category -> a
-    derivate       -- Category -> Slash -> Category -> Category
+    derivate,      -- Category -> Slash -> Category -> Category
+    adjCate,       -- Category, "np/.np"
+    predCate,      -- Category, "s\.np"
+    verbCate,      -- Category, "(s\.np)/.np"
+    verbCate2,     -- Category, "((s\.np)/.np)/.np"
+    prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
+    prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
+    adj2VerbCompCate,   -- Category, "(s\.np)\x(s\.np)"
+    adj2NounCompCate    -- Category, "np\*np"
+
     ) where
 
 type Slash = String
@@ -44,7 +53,7 @@ instance Ord Category where
     Nil < Nil = False
     X < X = False 
     Primitive a < Primitive b = (a<b)
-    Derivative a _ b < Derivative c _ d = (a < c)||((a==c)&&(b<d))
+    Derivative a s1 b < Derivative c s2 d = (a < c)||((a==c)&&(b<d))||((a==c)&&(b==d)&&(s1<s2))
     Nil < X = True
     Nil < Primitive _ = True
     Nil < Derivative _ _ _ = True
@@ -193,3 +202,26 @@ midSlash (Derivative _ s _) = s
 derivate :: Category -> Slash -> Category -> Category
 derivate  cate1 slash cate2 = Derivative cate1 slash cate2
 
+adjCate :: Category
+adjCate = getCateFromString "np/.np"
+
+predCate :: Category
+predCate = getCateFromString "s\\.np"
+
+verbCate :: Category
+verbCate = getCateFromString "(s\\.np)/.np"
+
+verbCate2 :: Category
+verbCate2 = getCateFromString "((s\\.np)/.np)/.np"
+
+prep2AdvCate :: Category
+prep2AdvCate = getCateFromString "((s\\.np)/#(s\\.np))/*np"
+
+prep2CompCate :: Category
+prep2CompCate = getCateFromString "((s\\.np)\\x(s\\.np))/*np"
+
+adj2VerbCompCate :: Category
+adj2VerbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
+
+adj2NounCompCate :: Category
+adj2NounCompCate = getCateFromString "np\\*np"

@@ -16,6 +16,7 @@ module Corpus (
     OverType,           -- Int
     Prior(..),          -- Prior and its all Constructors
     StruGene,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+    OverPair,           -- (PhraCate, PhraCate, Prior)
     getConn,            -- IO Connection
     psToCate,           -- IO ()
     rawToCate,          -- [(SqlValue]] -> [[SqlValue]]
@@ -32,7 +33,7 @@ import Database.HDBC
 import Database.HDBC.MySQL
 import Data.List.Utils
 import Category
-import Phrase (Tag,PhraStru,Act)
+import Phrase (Tag,PhraStru,Act,PhraCate)
 import Utils
 
 -- Datatype POS for parts of speech (word classes).
@@ -167,6 +168,10 @@ instance Show Prior where
 -- The structural genes are stored in table stru_gene of MySQL database ccg4c.
 
 type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+
+-- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
+
+type OverPair = (PhraCate, PhraCate, Prior)
 
 -- Get a connection with given database.
 

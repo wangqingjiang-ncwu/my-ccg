@@ -40,6 +40,7 @@ module Phrase (
     csOfCate,      -- PhraCate -> [(Category, Seman)]
     csOfActCate,   -- PhraCate -> [(Category, Seman)]
     ssOfCate,      -- PhraCate -> SecStart
+    equalPhra,     -- PhraCate -> PhraCate -> Bool
     pcBelong,      -- PhraCate -> PhraCate -> Bool
     pcBelong',     -- PhraCate -> PhraCate -> Bool
     getPhraBySS,   -- (Start, Span) -> [PhraCate] -> [PhraCate]
@@ -204,6 +205,13 @@ csOfActCate pc = zip (caOfActCate pc) (seOfActCate pc)
 
 ssOfCate :: PhraCate -> SecStart
 ssOfCate (_, _, s) = s
+
+-- Without considering activities, decide two phrasal categories equal or not.
+equalPhra :: PhraCate -> PhraCate -> Bool
+equalPhra pc1 pc2 = (stOfCate pc1 == stOfCate pc2)
+                 && (spOfCate pc1 == spOfCate pc2) 
+                 && (ctspOfCate pc1 == ctspOfCate pc2)
+                 && (ssOfCate pc1 == ssOfCate pc2)
 
 {- Define relation 'belong to' between two phrasal categories. They have same Start, Span, and SecStart, 
    except that the component [(Category,Tag,Seman,PhraStru,Act)] of first phrasal category is subset of 

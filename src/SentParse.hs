@@ -5,6 +5,7 @@ module SentParse (
     getSentFromDB,        -- Int -> IO String
     getSent,              -- String -> IO [String]
     parseSent,            -- Int -> [String] -> IO ()
+    parseSent',           -- Int -> [String] -> IO ()
     parseClause,          -- [PhraCate] -> IO String
     getPhraCate_String,   -- PhraCate -> String
     getNPhraCate_String,  -- [PhraCate] -> String
@@ -20,6 +21,7 @@ module SentParse (
     ) where
 
 import Control.Monad
+import System.IO
 import Database.HDBC
 import Database.HDBC.MySQL
 import Data.List.Utils
@@ -43,16 +45,34 @@ getSentFromDB sn = do
 getSent :: String -> IO [String]
 getSent sent = return $ split " \65292:" sent    -- \65292 is Chinese comma.
 
--- Parse a sentence.
+{- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter
+   is the value of 'serial_num' in database Table 'corpus'.
+ -}
 parseSent :: Int -> [String] -> IO ()
-parseSent _ [] = putStrLn ""
 parseSent sn cs = do
-    parseSent sn (take (length cs - 1) cs)
-    putStrLn $ "  ===== Clause No." ++ show (length cs) ++ " ====="
+    hSetBuffering stdin LineBuffering                  -- Open input buffering
+    putStrLn $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 0] "
+    clauIdx <- getLine
+    if clauIdx /= ""                                   -- Not RETURN
+      then do
+        let skn = read clauIdx :: Int
+        parseSent' sn skn (drop skn cs)                -- Skip some clauses
+      else parseSent' sn 0 cs                          
+
+{- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table
+   'Corpus', and parameter 'skn' is the number of skipped clauses.
+ -}
+parseSent' :: Int -> Int -> [String] -> IO ()
+parseSent' _ _ [] = putStrLn ""
+parseSent' sn skn cs = do
+    parseSent' sn skn (take (length cs - 1) cs)
+    putStrLn $ "  ===== Clause No." ++ show (skn + length cs) ++ " ====="
     let nPCs = initPhraCate $ getNCate $ words (last cs)
     putStr "Before parsing: "
     showNPhraCate nPCs
-    treeStr <- parseClause nPCs []        -- Start to parse a clause with empty 'banPCs'.
+    putStr "Word semantic sequence: "
+    showNSeman nPCs
+    treeStr <- parseClause nPCs []        -- Start to parse a clause with empty 'banPCs'. How to handle skipping?
     if length cs == 1
       then do
         conn <- getConn
@@ -60,8 +80,8 @@ parseSent sn cs = do
         executeRaw sth
         commit conn
         disconnect conn
-        putStrLn $ "Ready to append the tree of clause " ++ show (length cs) ++ " to Table corpus."
-      else putStrLn $ "Ready to append the tree of clause " ++ show (length cs) ++ " to Table corpus."
+        putStrLn $ "Ready to append the tree of clause " ++ show (skn + length cs) ++ " to Table corpus."
+      else putStrLn $ "Ready to append the tree of clause " ++ show (skn + length cs) ++ " to Table corpus."
     storeTree sn treeStr        
 
 {- Parsing a clause is a human-machine interactive recursive process. 
@@ -112,7 +132,7 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk /= "y" && ruleSwitchOk /= ""    -- Press key 'n' or other char but not 'y' or RETURN.
       then do
-        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"S/a\", \"O/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"S/a\", \"O/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeli ',' ruleSwitchStr     -- ["+O/s","-A/v"]
         let newOnOff = updateOnOff onOff rws
@@ -124,8 +144,8 @@ doTrans onOff nPCs banPCs = do
         putStr "Banned phrases: "
         showNPhraCate (banPCs)                      -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
-        updateStruGene nPCs2 $ getOverlap nPCs2
-        nbPCs <- transWithPruning onOff nPCs banPCs -- Get transitive result again, and using pruning
+        overPairs <- updateStruGene nPCs2 [] $ getOverlap nPCs2   -- Record overlapping pairs for future pruning.
+        nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result again, and using pruning
         putStr "Transitive result after pruning: "
         showNPhraCate (sortPhraCateBySpan (fst nbPCs))
         putStr "Banned phrases: " 
@@ -137,33 +157,41 @@ doTrans onOff nPCs banPCs = do
           then return nbPCs
           else doTrans onOff nPCs banPCs            -- Redo this trip of transition by modifying structural genes.
       
--- Insert or update related structural genes in table stru_gene.
-updateStruGene :: [PhraCate] -> [(PhraCate,PhraCate)] -> IO ()
-updateStruGene _ [] = putStrLn "updateStruGene: End"
-updateStruGene nPCs (pcp:pcps) = do
-    updateStruGene' struGene                             -- Update structural gene in table stru_gene
-    updateStruGene nPCs pcps
+-- Insert or update related structural genes in table stru_gene, and recursively create overlapping pairs.
+updateStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
+updateStruGene _ overPairs [] = do
+    putStrLn "updateStruGene: End"
+    return overPairs
+updateStruGene nPCs overPairs (pcp:pcps) = do
+    newOverPairs <- updateStruGene' struGene overPairs       -- Update structural gene in table stru_gene
+    updateStruGene nPCs newOverPairs pcps
     where
       lop = fst pcp
       rop = snd pcp
-      ot = getOverType nPCs lop rop                -- Get overlapping type
+      ot = getOverType nPCs lop rop                      -- Get overlapping type
       leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
       reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
       struGene = (leps,lop,rop,reps,ot) 
 
--- Update structural genes related with a certain pair of overlapping phrases.
-updateStruGene' :: ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> IO ()
-updateStruGene' gene = do
-    putStrLn $ "Find new structural fragment: leftExtend = '" ++ show (fst5 gene) ++ "' && " ++
-                                               "leftOver = '" ++ show (snd5 gene) ++ "' && " ++
-                                              "rightOver = '" ++ show (thd5 gene) ++ "' && " ++
-                                            "rightExtend = '" ++ show (fth5 gene) ++ "' && " ++
-                                               "overType = "  ++ show (fif5 gene)
-    let le = map ((!!0) . ctpOfCate) (fst5 gene)        -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate (snd5 gene))!!0                 -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate (thd5 gene))!!0                 -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) (fth5 gene)        -- [(Category,Tag,PhraStru)] of right-extended phrases
-    let ot = fif5 gene                                  -- Overlap type
+{- Update structural genes related with a certain pair of overlapping phrases, and add the overlapping pair into
+   a list of OverPair.
+ -}
+updateStruGene' :: ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair] 
+updateStruGene' gene overPairs = do
+    let leftExtend = fst5 gene
+    let leftOver = snd5 gene
+    let rightOver = thd5 gene
+    let rightExtend = fth5 gene
+    let overType = fif5 gene
+
+    putStr "Find new structural fragment: "
+    showStruFrag leftExtend leftOver rightOver rightExtend overType
+
+    let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
+    let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+    let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
+    let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
+    let ot = overType                                   -- Overlap type
 
     let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
     let lov = doubleBackSlash (show lo)
@@ -189,11 +217,15 @@ updateStruGene' gene = do
         if length rows > 1
           then error "updateStruGene': Find duplicate structural genes."
           else do
-            putStrLn $ "updateStruGene': (" ++ show (read (fromSql ((rows!!0)!!0))::Int) ++ ")Prior: " ++ fromSql ((rows!!0)!!1)
+            let id = read (fromSql ((rows!!0)!!0))::Int
+            let prior = fromSql ((rows!!0)!!1) 
+            putStrLn $ "updateStruGene': (" ++ show id ++ ")Prior: " ++ prior
             putStr "Is the priority right? [y/n]: (RETURN for 'y') "
             input <- getLine
             if input == "y" || input == ""     -- Press key 'y' or directly press RETURN.
-              then disconnect conn             -- Explicitly close this MySQL connection.
+              then do
+                disconnect conn             -- Explicitly close this MySQL connection.
+                return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
               else do 
                 putStr "please input new priority [Lp/Rp]: (RETURN for 'Lp') "
                 newPrior <- getLine
@@ -207,6 +239,7 @@ updateStruGene' gene = do
                     execute sth [toSql newPrior]   -- Update column 'prior' of structural gene.
                     commit conn                    -- Commit any pending data to the database.
                     disconnect conn                -- Explicitly close the connection.
+                    return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
                   else if newPrior == ""
                          then do
                            sth <- prepare conn ("update stru_gene set prior = ? where " 
@@ -218,12 +251,17 @@ updateStruGene' gene = do
                            execute sth [toSql "Lp"]       -- Update column 'prior' of structural gene.
                            commit conn                    -- Commit any pending data to the database.
                            disconnect conn                -- Explicitly close the connection.
-                         else error "updateStruGene': Illegal priority"
+                           return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
+                         else do
+                           putStrLn "updateStruGene': Illegal priority"
+                           updateStruGene' gene overPairs        -- Calling the function itself again.
       else do
         putStr "Inquire failed, skip? [y/n]: (RETURN for 'y') " 
         input <- getLine 
         if input == "y" || input == ""     -- Press key 'y' or directly press RETURN. 
-          then disconnect conn             -- Explicitly close this MySQL connection.
+          then do
+            disconnect conn                     -- Explicitly close this MySQL connection.
+            updateStruGene' gene overPairs      -- To now, don't allow skipping.
           else do 
             putStr "please input new priority [Lp/Rp]: (RETURN for 'Lp') "
             newPrior <- getLine
@@ -233,13 +271,17 @@ updateStruGene' gene = do
                 executeRaw sth          -- Insert the described structural gene.
                 commit conn             -- Commit any pending data to the database.
                 disconnect conn         -- Explicitly close the connection.
+                return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
               else if newPrior == ""
                 then do
                   sth <- prepare conn ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'Lp')")
                   executeRaw sth          -- Insert the described structural gene.
                   commit conn             -- Commit any pending data to the database.
                   disconnect conn         -- Explicitly close the connection.
-                else error "updateStruGene': Illegal priority"
+                  return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
+                else do
+                  putStrLn "updateStruGene': Illegal priority"
+                  updateStruGene' gene overPairs   -- Calling the function itself again.
 
 -- Store the parsing tree of a clause into database. Actually, here is an append operation.
 storeTree :: Int -> String -> IO ()

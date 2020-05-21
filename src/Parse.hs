@@ -2,6 +2,7 @@
 -- All rights reserved.
 
 module Parse (
+    ccTags,            -- Tags of category-converted rules
     Rule(..),          -- Enumerated type for the tags of category-converted rules
     OnOff,             -- [Rule]
     ruleOn,            -- Rule -> OnOff -> OnOff
@@ -12,9 +13,9 @@ module Parse (
     initPhraCate,      -- [(Category, Seman)] -> [PhraCate]
     trans,             -- OnOff -> [PhraCate] -> [PhraCate]
     transWithPruning,  -- OnOff -> [PhraCate] -> [PhraCate]
-    parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
-    prune,             -- OnOff -> [PhraCate] -> [PhraCate]
-    prune',            -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
+--    parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
+    prune,             -- [PhraCate] -> [PhraCate]
+--    prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
     findPhraWithLowestPrio,  -- [PhraCate] -> [(PhraCate,PhraCate)] -> PhraCate
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
@@ -43,11 +44,17 @@ import Utils
 import Database.HDBC
 import Database.HDBC.MySQL
 
-{- The enumerated type Rule includes all tags of context-sensitive category-converted rules:
-   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)S/a, (7)O/a, (8)P/a, (9)Cv/a, (10)Cn/a, (11)A/n.
+{- All tags of context-sensitive category-converted rules:
+   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)S/a, (8)O/a, (9)P/a, (10)Cv/a, (11)Cn/a, (12)A/n.
+ -}
+
+ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
+
+{- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
+   value can't include '/'.
  -}
  
-data Rule = Ss | Os | As | Sv | Ov | Av | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -57,6 +64,7 @@ instance Show Rule where
     show Sv = "S/v"
     show Ov = "O/v"
     show Av = "A/v"
+    show Hnv = "Hn/v"
     show Sa = "S/a"
     show Oa = "O/a"
     show Pa = "P/a"
@@ -95,6 +103,8 @@ updateOnOff onOff rws
     | rw1 == "-O/v" = updateOnOff (ruleOff Ov onOff) rwt
     | rw1 == "+A/v" = updateOnOff (ruleOn Av onOff) rwt
     | rw1 == "-A/v" = updateOnOff (ruleOff Av onOff) rwt
+    | rw1 == "+Hn/v" = updateOnOff (ruleOn Hnv onOff) rwt
+    | rw1 == "-Hn/v" = updateOnOff (ruleOff Hnv onOff) rwt
     | rw1 == "+S/a" = updateOnOff (ruleOn Sa onOff) rwt
     | rw1 == "-S/a" = updateOnOff (ruleOff Sa onOff) rwt
     | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
@@ -107,7 +117,7 @@ updateOnOff onOff rws
     | rw1 == "-Cn/a" = updateOnOff (ruleOff Cna onOff) rwt
     | rw1 == "+A/n" = updateOnOff (ruleOn An onOff) rwt
     | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
-    | otherwise = error "updateOnOff: Rule switch is not cognizable."
+    | otherwise = error $ "updateOnOff: Rule switch " ++ rw1 ++ "is not cognizable."
       where 
         rw1 = head rws    
         rwt = tail rws
@@ -193,6 +203,13 @@ cateComb onOff pc1 pc2
       ctspaByvToA = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff]
       catesByvToA = [(fst5 cate, "A/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA]
 
+-- The conversion from verb to noun happens when the verb occupies nominal head word position.
+      v_Hn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+      ctspaByvToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp1, cate2 <- v_Hn, fst3 cate1 == adjCate, elem Hnv onOff]
+      catesByvToHn = [(fst5 cate, "Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToHn]
+
 -- The conversion from adjective to noun happens when the adjective occupies subject or object position.
       a_S = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
       ctspaByaToS = [rule cate1 cate2 | rule <- [appB, raiFh], cate1 <- a_S, cate2 <- csp_2, elem Sa onOff]
@@ -237,11 +254,21 @@ cateComb onOff pc1 pc2
           csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
       catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
 
--- The categories gotten by all rules.
-      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByaToS ++ catesByaToO ++ catesByaToP ++ catesByaToCv ++ catesByaToCn ++ catesBynToA
+{- The conversions from noun to adjective and from verb to noun can be used simultaneously ONLY when nouns act as
+   attribute meanwhile verbs act as nominal head word.
+ -}
+      n_A2 = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      v_Hn2 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+      ctspaBynToAvToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A2, cate2 <- v_Hn2, elem An onOff, elem Hnv onOff]
+      catesBynToAvToHn = [(fst5 cate, "A/n-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToAvToHn]
 
-    -- Remove Nil's resultant cateories and duplicate ones.
-      rcs = removeDup [rc | rc <- cates, (fst5 rc) /= nilCate]
+-- The categories gotten by all rules.
+      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn ++ catesByaToS ++ catesByaToO ++ catesByaToP ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToAvToHn
+
+    -- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
+      rcs = removeDup [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]
 
 {- Words are considered as phrases with span 0. Word category and semantics are designated by manual input, so word
    tag is "Desig". Besides, words all have phrasal structure "DE", and are all active.
@@ -259,13 +286,15 @@ trans onOff pcs banPCs = pcs2
       newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- Not consider phrasal activity
       pcs2 = updateAct $ pcs ++ newCbs
 
--- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list.
-transWithPruning :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
-transWithPruning onOff pcs banPCs = do
+{- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some
+   new structural genes are added into the list of structural genes.
+ -}
+transWithPruning :: OnOff -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
+transWithPruning onOff pcs banPCs overPairs = do
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
     let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]    -- Not consider phrasal activity
     let pcs1 = updateAct $ pcs ++ newCbs                  -- Before pruning
-    pcs2 <- prune onOff pcs1                              -- After pruning, Attr. activity is corrected.
+    pcs2 <- prune overPairs pcs1                          -- After pruning, Attr. activity is corrected.
     let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]     -- Update the list of banned phrasal categories.
     return (pcs2, banPCs2)
 
@@ -293,16 +322,18 @@ transWithPruning onOff pcs banPCs = do
    phrasal closure is gotten, the interactive process terminates. Function parse uses same set of category-converted
    rules for all trips of transitions, and becomes useless under interactive mode.
  -}
+{- 
 parse :: OnOff -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
 parse onOff trans banPCs = do
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- trans, pc2 <- trans, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]      -- At least one is active.
     let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem cb banPCs]
     let trans1 = trans ++ newCbs                                    -- Before pruning
-    trans2 <- prune onOff $ updateAct $ trans1                -- After pruning, Attr. activity is corrected.
+    trans2 <- prune $ updateAct $ trans1                            -- After pruning, Attr. activity is corrected.
     let banPCs2 = banPCs ++ [cb| cb <-trans1, notElem cb trans2]    -- Update the list of banned phrasal categories.
     if newCbs == []
       then return trans                  -- No new combination
       else parse onOff trans2 banPCs2
+-}
 
 {- We adopt pruning method to remove those banned phrases, based on some axioms.
    Axiom 1. The pruned phrases are no longer generated.
@@ -312,28 +343,29 @@ parse onOff trans banPCs = do
    just generated, and any phrasal category having taken part in category combination should be set inactive, which
    can still combine with active categories. When removing a category, its parent categories should be set active.
  -} 
-prune :: OnOff -> [PhraCate] -> IO [PhraCate]
-prune onOff pcs = do
+prune :: [OverPair] -> [PhraCate] -> IO [PhraCate]
+prune overPairs pcs = do
      let pcps = getOverlap pcs                      -- Get overlapping phrase pairs
      if pcps == []                                  -- No overlapping phrases
        then return pcs
        else do
-         pc <- findPhraWithLowestPrio pcs pcps    -- Find the phrase with lowest priority among all phrases.
-         prune onOff $ removeOnePC pc pcs
+         pc <- findPhraWithLowestPrio pcs pcps overPairs   -- Find the phrase with lowest priority among all phrases.
+         prune overPairs $ removeOnePC pc pcs
 
 {- A wrapper of Function <prune> to input the phrases to be pruned and the banned phrases, return the result and
    the updated banned phrases.
  -}
-prune' :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
-prune' onOff pcs banPCs = do
-    pcs1 <- prune onOff pcs                                       -- After pruning, Attr. activity is corrected.
-    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElem pc pcs1]      -- Update the list of banned phrasal categories.
+{-
+prune' :: [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
+prune' pcs banPCs = do
+    pcs1 <- prune pcs                                              -- After pruning, Attr. activity is corrected.
+    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElem' pc pcs1]      -- Update the list of banned phrasal categories.
     return (pcs1, banPCs1)
+ -}
 
 {- Get all pairs of overlapping phrases. In every pair, there is no blood relation, and at least one phrase is active.
    Using pclt to avoid (a,b) and (b,a) concurrent, only considering 'a' is left of 'b'. Here, phrases' spans > 0.
  -}
-
 getOverlap :: [PhraCate] -> [(PhraCate, PhraCate)]
 getOverlap [] = []
 getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, pclt x y, (acOfCate x)!!0 || (acOfCate y)!!0, getOverType pcs x y /= 0]
@@ -349,8 +381,8 @@ getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, p
        go (1).
  -}
 
-findPhraWithLowestPrio :: [PhraCate] -> [(PhraCate,PhraCate)] -> IO PhraCate
-findPhraWithLowestPrio trans ops = do
+findPhraWithLowestPrio :: [PhraCate] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO PhraCate
+findPhraWithLowestPrio trans ops overPairs = do
     if ops == []
       then return nilPhra
       else do
@@ -358,74 +390,37 @@ findPhraWithLowestPrio trans ops = do
         let xs = tail ops
         let pc1 = fst x
         let pc2 = snd x
-        pri <- getPrior trans pc1 pc2                                  -- Find priority from Table stru_gene
+        pri <- getPrior overPairs pc1 pc2                              -- Find priority from a list of 'OverPair'
         let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1
         let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
         if pri == Lp && pcps2 /= []
-          then findPhraWithLowestPrio trans pcps2
+          then findPhraWithLowestPrio trans pcps2 overPairs
           else if pri == Lp && pcps2 == []
                  then return pc2
                  else if pri == Rp && pcps1 /= []
-                        then findPhraWithLowestPrio trans pcps1
+                        then findPhraWithLowestPrio trans pcps1 overPairs
                         else if pri == Rp && pcps1 == []
                                then return pc1
                                else error "findPhraWithLowestPrio: pri == Noth." 
 
-{- Select <prior> from Table 'stru_gene' where matching given syntactic fragment.
+{- Select <prior> from a list of 'OverPair' where matching given an overlapping pair of phrases.
    <Just Lp> means <leftOver> should remains while <rightOver> should be abandoned, and <Just Rp> means the contrary.
    If inquire fails, return Nothing.
+   Pruning is a recursive process. After removing one phrase from transitive closure, neighbours of some phrases will
+   change. Before pruning, all overlapping phrases are assigned with priorities, and these priorities are hoped to
+   keep valid during the whole process of pruning. So, querying structural genes in Table stru_gene is replaced by
+   querying overlapping phrases in a list of 'OverPair', which is created before pruning. 
  -}
 
-getPrior :: [PhraCate] -> PhraCate -> PhraCate -> IO Prior
-getPrior nPCs pc1 pc2 = do
-    let leps = getPhraByEnd (stOfCate pc1 - 1) nPCs        -- Get all left-extend phrases
-    let reps = getPhraByStart (enOfCate pc2 + 1) nPCs      -- Get all right-entexd phrases
-    let le = map ((!!0) . ctpOfCate) leps                  -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate pc1)!!0                            -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate pc2)!!0                            -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) reps                  -- [(Category,Tag,PhraStru)] of right-extended phrases
-    let ot = getOverType nPCs pc1 pc2                      -- Get overlapping type
-
-    putStrLn $ "Inquire structural fragment: leftExtend = '" ++ show leps++ "' && " ++
-                                              "leftOver = '" ++ show pc1 ++ "' && " ++
-                                             "rightOver = '" ++ show pc2 ++ "' && " ++
-                                           "rightExtend = '" ++ show reps ++ "' && " ++
-                                              "overType = "  ++ show ot
- 
-    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
-                                          "leftOver = '" ++ show lo ++ "' && " ++
-                                         "rightOver = '" ++ show ro ++ "' && " ++
-                                       "rightExtend = '" ++ show re ++ "' && " ++
-                                          "overType = "  ++ show ot
- 
-    let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
-    let lov = doubleBackSlash (show lo)
-    let rov = doubleBackSlash (show ro)
-    let rev = doubleBackSlash (show re)
-    let otv = show ot
-
-    conn <- getConn
-    sth <- prepare conn ("select id, prior from stru_gene where leftExtend = '" ++ lev ++ "' && " ++
-                                                                 "leftOver = '" ++ lov ++ "' && " ++
-                                                                "rightOver = '" ++ rov ++ "' && " ++
-                                                              "rightExtend = '" ++ rev ++ "' && " ++
-                                                                 "overType = "  ++ otv)
-    executeRaw sth
-    rows <- fetchAllRows sth
-    if rows /= []
-      then do
-        if length rows > 1
-          then error "getPrior: Find duplicate structural genes."
-          else do
-            putStrLn $ "getPrior: (" ++ show (read (fromSql ((rows!!0)!!0)) :: Int) ++ ") Prior: " ++ fromSql ((rows!!0)!!1)
-            let prior = read (fromSql ((rows!!0)!!1)) :: Prior
-            disconnect conn
-            return prior
-      else do 
-        putStrLn $ "getPrior: Inquire failure" 
-        disconnect conn
-        return Noth                                      -- Noth :: Prior, means inquire failure
-
+getPrior :: [OverPair] -> PhraCate -> PhraCate -> IO Prior
+getPrior [] _ _ = return Noth
+getPrior (op:ops) pc1 pc2 = do
+    let lo = fst3 op                            -- Left-overlapping phrase
+    let ro = snd3 op                            -- Right-overlapping phrase
+    if (equalPhra lo pc1 && equalPhra ro pc2)
+      then return (thd3 op)    
+      else getPrior ops pc1 pc2
+                    
 {- Decide whether two phrasal categories are overlapping. If overlapping, give its type.
    Type 1: st1==st2,sp1==sp2         (Equal overlap)
           |~~~~~|
@@ -487,8 +482,7 @@ updateAct trans = [deactOnePC x | x <- married] ++ [actOnePC x | x <- not_marrie
 
 findSplitCate :: PhraCate -> [PhraCate] -> [(PhraCate, PhraCate)]
 findSplitCate pc clo
-    | isRule = [pct | pct <- pcTuples, pcBelong' pc (cateComb (updateOnOff [] ['+':tag1]) (fst pct) (snd pct))]
-    | otherwise = [pct | pct <- pcTuples, pcBelong' pc (cateComb [] (fst pct) (snd pct))]
+    = [pct | pct <- pcTuples, pcBelong' pc (cateComb onOff (fst pct) (snd pct))]
                                            -- Using pcBelong' not pcBelong is for neglecdting the active attribute.
       where
         st1 = stOfCate pc
@@ -497,10 +491,10 @@ findSplitCate pc clo
         sp2 = spOfCate pc - sp1 - 1        -- When pc is a leaf, sp2 will be 0, that is, the second parent is pc.
         pcTuples = [(x, y) | x <- (getPhraBySS (st1, sp1) clo), y <- (getPhraBySS (st2, sp2) clo)]
                                            -- When pc is a leaf, pcTuples will be [] because span -1 does not exist.
-        tag = (taOfCate pc)!!0
-        tag1 = head $ splitAtDeli '-' tag  -- Displayed tag of a category-converted rule or an universal rule
-        isRule = elem tag1 ["S/s","O/s","A/s","S/v","O/v","A/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
-   
+        tags = splitAtDeli '-' ((taOfCate pc)!!0)    -- All tags used
+        cctags = [x| x <- tags, elem x ccTags]       -- Tags of category-converted rules, maybe empty.
+        onOff = updateOnOff [] (map ("+" ++) cctags)  
+ 
 -- Find descendants of a given phrasal category from the transitive closure of phrasal categories.
 
 findDescen :: PhraCate -> [PhraCate] -> [PhraCate]

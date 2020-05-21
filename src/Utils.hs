@@ -23,8 +23,8 @@ module Utils (
     throwBrac,     -- String -> String
     splitAtDeli,   -- Char -> String -> [String]
     maxStrLen,     -- [String] -> Int
-    doubleBackSlash   -- String -> String
-   
+    doubleBackSlash,   -- String -> String
+    putNStr   
     ) where
 
 import Data.Tuple
@@ -136,3 +136,14 @@ doubleBackSlash "" = ""
 doubleBackSlash (c:cs)
     | c == '\\' = "\\\\" ++ doubleBackSlash cs
     | otherwise = c : doubleBackSlash cs
+
+putNStr :: [String] -> IO ()
+putNStr [] = putStrLn ""
+putNStr (s:ss) = do
+    putStr s
+    if ss /= []
+      then do
+        putStr ", "
+        putNStr ss
+      else putNStr ss
+

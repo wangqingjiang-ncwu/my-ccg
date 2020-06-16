@@ -14,12 +14,14 @@ module Phrase (
     isPhrase,      -- PhraCate -> Bool
     nilPhra,       -- Phracate
     getPhraCateFromString,     -- String -> PhraCate
-    createPhraCate,-- Start -> Span -> [(Category,Tag,Seman,PhraStru,Act)] -> SecStart -> PhraCate
+    phraCateToString,          -- PhraCate -> String
+    nPhraCateToString,         -- [PhraCate] -> String
+    createPhraCate,            -- Start -> Span -> [(Category,Tag,Seman,PhraStru,Act)] -> SecStart -> PhraCate
     stOfCate,      -- PhraCate -> Start
     spOfCate,      -- PhraCate -> Span
     enOfCate,      -- PhraCate -> End
-    ctspaOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
-    ctspaOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
+    ctspaOfCate,               -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
+    ctspaOfActCate,            -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
     ctpaOfCate,    -- PhraCate -> [(Category, Tag, PhraStru, Act)]
     ctpOfCate,     -- PhraCate -> [(Category, Tag, PhraStru)]
     tpaOfCate,     -- PhraCate -> [(Tag, PhraStru, Act)]
@@ -95,12 +97,29 @@ getPhraCateFromString str = ((st,sp),[(cate,tag,sem,phraStru,act)],ss)
     s = splitAtDeli ',' str
     st = read (throwBrac (s!!0)) :: Int
     sp = read (throwBrac (s!!1)) :: Int
-    cate = getCateFromString (drop 2 (s!!2))
-    tag = s!!3
-    sem = s!!4
-    phraStru = s!!5
+    cate = getCateFromString (throwHTSpace (throwBrac (s!!2)))
+    tag = throwHTSpace (s!!3)
+    sem = throwHTSpace (s!!4)
+    phraStru = throwHTSpace (s!!5)
     act = read (throwBrac (s!!6)) :: Bool
     ss = read (throwBrac (s!!7)) :: Int
+
+-- Get the string of a phrasal category.
+phraCateToString :: PhraCate -> String
+phraCateToString pc = "((" ++ show st ++ "," ++ show sp ++ "),[(" ++ show (ca!!0) ++ "," ++ (ta!!0) ++ "," ++ (se!!0) ++ "," ++ (ps!!0) ++ "," ++ show (ac!!0) ++ ")]," ++ show ss ++ ")"
+    where
+    st = stOfCate pc
+    sp = spOfCate pc
+    ca = caOfCate pc
+    ta = taOfCate pc
+    se = seOfCate pc
+    ps = psOfCate pc
+    ac = acOfCate pc
+    ss = ssOfCate pc
+
+-- Get the string of [PhraCate].
+nPhraCateToString :: [PhraCate] -> String
+nPhraCateToString nPCs = listToString $ map phraCateToString nPCs
 
 -- Create a phrasal category by given member components.
 createPhraCate :: Start -> Span -> [(Category,Tag,Seman,PhraStru,Act)] -> SecStart -> PhraCate

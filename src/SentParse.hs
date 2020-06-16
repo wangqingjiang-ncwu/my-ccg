@@ -5,19 +5,19 @@ module SentParse (
     getSentFromDB,        -- Int -> IO String
     getSent,              -- String -> IO [String]
     parseSent,            -- Int -> [String] -> IO ()
+    goBackTo,             -- Int -> Int -> IO ()
     parseSent',           -- Int -> [String] -> IO ()
-    parseClause,          -- [PhraCate] -> IO String
-    getPhraCate_String,   -- PhraCate -> String
-    getNPhraCate_String,  -- [PhraCate] -> String
-    doTrans,              -- OnOff -> [PhraCate] -> IO OnOff
-    updateStruGene,       -- [PhraCate] -> [(PhraCate,PhraCate)] -> IO ()
-    updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> IO ()
+    storeClauseParsing,   -- Int -> Int -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
+    parseClause,          -- [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
+    doTrans,              -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([OnOff],[PhraCate],[PhraCate])
+    updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
+    updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
     storeTree,            -- Int -> String -> IO ()
     readTree_String,      -- Int -> IO String
     sentToClauses,        -- String -> IO [String]
-    splitClauStr,         -- String -> [String]
     dispTree,             -- [String] -> IO ()
     getClauPhraCate       -- String -> [PhraCate]
+
     ) where
 
 import Control.Monad
@@ -26,10 +26,12 @@ import Database.HDBC
 import Database.HDBC.MySQL
 import Data.List.Utils
 import Data.List
+import Data.Tuple.Utils
 import Phrase
 import Parse
 import Corpus
 import Output
+import Script
 import Utils
 
 -- Get a sentence from table corpus. 
@@ -51,13 +53,39 @@ getSent sent = return $ split " \65292:" sent    -- \65292 is Chinese comma.
 parseSent :: Int -> [String] -> IO ()
 parseSent sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
-    putStrLn $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 0] "
+    putStrLn $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
     clauIdx <- getLine
     if clauIdx /= ""                                   -- Not RETURN
       then do
-        let skn = read clauIdx :: Int
-        parseSent' sn skn (drop skn cs)                -- Skip some clauses
+        let ci = read clauIdx :: Int
+        if ci < 1 || ci > length cs
+          then error $ "Clause " ++ show ci ++ " does not exist!"
+          else do
+            goBackTo sn ci                               -- Drop trees and scripts of clause <ci> and its subsequents.
+            parseSent' sn (ci - 1) (drop (ci - 1) cs)    -- Skip some clauses
       else parseSent' sn 0 cs                          
+
+-- To be ready for parsing from clause <ci>, modify attribute <tree> and <script> of entry <sn> in Table corpus.
+goBackTo :: Int -> Int -> IO ()
+goBackTo sn ci = do
+    conn <- getConn
+    sth <- prepare conn ("select tree, script from corpus where serial_num = " ++ show sn)
+    executeRaw sth
+    rows <- fetchAllRows sth
+    let trees = readPCList (fromSql ((rows!!0)!!0))
+    let scripts = readScripts (fromSql ((rows!!0)!!1))
+    if length trees + 1 < ci
+      then error $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
+      else if length trees + 1 == ci
+             then putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+             else do
+               let trees' = take (ci - 1) trees
+               let scripts' = take (ci - 1) scripts  
+               sth' <- prepare conn ("update corpus set tree = ?, script = ? where serial_num = " ++ show sn)
+               execute sth [toSql (nPhraCateToString trees'), toSql (nScriptToString scripts')]
+               commit conn                    -- Commit any pending data to the database.
+               disconnect conn                -- Explicitly close the connection.
+               putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
 
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table
    'Corpus', and parameter 'skn' is the number of skipped clauses.
@@ -66,73 +94,69 @@ parseSent' :: Int -> Int -> [String] -> IO ()
 parseSent' _ _ [] = putStrLn ""
 parseSent' sn skn cs = do
     parseSent' sn skn (take (length cs - 1) cs)
-    putStrLn $ "  ===== Clause No." ++ show (skn + length cs) ++ " ====="
+    let clauIdx = skn + length cs
+    putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
     let nPCs = initPhraCate $ getNCate $ words (last cs)
     putStr "Before parsing: "
     showNPhraCate nPCs
     putStr "Word semantic sequence: "
     showNSeman nPCs
-    treeStr <- parseClause nPCs []        -- Start to parse a clause with empty 'banPCs'. How to handle skipping?
-    if length cs == 1
-      then do
-        conn <- getConn
-        sth <- prepare conn ("update corpus set tree = '' where serial_num = " ++ show sn)
-        executeRaw sth
-        commit conn
-        disconnect conn
-        putStrLn $ "Ready to append the tree of clause " ++ show (skn + length cs) ++ " to Table corpus."
-      else putStrLn $ "Ready to append the tree of clause " ++ show (skn + length cs) ++ " to Table corpus."
-    storeTree sn treeStr        
+    rtbPCs' <- parseClause [] nPCs []           -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+    storeClauseParsing sn clauIdx rtbPCs'       -- Add the parsing result of this clause into database.
+
+--  Add the parsing result of a clause into database.
+storeClauseParsing :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+storeClauseParsing sn clauIdx rtbPCs = do
+    conn <- getConn
+    sth <- prepare conn ("select tree, script from corpus where serial_num = " ++ show sn)
+    executeRaw sth
+    rows <- fetchAllRows sth
+    let trees = readPCList (fromSql ((rows!!0)!!0))
+    let scripts = readScripts (fromSql ((rows!!0)!!1))
+    let trees' = trees ++ (snd3 rtbPCs)
+    let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+    sth' <- prepare conn ("update corpus set tree = ?, script = ? where serial_num = " ++ show sn)
+    execute sth [toSql (nPhraCateToString trees'), toSql (nScriptToString scripts')]
+ 
+    commit conn                    -- Commit any pending data to the database.
+    disconnect conn                -- Explicitly close the connection.
 
 {- Parsing a clause is a human-machine interactive recursive process. 
-   Input: The sequence of phrasal categories for the clause, and the banned phrasal categories;
-   (1) Initialize On/Off string of category-converted rules as "-----------", namely turn off all these rules;
-   (2) Do one trip of transition,
-       (a1) Does not create new phrasal categories, display structural tree, and return tree structure string;
-       (a2) Create new phrasal categries, go (2).
+   Input: A sequence of [Rule], a sequence of phrasal categories, and a sequence of banned phrasal categories;
+   Algo.: 
+   (1) Do one trip of transition;
+   (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and
+       accumulated banned phrases as input, go (1);
+       Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  -}
 
-parseClause :: [PhraCate] -> [PhraCate] -> IO String
-parseClause nPCs banPCs = do
-    nbPCs <- doTrans [] nPCs banPCs                    -- Every trip of transition has its available rules. 
-    if nPCs /= (fst nbPCs)
-        then parseClause (fst nbPCs) (snd nbPCs)       -- Do the next trip of transition.
-        else do                                        -- Phrasal closure has been formed.
+parseClause :: [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClause rules nPCs banPCs = do
+    rtbPCs <- doTrans [] nPCs banPCs           -- Every trip of transition begins with empty rule set. 
+                                               -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
+                                               -- [Rule] is the set of rules used in this trip of transition.
+    if nPCs /= (snd3 rtbPCs)
+        then parseClause (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
+                                               -- with appended rules, resultant PCs, and accumulated banned PCs.
+        else do                                -- Phrasal closure has been formed.
                putStrLn $ "Num. of phrasal categories in closure is '" ++ (show $ length nPCs)
                showNPhraCate (sortPhraCateBySpan nPCs)
                let spls = divPhraCateBySpan (nPCs)
-               putStrLn "  ##### Parsing Tree"
+               putStrLn "  ##### Parsing Tree #####"
                showTreeStru spls spls
-               return $ getNPhraCate_String nPCs
+               return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs) 
 
--- Get the string of a phrasal category.
-getPhraCate_String :: PhraCate -> String
-getPhraCate_String pc = "((" ++ show st ++ "," ++ show sp ++ "),[(" ++ show (ca!!0) ++ "," ++ (ta!!0) ++ "," ++ (se!!0) ++ "," ++ (ps!!0) ++ "," ++ show (ac!!0) ++ ")]," ++ show ss ++ ")"
-    where
-    st = stOfCate pc
-    sp = spOfCate pc
-    ca = caOfCate pc
-    ta = taOfCate pc
-    se = seOfCate pc
-    ps = psOfCate pc
-    ac = acOfCate pc
-    ss = ssOfCate pc
-
--- Get the string of [PhraCate], using delimiter '&'.
-getNPhraCate_String :: [PhraCate] -> String
-getNPhraCate_String [] = ""
-getNPhraCate_String [pc] = getPhraCate_String pc
-getNPhraCate_String (pc:pcs) = getPhraCate_String pc ++ "&" ++ getNPhraCate_String pcs
-
--- Do a trip of transition, insert or update related structural genes in table stru_gene, and return OnOff.
-doTrans :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
+{- Do a trip of transition, insert or update related structural genes in table stru_gene, and return the category-
+   converted rules used in this trip, the resultant phrases, and the banned phrases.
+ -}
+doTrans :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
     showOnOff onOff
     putStr "Are rule switches ok? [y/n]: (RETURN for 'y') "
     ruleSwitchOk <- getLine
     if ruleSwitchOk /= "y" && ruleSwitchOk /= ""    -- Press key 'n' or other char but not 'y' or RETURN.
       then do
-        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"S/a\", \"O/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"D/v\", \"S/a\", \"O/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeli ',' ruleSwitchStr     -- ["+O/s","-A/v"]
         let newOnOff = updateOnOff onOff rws
@@ -154,7 +178,7 @@ doTrans onOff nPCs banPCs = do
         putStr "This trip of transition is ok? [y/n]: (RETURN for 'y') "
         transOk <- getLine                          -- Get user decision of whether to do next transition
         if transOk == "y" || transOk == ""          -- Press key 'y' or directly press RETURN 
-          then return nbPCs
+          then return (onOff,(fst nbPCs),(snd nbPCs))
           else doTrans onOff nPCs banPCs            -- Redo this trip of transition by modifying structural genes.
       
 -- Insert or update related structural genes in table stru_gene, and recursively create overlapping pairs.
@@ -283,7 +307,9 @@ updateStruGene' gene overPairs = do
                   putStrLn "updateStruGene': Illegal priority"
                   updateStruGene' gene overPairs   -- Calling the function itself again.
 
--- Store the parsing tree of a clause into database. Actually, here is an append operation.
+{- Store the parsing tree of a clause into database. Actually, here is an append operation.
+   The function is obsoleted, and replaced with Function storeClauseParsing.
+ -}
 storeTree :: Int -> String -> IO ()
 storeTree sn treeStr = do
     origTree <- readTree_String sn
@@ -304,13 +330,9 @@ readTree_String sn = do
 --  disconnect conn
     return (fromSql ((rows!!0)!!0))
 
--- Get the list of clause strings from the tree string.
+-- Get the list of clause strings from the tree string. Tree string actually is the String of [[PhraCate]].
 sentToClauses :: String -> IO [String]
-sentToClauses cs = return $ [x | x <- splitAtDeli ';' cs, x /= ""]                 -- Remove "" from [String]
-
--- Split clause's string into a list of substrings, any one of which is of a phrasal category.
-splitClauStr :: String -> [String]
-splitClauStr cs = splitAtDeli '&' (init (tail cs))
+sentToClauses cs = return $ stringToList cs
 
 -- Display trees' structure of clauses of a sentence, one tree per clause.
 dispTree :: [String] -> IO ()
@@ -325,5 +347,5 @@ dispTree (s:cs) = do
 -- Get a clause's [PhraCate] from its string value.
 getClauPhraCate :: String -> [PhraCate]
 getClauPhraCate "" = []
-getClauPhraCate str = map getPhraCateFromString (splitClauStr str)
+getClauPhraCate str = map getPhraCateFromString (stringToList str)
 

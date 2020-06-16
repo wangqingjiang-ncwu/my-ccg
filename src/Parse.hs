@@ -13,9 +13,9 @@ module Parse (
     initPhraCate,      -- [(Category, Seman)] -> [PhraCate]
     trans,             -- OnOff -> [PhraCate] -> [PhraCate]
     transWithPruning,  -- OnOff -> [PhraCate] -> [PhraCate]
---    parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
+--  parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
     prune,             -- [PhraCate] -> [PhraCate]
---    prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
+--  prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
     findPhraWithLowestPrio,  -- [PhraCate] -> [(PhraCate,PhraCate)] -> PhraCate
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
@@ -45,16 +45,16 @@ import Database.HDBC
 import Database.HDBC.MySQL
 
 {- All tags of context-sensitive category-converted rules:
-   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)S/a, (8)O/a, (9)P/a, (10)Cv/a, (11)Cn/a, (12)A/n.
+   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)D/v, (8)S/a, (9)O/a, (10)P/a, (11)Cv/a, (12)Cn/a, (13)A/n.
  -}
 
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
+ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","D/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
  
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Dv | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -65,6 +65,7 @@ instance Show Rule where
     show Ov = "O/v"
     show Av = "A/v"
     show Hnv = "Hn/v"
+    show Dv = "D/v"
     show Sa = "S/a"
     show Oa = "O/a"
     show Pa = "P/a"
@@ -105,6 +106,8 @@ updateOnOff onOff rws
     | rw1 == "-A/v" = updateOnOff (ruleOff Av onOff) rwt
     | rw1 == "+Hn/v" = updateOnOff (ruleOn Hnv onOff) rwt
     | rw1 == "-Hn/v" = updateOnOff (ruleOff Hnv onOff) rwt
+    | rw1 == "+D/v" = updateOnOff (ruleOn Dv onOff) rwt
+    | rw1 == "-D/v" = updateOnOff (ruleOff Dv onOff) rwt
     | rw1 == "+S/a" = updateOnOff (ruleOn Sa onOff) rwt
     | rw1 == "-S/a" = updateOnOff (ruleOff Sa onOff) rwt
     | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
@@ -168,7 +171,7 @@ cateComb onOff pc1 pc2
       catesBysToO = [(fst5 cate, "O/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToO]
 
       s_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
-      ctspaBysToA = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A, cate2 <- csp2, fst3 cate2 == npCate, elem As onOff]
+      ctspaBysToA = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A, cate2 <- csp2, fst3 cate2 == npCate, elem As onOff] ++ [rule cate1 cate2 | rule <- [appB], cate1 <- s_A, cate2 <- csp2, fst3 cate2 == aux1Cate, elem As onOff]
       catesBysToA = [(fst5 cate, "A/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA]
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, the conversion 
@@ -198,9 +201,11 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate)]
       catesByvToO = [(fst5 cate, "O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToO]
    
--- The conversion from intransitive verb to adjective happens when the verb occupies attribute position.
+{- The conversion from intransitive verb to adjective happens when the verb occupies attribute position or be next to
+   No.1 auxiliary word of the right.
+ -}
       v_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == predCate] -- Only consider preCate
-      ctspaByvToA = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff]
+      ctspaByvToA = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff] ++ [rule cate1 cate2 | rule <- [appB], cate1 <- v_A, cate2 <- csp2, fst3 cate2 == aux1Cate, elem Av onOff]
       catesByvToA = [(fst5 cate, "A/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA]
 
 -- The conversion from verb to noun happens when the verb occupies nominal head word position.
@@ -209,6 +214,16 @@ cateComb onOff pc1 pc2
           vCate = [predCate, verbCate, verbCate2]
       ctspaByvToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp1, cate2 <- v_Hn, fst3 cate1 == adjCate, elem Hnv onOff]
       catesByvToHn = [(fst5 cate, "Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToHn]
+
+-- The conversion from verb to adverb happens when the verb occupies adverbial position.
+      v_D = removeDup [(adverbalCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+      ctspaByvToD = [rule cate1 cate2 | rule <- [appF,comFh], cate1 <- v_D, cate2 <- csp_2, elem Dv onOff]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      catesByvToD = [(fst5 cate, "D/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToD]
 
 -- The conversion from adjective to noun happens when the adjective occupies subject or object position.
       a_S = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
@@ -265,7 +280,7 @@ cateComb onOff pc1 pc2
       catesBynToAvToHn = [(fst5 cate, "A/n-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToAvToHn]
 
 -- The categories gotten by all rules.
-      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn ++ catesByaToS ++ catesByaToO ++ catesByaToP ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToAvToHn
+      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToP ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToAvToHn
 
     -- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
       rcs = removeDup [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]

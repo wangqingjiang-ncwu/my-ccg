@@ -25,7 +25,7 @@ module Corpus (
     copyCate,           -- IO ()
     copyPS,             -- IO ()
     resetStruGene_Id    -- IO ()
-
+    
     ) where
 
 import Control.Monad
@@ -54,7 +54,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
        "d",
        "p",
        "c",
-       "u",
+       "u",                -- Auxiliary word #1, #2, and #3 are '的', '地', and '得' respectively.
        "e",
        "o",
        "i","in","iv","ia","ic",
@@ -69,7 +69,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
 posCate :: [(POS, CateSymb)]
 posCate = [("n","np"),
            ("ng","np"),
-           ("nt","(s\\.np)/#(s\\.np)|s/*s"),
+           ("nt","np|(s\\.np)/#(s\\.np)|s/*s"),
            ("nd","np\\*np"),
            ("nl","np"),
            ("nh","np"),
@@ -88,12 +88,12 @@ posCate = [("n","np"),
            ("as","np/.np"),
            ("f","np/*np"),
            ("m","np/.np"),
-           ("q","(np/.np)\\*(np/.np)"),
+           ("q","(np/.np)\\*(np/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|(s/*s)\\*(np/.np)"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
            ("c","(X\\*X)/*X|X\\*X|X/*X"),
-           ("u","(np/*np)\\*np|(np/*np)\\*(np/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)"),
+           ("u","(np/*np)\\*np|(np/*np)\\*(np/.np)|(np/*np)\\*(s/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)"),
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -123,6 +123,7 @@ posCate = [("n","np"),
    DHv: Adverbial-verb (headword) phrase
    HvC: Verb (headword)-complement phrase
    DHa: Adverbial-adjective (headword) phrase
+   DHs: Adervbial-sentence phrase
    HaC: Adjective (headword)-complement phrase
    AHn: Attribute-noun (headword) phrase
    HnC: Noun (headword)-complement phrase
@@ -141,7 +142,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList = ["MQ","XX","DHv","HvC","DHa","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
+phraStruList = ["MQ","XX","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -157,7 +158,7 @@ type LeftExtend = [(Category,Tag,PhraStru)]     -- Left neighbors
 type LeftOver = (Category,Tag,PhraStru)         -- Overlapping left phrase
 type RightOver = (Category,Tag,PhraStru)        -- Overlapping right phrase
 type RightExtend = [(Category,Tag,PhraStru)]    -- Right neighbors
-type OverType = Int                          -- Overlapping type
+type OverType = Int                             -- Overlapping type
 data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing.
 
 instance Show Prior where
@@ -195,7 +196,7 @@ psToCate = do
     rows <- fetchAllRows stat1
     putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be used.
     putStrLn $ "Maximal string length of cate_sent is " ++ (show $ maxStrLen $ map (fromSql.head) $ rawToCate rows)
-
+ 
 --  colNames <- getColumnNames sth                   -- Get names of columns from results.
 --  forM_ colNames $ \colName -> (putStrLn $ show colName)
 
@@ -209,6 +210,7 @@ psToCate = do
 --  rows <- fetchAllRows sth            -- Get [[<serial_num>, <cate_sent>]].
 --  forM_ rows $ \row -> (forM_ row $ \fld -> putStrLn $ fromSql fld)
 --  forM_ (last rows) $ \fld -> putStrLn $ fromSql fld
+    commit conn
     disconnect conn             -- Explicitly close the connection.
 
 -- Prepare [[<cate_sent>, <serial_num>]] from [[<raw_sent>,<serial_num>]]
@@ -248,6 +250,7 @@ copyCate = do
 
     stat2 <- prepare conn "update corpus set cate_sent2 = ? where serial_num = ?"
     executeMany stat2 rows                                    -- Update column cate_sent2 whose cate_check = 0. 
+    commit conn
     disconnect conn                                           -- Close the connection.
  
 {- Keep column raw_sent not changed, while column raw_sent2 modified manually. The initial values of column
@@ -287,3 +290,4 @@ resetStruGene_Id = do
         stat4 <- prepare conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
         executeRaw stat4
     disconnect conn
+

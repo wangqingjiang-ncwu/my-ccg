@@ -30,11 +30,12 @@ module Category (
     predCate,      -- Category, "s\.np"
     verbCate,      -- Category, "(s\.np)/.np"
     verbCate2,     -- Category, "((s\.np)/.np)/.np"
+    adverbalCate,  -- Category, "(s\.np)/#(s\.np)"
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
     adj2VerbCompCate,   -- Category, "(s\.np)\x(s\.np)"
-    adj2NounCompCate    -- Category, "np\*np"
-
+    adj2NounCompCate,   -- Category, "np\*np"
+    aux1Cate            -- Category, "(np/*np)\*(np/.np)"
     ) where
 
 type Slash = String
@@ -214,6 +215,9 @@ verbCate = getCateFromString "(s\\.np)/.np"
 verbCate2 :: Category
 verbCate2 = getCateFromString "((s\\.np)/.np)/.np"
 
+adverbalCate :: Category
+adverbalCate = getCateFromString "(s\\.np)/#(s\\.np)"
+
 prep2AdvCate :: Category
 prep2AdvCate = getCateFromString "((s\\.np)/#(s\\.np))/*np"
 
@@ -225,3 +229,8 @@ adj2VerbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
 
 adj2NounCompCate :: Category
 adj2NounCompCate = getCateFromString "np\\*np"
+
+-- Auxiliary word #1 is '的' 
+
+aux1Cate :: Category
+aux1Cate = getCateFromString "(np/*np)\\*(np/.np)"

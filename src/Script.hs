@@ -4,14 +4,18 @@
 module Script (
     ClauIdx,              -- Int
     BanPCs,               -- [PhraCate]
-    Script,               -- [(ClauIdx,[[Rule]],BanPCs)]
+    Script,               -- (ClauIdx,[[Rule]],BanPCs)
+    Tree,                 -- [PhraCate]
     readScripts,          -- String -> [Script]
     readScript,           -- String -> Script
     readPCList,           -- String -> [PhraCate]
+    readTrees,            -- String -> [[PhraCate]]
     readRuleSet,          -- String -> [Rule]
     readRule,             -- String -> Rule
     scriptToString,       -- Script -> String
-    nScriptToString       -- [Script] -> String
+    nScriptToString,      -- [Script] -> String
+    treeToString,         -- Tree -> String
+    nTreeToString,        -- [Tree] -> String
     ) where
 
 import Category
@@ -26,6 +30,9 @@ import Data.Tuple.Utils
 type ClauIdx = Int
 type BanPCs = [PhraCate]
 type Script = (ClauIdx, [[Rule]], BanPCs)
+
+-- A Tree is actually a list of PhraCate.
+type Tree = [PhraCate]
 
 -- Read Scripts from a String.
 readScripts :: String -> [Script]
@@ -43,6 +50,10 @@ readScript str = (cid, ruleSets, banPCs)
 -- Read [PhraCate] from a String.
 readPCList :: String -> [PhraCate]
 readPCList str = map getPhraCateFromString (stringToList str)
+
+-- Read [[PhraCate]] from a String.
+readTrees :: String -> [[PhraCate]]
+readTrees str = map readPCList (stringToList str)
 
 -- Read a rule set from the String of this rule set.
 readRuleSet :: String -> [Rule]
@@ -67,7 +78,6 @@ readRule str
     | str == "A/n" = An
     | otherwise = error "readRule: Input string is not recognized."
 
--- Get the String from a Script value.
 scriptToString :: Script -> String
 scriptToString script = "(" ++ clauIdx ++ "," ++ ruleSets ++ "," ++ banPCs ++ ")"
     where
@@ -79,3 +89,10 @@ scriptToString script = "(" ++ clauIdx ++ "," ++ ruleSets ++ "," ++ banPCs ++ ")
 nScriptToString :: [Script] -> String
 nScriptToString scripts = listToString (map scriptToString scripts)
 
+-- Get the String from a Tree value.
+treeToString :: Tree -> String
+treeToString tree = nPhraCateToString tree
+
+-- Get the String fron a [Tree] value.
+nTreeToString :: [Tree] -> String
+nTreeToString trees = listToString (map treeToString trees)

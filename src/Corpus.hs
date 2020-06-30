@@ -24,8 +24,8 @@ module Corpus (
     getCateSymbFromPos, -- POS -> [(POS, CateSymb)] -> CateSymb
     copyCate,           -- IO ()
     copyPS,             -- IO ()
-    resetStruGene_Id    -- IO ()
-    
+    resetStruGene_Id,   -- IO ()
+    setCorpusDefault    -- IO ()
     ) where
 
 import Control.Monad
@@ -289,5 +289,16 @@ resetStruGene_Id = do
       else do                -- Field 'id' doesn't exist.
         stat4 <- prepare conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
         executeRaw stat4
+    disconnect conn
+
+-- Set Fields 'tree' and 'script' in Table 'corpus' default value "[]".
+setCorpusDefault :: IO ()
+setCorpusDefault = do
+    conn <- getConn
+    stat1 <- prepare conn "update corpus set tree = '[]' where isnull(tree)"
+    executeRaw stat1
+    stat2 <- prepare conn "update corpus set script = '[]' where isnull(script)"
+    executeRaw stat2
+    commit conn
     disconnect conn
 

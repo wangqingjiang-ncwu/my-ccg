@@ -21,6 +21,8 @@ module Utils (
     removeTuple,   -- Eq a => [(a,a)] -> [(a,a)]
     tupToList,     -- Eq a => [(a,a)] -> [a]
     throwBrac,     -- String -> String
+    throwFstBrac,  -- String -> String
+    throwLastBrac, -- String -> String
     splitAtDeli,   -- Char -> String -> [String]
     maxStrLen,     -- [String] -> Int
     doubleBackSlash,   -- String -> String
@@ -130,6 +132,22 @@ throwBrac [] = []
 throwBrac (c:cs)
     | elem c ['(',')','[',']'] = throwBrac cs
     | otherwise = c:(throwBrac cs)
+
+-- Throw out the first <n> bracket, no mather which are '(', ')', '[', or ']'.
+throwFstBrac :: Int -> String -> String
+throwFstBrac _ [] = []
+throwFstBrac 0 cs = cs
+throwFstBrac n (c:cs)
+    | elem c ['(',')','[',']'] = throwFstBrac (n-1) cs
+    | otherwise = c:(throwFstBrac n cs)
+
+-- Throw out the Last <n> bracket, no mather which are '(', ')', '[', or ']'.
+throwLastBrac :: Int -> String -> String
+throwLastBrac _ [] = []
+throwLastBrac 0 cs = cs
+throwLastBrac n cs
+    | elem (last cs) ['(',')','[',']'] = throwLastBrac (n-1) (init cs)
+    | otherwise = throwLastBrac n (init cs) ++ [last cs]
 
 -- Split a string with designated delimiter.
 splitAtDeli :: Char -> String -> [String]

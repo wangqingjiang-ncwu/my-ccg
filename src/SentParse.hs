@@ -38,7 +38,7 @@ import Utils
 getSentFromDB :: Int -> IO String
 getSentFromDB sn = do
     conn <- getConn
-    sth <- prepare conn ("select cate_sent2 from corpus where serial_num=" ++ show sn)
+    sth <- prepare conn ("select cate_sent2 from corpus where serial_num =" ++ show sn)
     executeRaw sth
     rows <- fetchAllRows sth
     return $ fromSql $ (rows!!0)!!0
@@ -63,7 +63,9 @@ parseSent sn cs = do
           else do
             goBackTo sn ci                               -- Drop trees and scripts of clause <ci> and its subsequents.
             parseSent' sn (ci - 1) (drop (ci - 1) cs)    -- Skip some clauses
-      else parseSent' sn 0 cs                          
+      else do
+        goBackTo sn 1
+        parseSent' sn 0 cs                          
 
 -- To be ready for parsing from clause <ci>, modify attribute <tree> and <script> of entry <sn> in Table corpus.
 goBackTo :: Int -> Int -> IO ()
@@ -72,7 +74,7 @@ goBackTo sn ci = do
     sth <- prepare conn ("select tree, script from corpus where serial_num = " ++ show sn)
     executeRaw sth
     rows <- fetchAllRows sth
-    let trees = readPCList (fromSql ((rows!!0)!!0))
+    let trees = readTrees (fromSql ((rows!!0)!!0))
     let scripts = readScripts (fromSql ((rows!!0)!!1))
     if length trees + 1 < ci
       then error $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
@@ -82,7 +84,7 @@ goBackTo sn ci = do
                let trees' = take (ci - 1) trees
                let scripts' = take (ci - 1) scripts  
                sth' <- prepare conn ("update corpus set tree = ?, script = ? where serial_num = " ++ show sn)
-               execute sth [toSql (nPhraCateToString trees'), toSql (nScriptToString scripts')]
+               execute sth' [toSql (nTreeToString trees'), toSql (nScriptToString scripts')]
                commit conn                    -- Commit any pending data to the database.
                disconnect conn                -- Explicitly close the connection.
                putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
@@ -111,13 +113,20 @@ storeClauseParsing sn clauIdx rtbPCs = do
     sth <- prepare conn ("select tree, script from corpus where serial_num = " ++ show sn)
     executeRaw sth
     rows <- fetchAllRows sth
-    let trees = readPCList (fromSql ((rows!!0)!!0))
+    forM_ rows $ \row -> forM_ row $ \col -> putStr (fromSql col)   -- Use query result before new SQL operation.
+
+    let trees = readTrees (fromSql ((rows!!0)!!0))
     let scripts = readScripts (fromSql ((rows!!0)!!1))
-    let trees' = trees ++ (snd3 rtbPCs)
+    let trees' = trees ++ [snd3 rtbPCs]
     let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+
+    putStrLn $ "storeClauseParsing: trees': " ++ (nTreeToString trees')
+    putStrLn $ "storeClauseParsing: scripts': " ++ (nScriptToString scripts')
+
     sth' <- prepare conn ("update corpus set tree = ?, script = ? where serial_num = " ++ show sn)
-    execute sth [toSql (nPhraCateToString trees'), toSql (nScriptToString scripts')]
- 
+    res <- execute sth' [toSql (nTreeToString trees'), toSql (nScriptToString scripts')]
+    putStrLn $ "storeClauseParsing: " ++ show res ++ " row(s) were modified."
+
     commit conn                    -- Commit any pending data to the database.
     disconnect conn                -- Explicitly close the connection.
 
@@ -146,7 +155,7 @@ parseClause rules nPCs banPCs = do
                showTreeStru spls spls
                return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs) 
 
-{- Do a trip of transition, insert or update related structural genes in table stru_gene, and return the category-
+{- Do a trip of transition, insert or update related structural genes in Table stru_gene, and return the category-
    converted rules used in this trip, the resultant phrases, and the banned phrases.
  -}
 doTrans :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
@@ -181,13 +190,16 @@ doTrans onOff nPCs banPCs = do
           then return (onOff,(fst nbPCs),(snd nbPCs))
           else doTrans onOff nPCs banPCs            -- Redo this trip of transition by modifying structural genes.
       
--- Insert or update related structural genes in table stru_gene, and recursively create overlapping pairs.
+{- Insert or update related structural genes in Table stru_gene, and recursively create overlapping pairs.
+   For every pair of overlapping phrases, its overlap type, left- and right-extend phrases are found in a given set
+   of phrases.
+ -}
 updateStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
 updateStruGene _ overPairs [] = do
     putStrLn "updateStruGene: End"
     return overPairs
 updateStruGene nPCs overPairs (pcp:pcps) = do
-    newOverPairs <- updateStruGene' struGene overPairs       -- Update structural gene in table stru_gene
+    newOverPairs <- updateStruGene' struGene overPairs       -- Update structural gene in Table stru_gene
     updateStruGene nPCs newOverPairs pcps
     where
       lop = fst pcp
@@ -197,8 +209,8 @@ updateStruGene nPCs overPairs (pcp:pcps) = do
       reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
       struGene = (leps,lop,rop,reps,ot) 
 
-{- Update structural genes related with a certain pair of overlapping phrases, and add the overlapping pair into
-   a list of OverPair.
+{- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input
+   list of OverPair(s), then return the new OverPair list.
  -}
 updateStruGene' :: ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair] 
 updateStruGene' gene overPairs = do

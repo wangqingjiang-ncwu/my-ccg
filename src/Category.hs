@@ -150,7 +150,7 @@ indexOfSlash nlb i str
     | x == '(' = indexOfSlash (nlb + 1) (i+1) str
     | x == ')' = indexOfSlash (nlb - 1) (i+1) str
     | (x == '/' || x == '\\') && nlb == 0 && indexOfSlash nlb (i+1) str == -1 = i
-    | (x == '/' || x == '\\') && nlb == 0 && indexOfSlash nlb (i+1) str /= -1 = error "indexOfSlash: Category symbol does not conform two-division style."
+    | (x == '/' || x == '\\') && nlb == 0 && indexOfSlash nlb (i+1) str /= -1 = error $ "indexOfSlash: Category symbol \"" ++ str ++ "\" does not conform two-division style."
     | otherwise = indexOfSlash nlb (i+1) str
         where
         x = str!!i 

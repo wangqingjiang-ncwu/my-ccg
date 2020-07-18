@@ -28,10 +28,10 @@ import Data.List.Utils
 import Data.List
 import Data.Tuple.Utils
 import Phrase
-import Parse
+import Rule
 import Corpus
+import Parse
 import Output
-import Script
 import Utils
 
 -- Get a sentence from table corpus. 
@@ -106,7 +106,7 @@ parseSent' sn skn cs = do
     rtbPCs' <- parseClause [] nPCs []           -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
     storeClauseParsing sn clauIdx rtbPCs'       -- Add the parsing result of this clause into database.
 
---  Add the parsing result of a clause into database.
+--  Add the parsing result of a clause into database. Now, parameter <clauIdx> has not been used for checking.
 storeClauseParsing :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
 storeClauseParsing sn clauIdx rtbPCs = do
     conn <- getConn
@@ -158,7 +158,7 @@ parseClause rules nPCs banPCs = do
 {- Do a trip of transition, insert or update related structural genes in Table stru_gene, and return the category-
    converted rules used in this trip, the resultant phrases, and the banned phrases.
  -}
-doTrans :: OnOff -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
+doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
     showOnOff onOff
     putStr "Are rule switches ok? [y/n]: (RETURN for 'y') "

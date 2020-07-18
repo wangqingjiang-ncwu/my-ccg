@@ -2,13 +2,6 @@
 -- All rights reserved.
 
 module Parse (
-    ccTags,            -- Tags of category-converted rules
-    Rule(..),          -- Enumerated type for the tags of category-converted rules
-    OnOff,             -- [Rule]
-    ruleOn,            -- Rule -> OnOff -> OnOff
-    ruleOff,           -- Rule -> OnOff -> OnOff
-    updateOnOff,       -- [Rule] -> [String] -> [Rule]
-    showOnOff,         -- [Rule] -> IO ()
     cateComb,          -- OnOff -> PhraCate -> PhraCate -> PhraCate
     initPhraCate,      -- [(Category, Seman)] -> [PhraCate]
     trans,             -- OnOff -> [PhraCate] -> [PhraCate]
@@ -39,99 +32,10 @@ import Data.List
 import Category
 import Phrase
 import Rule
-import Corpus
+import Corpus (OverPair,Prior(..))
 import Utils
 import Database.HDBC
 import Database.HDBC.MySQL
-
-{- All tags of context-sensitive category-converted rules:
-   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)D/v, (8)S/a, (9)O/a, (10)P/a, (11)Cv/a, (12)Cn/a, (13)A/n.
- -}
-
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","D/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
-
-{- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
-   value can't include '/'.
- -}
- 
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Dv | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
-
--- Define how the tag of a category-converted rule shows as a letter string.
-instance Show Rule where
-    show Ss = "S/s"
-    show Os = "O/s"
-    show As = "A/s"
-    show Sv = "S/v"
-    show Ov = "O/v"
-    show Av = "A/v"
-    show Hnv = "Hn/v"
-    show Dv = "D/v"
-    show Sa = "S/a"
-    show Oa = "O/a"
-    show Pa = "P/a"
-    show Cva = "Cv/a"
-    show Cna = "Cn/a"
-    show An = "A/n"
-
--- OnOff is the list of Rule members
-type OnOff = [Rule]
-
--- Turn On a Rule
-ruleOn :: Rule -> OnOff -> OnOff
-ruleOn ru onOff
-    | elem ru onOff = onOff
-    | otherwise = ru:onOff
-
--- Turn Off a Rule
-ruleOff :: Rule -> OnOff -> OnOff
-ruleOff ru onOff
-    | notElem ru onOff = onOff
-    | otherwise = [x| x <- onOff, x /= ru]
-
--- Update rule switches. For "+S/s", turn on Ss; For "-P/a", turn off Pa.
-updateOnOff :: [Rule] -> [String] -> [Rule]
-updateOnOff onOff rws
-    | rws == [] = onOff
-    | rw1 == "+S/s" = updateOnOff (ruleOn Ss onOff) rwt
-    | rw1 == "-S/s" = updateOnOff (ruleOff Ss onOff) rwt  
-    | rw1 == "+O/s" = updateOnOff (ruleOn Os onOff) rwt  
-    | rw1 == "-O/s" = updateOnOff (ruleOff Os onOff) rwt  
-    | rw1 == "+A/s" = updateOnOff (ruleOn As onOff) rwt  
-    | rw1 == "-A/s" = updateOnOff (ruleOff As onOff) rwt  
-    | rw1 == "+S/v" = updateOnOff (ruleOn Sv onOff) rwt
-    | rw1 == "-S/v" = updateOnOff (ruleOff Sv onOff) rwt
-    | rw1 == "+O/v" = updateOnOff (ruleOn Ov onOff) rwt
-    | rw1 == "-O/v" = updateOnOff (ruleOff Ov onOff) rwt
-    | rw1 == "+A/v" = updateOnOff (ruleOn Av onOff) rwt
-    | rw1 == "-A/v" = updateOnOff (ruleOff Av onOff) rwt
-    | rw1 == "+Hn/v" = updateOnOff (ruleOn Hnv onOff) rwt
-    | rw1 == "-Hn/v" = updateOnOff (ruleOff Hnv onOff) rwt
-    | rw1 == "+D/v" = updateOnOff (ruleOn Dv onOff) rwt
-    | rw1 == "-D/v" = updateOnOff (ruleOff Dv onOff) rwt
-    | rw1 == "+S/a" = updateOnOff (ruleOn Sa onOff) rwt
-    | rw1 == "-S/a" = updateOnOff (ruleOff Sa onOff) rwt
-    | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
-    | rw1 == "-O/a" = updateOnOff (ruleOff Oa onOff) rwt
-    | rw1 == "+P/a" = updateOnOff (ruleOn Pa onOff) rwt
-    | rw1 == "-P/a" = updateOnOff (ruleOff Pa onOff) rwt
-    | rw1 == "+Cv/a" = updateOnOff (ruleOn Cva onOff) rwt
-    | rw1 == "-Cv/a" = updateOnOff (ruleOff Cva onOff) rwt
-    | rw1 == "+Cn/a" = updateOnOff (ruleOn Cna onOff) rwt
-    | rw1 == "-Cn/a" = updateOnOff (ruleOff Cna onOff) rwt
-    | rw1 == "+A/n" = updateOnOff (ruleOn An onOff) rwt
-    | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
-    | otherwise = error $ "updateOnOff: Rule switch " ++ rw1 ++ "is not cognizable."
-      where 
-        rw1 = head rws    
-        rwt = tail rws
-
--- Output [Rule] on console
-showOnOff :: [Rule] -> IO ()
-showOnOff [] = putStrLn ":: OnOff"
-showOnOff (r:rs) = do
-    putStr (show r) 
-    putStr " "
-    showOnOff rs
 
 {- Function cateComb combines two input (phrasal) categories into resultant one.
    The two input categories satisfies concatenative requirements, namely <st1> + <sp2> + 1 = <st2>.
@@ -293,7 +197,10 @@ initPhraCate [] = []
 initPhraCate [c] = [((0,0),[(fst c, "Desig", snd c, "DE", True)],0)]     -- Categories start at index 0
 initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stOfCate pc)+1, 0), ctspaOfCate pc, (stOfCate pc)+1) | pc <- (initPhraCate cs)]
 
--- One trip of transition without pruning. 
+{- One trip of transition without further pruning, but based on the result of transition with pruning before, so only
+   when every pair of phrases have at least one phrase active, they can combine together. Meanwhile, phrases created
+   in this trip of transition will be thrown away if they are phrases pruned in previous transitions.
+ -} 
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
     where
@@ -304,7 +211,7 @@ trans onOff pcs banPCs = pcs2
 {- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some
    new structural genes are added into the list of structural genes.
  -}
-transWithPruning :: OnOff -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
+transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
 transWithPruning onOff pcs banPCs overPairs = do
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
     let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]    -- Not consider phrasal activity

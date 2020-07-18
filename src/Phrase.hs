@@ -58,7 +58,8 @@ module Phrase (
     quickSort,     -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
-    notElem'       -- PhraCate -> [PhraCate] -> Bool
+    notElem',                     -- PhraCate -> [PhraCate] -> Bool
+    equalSortedPhraList           -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
 import Data.Tuple
@@ -379,4 +380,11 @@ notElem' x (y:ys)
       ssy = ssOfCate y
       ctspy = ctspOfCate y
       
+-- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
+equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool
+equalSortedPhraList pc1 pc2
+    | pc1 == [] && pc2 == [] = True
+    | (pc1 /= [] && pc2 == []) || (pc1 == [] && pc2 /= []) = False
+    | head pc1 /= head pc2 = False
+    | otherwise = equalSortedPhraList (tail pc1) (tail pc2)
 

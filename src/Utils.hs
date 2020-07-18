@@ -28,16 +28,17 @@ module Utils (
     doubleBackSlash,   -- String -> String
     putNStr,       -- [String] -> IO ()
     throwHTSpace,  -- String -> String
+    throwHTSpaceInList,      -- String -> String
     listHead,      -- String -> String
     listHead',     -- String -> String
     listLast,      -- String -> String
     listLast',     -- String -> String
     listTake,      -- Int -> String -> String
     listTake',     -- Int -> String -> String
-    listTake'',    -- Int -> String -> String
+    takeNElem,     -- Int -> String -> String
     listDrop,      -- Int -> String -> String
     listDrop',     -- Int -> String -> String
-    listDrop'',    -- Int -> String -> String
+    dropNElem,     -- Int -> String -> String
     listLength,    -- String -> Int
     stringToList,      -- String -> [String]
     listToString,      -- [String] -> String
@@ -181,7 +182,7 @@ putNStr (s:ss) = do
         putNStr ss
       else putNStr ss
 
--- Throw off head spaces and tail spaces from a character string.
+-- Throw away head spaces and tail spaces from a character string.
 throwHTSpace :: String -> String
 throwHTSpace "" = ""
 throwHTSpace cs
@@ -189,57 +190,80 @@ throwHTSpace cs
     | last cs == ' ' = throwHTSpace $ init cs
     | otherwise = cs 
 
+{- Throw away head spaces and tail spaces in each string element as well as head spaces and tail spaces of the whole
+   string list, here the string list is converted from a list.
+   For an example, " [ I , am, a , student ]  " will become "[I,am,a,student]"
+ -}
+throwHTSpaceInList :: String -> String
+throwHTSpaceInList listStr = listToString $ map throwHTSpace (stringToList listStr)
+
 {- The following functions are named <list****>, which handle a string as "[x,y,z]", here 'x', 'y', and 'z' may be
    some certain types in this application.
    Function listHead to get the String of list head from the String of this list, which wraps Function listHead' to
    throw off head and tail spaces.
  -}
 listHead :: String -> String
-listHead str = throwHTSpace $ listHead' str
+listHead str
+    | headElem == "" = error "listHead: Empty list."
+    | otherwise = headElem
+    where
+      headElem = throwHTSpace $ listHead' str
 
--- Function listHead' to get the String of list head from the String of this list.
+-- Function listHead' to get the String of list head from the String of a list.
 listHead' :: String -> String
 listHead' listStr
-    | listStr' == "" = error "listHead: Empty list"
-    | idx == -1 = listStr'
-    | otherwise = take idx listStr'
+    | listStr' == "" = error "listHead': This is a empty string."
+    | head listStr' /= '[' || last listStr' /= ']' = error "listHead': This is not the string of a list."
+    | idx == -1 = listStr''
+    | otherwise = take idx listStr''
     where
-      listStr' = tail (init (throwHTSpace listStr))      -- Throw off two-end spaces, as well as '[' and ']'
-      idx = indexOfDelimiter 0 0 0 ',' listStr'
+      listStr' = throwHTSpace listStr 
+      listStr'' = init (tail listStr')
+      idx = indexOfDelimiter 0 0 0 ',' listStr''
 
 {- Function listLast to get the String of last element from the String of this list, which wraps Function listLast'
    to throw off head and tail spaces.
  -}
 listLast :: String -> String
-listLast str = throwHTSpace $ listLast' str
+listLast str
+    | lastElem == "" = error "listLast: Empty last."
+    | otherwise = lastElem
+    where
+      lastElem = throwHTSpace $ listLast' str
 
 -- Function listLast' to get the String of last element from the String of this list,.
 listLast' :: String -> String
 listLast' listStr 
-    | listStr' == "" = error "listLast: Empty list."
-    | idx == -1 = listStr'
-    | otherwise = listLast' ("[" ++ drop (idx + 1) listStr' ++ "]")
+    | listStr' == "" = error "listLast: This is a empty string."
+    | head listStr' /= '[' || last listStr' /= ']' = error "listLast': This is not the string of a list."
+    | idx == -1 = listStr''
+    | otherwise = listLast' ("[" ++ drop (idx + 1) listStr'' ++ "]")
     where 
-      listStr' = tail (init (throwHTSpace listStr))
-      idx = indexOfDelimiter 0 0 0 ',' listStr'
+      listStr' = throwHTSpace listStr
+      listStr'' = init (tail listStr')
+      idx = indexOfDelimiter 0 0 0 ',' listStr''
 
 {- Function listTake to get the first n elements from the String of a list, which wraps Function listTake' to throw
    off head and tail spaces in each element.
  -}
 listTake :: Int -> String -> String
-listTake n listStr = listToString $ map throwHTSpace (stringToList (listTake' n listStr))
+listTake n listStr = throwHTSpaceInList (listTake' n listStr)
 
--- The wrapper of Function listTake'', using '[' and ']' to bracket the result of Function listTake''.
+-- The wrapper of Function takeNElem, using '[' and ']' to bracket the result of Function takeNElem.
 listTake' :: Int -> String -> String
-listTake' n listStr = "[" ++ listTake'' n (tail (init (throwHTSpace listStr))) ++ "]"
+listTake' n listStr
+    | head listStr' /= '[' || last listStr' /= ']' = error "listTake': This is not a string of a list."
+    | otherwise = "[" ++ takeNElem n (tail (init listStr')) ++ "]"
+    where
+      listStr' = throwHTSpace listStr
 
 -- Take the String of first n elements from the String of a comma-seperated element sequence.
-listTake'' :: Int -> String -> String
-listTake'' n listStr
+takeNElem :: Int -> String -> String
+takeNElem n listStr
     | n == 0 || listStr == "" = ""
     | n == 1 && idx /= -1 = take idx listStr
     | n == 1 = listStr                               -- Only one element.
-    | n /= 1 && idx /= -1 = take idx listStr ++ "," ++ (listTake'' (n - 1) (drop (idx + 1) listStr)) 
+    | n /= 1 && idx /= -1 = take idx listStr ++ "," ++ (takeNElem (n - 1) (drop (idx + 1) listStr)) 
     | otherwise = listStr
     where
       idx = indexOfDelimiter 0 0 0 ',' listStr
@@ -248,19 +272,25 @@ listTake'' n listStr
    listDrop' to throw off head and tail spaces in each element.
  -}
 listDrop :: Int -> String -> String
-listDrop n listStr = listToString $ map throwHTSpace (stringToList (listDrop' n listStr))
+listDrop n listStr = throwHTSpaceInList (listDrop' n listStr)
 
--- The wrapper of Function listDrop'', using '[' and ']' to bracket the result of Function listDrop''.
+{- The wrapper of Function dropNElem, using '[' and ']' to bracket the result of Function dropNElem. This function 
+   drops n elements from the beginning of a list.
+ -}
 listDrop' :: Int -> String -> String
-listDrop' n listStr = "[" ++ listDrop'' n (tail (init (throwHTSpace listStr))) ++ "]"
+listDrop' n listStr
+    | head listStr' /= '[' || last listStr' /= ']' = error "listDrop': This is not a string of a list."
+    | otherwise = "[" ++ dropNElem n (tail (init listStr')) ++ "]"
+    where
+      listStr' = throwHTSpace listStr
 
 -- Drop the substring of first n elements from the String of a comma-seperated element sequence.
-listDrop'' :: Int -> String -> String
-listDrop'' n listStr
+dropNElem :: Int -> String -> String
+dropNElem n listStr
     | n == 0 = listStr
     | listStr == "" = ""
     | idx == -1 = ""
-    | otherwise = listDrop'' (n - 1) (drop (idx + 1) listStr)                 
+    | otherwise = dropNElem (n - 1) (drop (idx + 1) listStr)                 
     where
       idx = indexOfDelimiter 0 0 0 ',' listStr
 
@@ -270,13 +300,15 @@ listLength str = length (stringToList str)
 
 -- Get [String] from a String of element list.
 stringToList :: String -> [String]
-stringToList "[]" = []
 stringToList str
-    | tl == "[]" = [hd]
-    | otherwise = hd : (stringToList tl)
+    | head str' /= '[' || last str' /= ']' = error "stringToList: This is not the string of a list."
+    | str'' == "" = []
+    | idx == -1 = [str'']
+    | otherwise = throwHTSpace (take idx str'') : (stringToList ("[" ++ drop (idx + 1) str'' ++ "]"))
     where
-      hd = listHead str
-      tl = listDrop 1 str
+      str' = throwHTSpace str                   -- Throw away head spaces and tail spaces.
+      str'' = throwHTSpace $ init (tail str')   -- Throw away '[' and ']', then remove head and tail spaces.
+      idx = indexOfDelimiter 0 0 0 ',' str''
 
 -- Get the String from a [String].
 listToString :: [String] -> String

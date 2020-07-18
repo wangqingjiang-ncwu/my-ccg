@@ -1,7 +1,7 @@
 -- Copyright (c) 2019-2020 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
-module Test (
+module DevTest (
     pc0,pc1,pc2,pc3,pc4,pc5,pc6,clo1
 
     ) where

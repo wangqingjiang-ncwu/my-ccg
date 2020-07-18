@@ -34,12 +34,12 @@ library
       Corpus
       Phrase
       Parse
-      Script
       Utils
       SentParse
       Output
 --    OutputTest
       Test
+      DevTest
   other-modules:
       Paths_my_ccg
   hs-source-dirs:

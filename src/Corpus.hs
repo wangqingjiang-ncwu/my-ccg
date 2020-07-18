@@ -25,15 +25,40 @@ module Corpus (
     copyCate,           -- IO ()
     copyPS,             -- IO ()
     resetStruGene_Id,   -- IO ()
-    setCorpusDefault    -- IO ()
+    setCorpusDefault,   -- IO ()
+    ClauIdx,            -- Int
+    BanPCs,             -- [PhraCate]
+    Script,             -- (ClauIdx,[[Rule]],BanPCs)
+    Tree,               -- [PhraCate]
+    Closure,            -- [PhraCate]
+    Forest,             -- [[PhraCate]]
+    readScripts,        -- String -> [Script]
+    readScript,         -- String -> Script
+    readPCList,         -- String -> [PhraCate]
+    readTrees,          -- String -> [Tree]
+    readRuleSet,        -- String -> [Rule]
+    readRule,           -- String -> Rule
+    readClosures,       -- String -> [Closure]
+    readForests,        -- String -> [Forest]
+    readForest,         -- String -> Forest
+    scriptToString,     -- Script -> String
+    nScriptToString,    -- [Script] -> String
+    treeToString,       -- Tree -> String
+    nTreeToString,      -- [Tree] -> String
+    closureToString,    -- Closure -> String
+    nClosureToString,   -- [Closure] -> String
+    forestToString,     -- Forest -> String
+    nForestToString     -- [Forest] -> String
     ) where
 
 import Control.Monad
 import Database.HDBC
 import Database.HDBC.MySQL
 import Data.List.Utils
+import Data.Tuple.Utils
 import Category
-import Phrase (Tag,PhraStru,Act,PhraCate)
+import Phrase (Tag,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString)
+import Rule
 import Utils
 
 -- Datatype POS for parts of speech (word classes).
@@ -301,4 +326,108 @@ setCorpusDefault = do
     executeRaw stat2
     commit conn
     disconnect conn
+
+{- A script is a triple, recording parsing instructions for a clause, which include the serial number of the clause,
+   category-converted rules for every trip of recursive parsing, and all banned phrasal categories.
+ -}
+type ClauIdx = Int
+type BanPCs = [PhraCate]
+type Script = (ClauIdx, [[Rule]], BanPCs)
+
+-- A Tree is actually a list of PhraCate.
+type Tree = [PhraCate]
+
+-- Read Scripts from a String.
+readScripts :: String -> [Script]
+readScripts str = map readScript (stringToList str)
+
+-- Read a Script from a String.
+readScript :: String -> Script
+readScript str = (cid, ruleSets, banPCs)
+    where
+      str' = stringToTriple str
+      cid = read (fst3 str') :: Int
+      ruleSets = map readRuleSet (stringToList (snd3 str'))
+      banPCs = readPCList (thd3 str')
+
+-- Read [PhraCate] from a String.
+readPCList :: String -> [PhraCate]
+readPCList str = map getPhraCateFromString (stringToList str)
+
+-- Read [[PhraCate]] from a String.
+readTrees :: String -> [[PhraCate]]
+readTrees str = map readPCList (stringToList str)
+
+-- Read a rule set from the String of this rule set.
+readRuleSet :: String -> [Rule]
+readRuleSet str = map readRule (stringToList str)
+
+-- Read a rule from a string.
+readRule :: String -> Rule
+readRule str
+    | str == "S/s" = Ss
+    | str == "O/s" = Os
+    | str == "A/s" = As
+    | str == "S/v" = Sv
+    | str == "O/v" = Ov
+    | str == "A/v" = Av
+    | str == "Hn/v" = Hnv
+    | str == "D/v" = Dv
+    | str == "S/a" = Sa
+    | str == "O/a" = Oa
+    | str == "P/a" = Pa
+    | str == "Cv/a" = Cva
+    | str == "Cn/a" = Cna
+    | str == "A/n" = An
+    | otherwise = error "readRule: Input string is not recognized."
+
+scriptToString :: Script -> String
+scriptToString script = "(" ++ clauIdx ++ "," ++ ruleSets ++ "," ++ banPCs ++ ")"
+    where
+      clauIdx = show (fst3 script)
+      ruleSets = show (snd3 script)
+      banPCs = nPhraCateToString (thd3 script)
+
+-- Get the String from a [Script] value.
+nScriptToString :: [Script] -> String
+nScriptToString scripts = listToString (map scriptToString scripts)
+
+-- Get the String from a Tree value.
+treeToString :: Tree -> String
+treeToString tree = nPhraCateToString tree
+
+-- Get the String fron a [Tree] value.
+nTreeToString :: [Tree] -> String
+nTreeToString trees = listToString (map treeToString trees)
+
+type Closure = [PhraCate]
+type Forest = [[PhraCate]]
+    
+-- Read [Closure] from a String.
+readClosures :: String -> [Closure]
+readClosures str = map readPCList (stringToList str)
+
+-- Read [Forest] from a String.
+readForests :: String -> [Forest]
+readForests str = map readForest (stringToList str)
+
+-- Read Forest from a String
+readForest :: String -> Forest
+readForest str = map readPCList (stringToList str)
+
+-- Get the String from a Closure value.
+closureToString :: Closure -> String
+closureToString closure = nPhraCateToString closure
+
+-- Get the String from a [Closure] value.
+nClosureToString :: [Closure] -> String
+nClosureToString nClo = listToString (map closureToString nClo)
+
+-- Get the String from a Forest value.
+forestToString :: Forest -> String
+forestToString forest = listToString (map nPhraCateToString forest)
+
+-- Get the String from a [Forest] value.
+nForestToString :: [Forest] -> String
+nForestToString nForest = listToString (map forestToString nForest)
 

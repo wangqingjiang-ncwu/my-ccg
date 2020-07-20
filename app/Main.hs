@@ -19,7 +19,7 @@ cateAnalyze
   = do line <- getLine
        let cateStrInput = words line
        putStr "You have inputed: "
-       showNStr cateStrInput
+       putStrLn $ show cateStrInput
        let cateInput = getNCate cateStrInput
        putStr "Accepted category sequence: "
        showNCate cateInput

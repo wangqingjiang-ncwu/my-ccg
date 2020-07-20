@@ -2,10 +2,9 @@
 -- All rights reserved.
 
 module Output (
-    showNStr,         -- [String] -> IO ()
     getSemStr,        -- String -> String
     getCateStr,       -- String -> String
-    getNCate,         -- String -> [(Category, Seman)]
+    getNCate,         -- [String] -> [(Category, Seman)]
     showNCate,        -- [(Category, Seman)] -> IO ()
     showNCate2,       -- [(Category, Seman)] -> IO ()
     showNSeman,       -- [PhraCate] -> IO ()
@@ -46,12 +45,6 @@ import Utils
 import Data.Char
 import Data.List
 import Data.Tuple.Utils
-
-showNStr :: [String] -> IO ()
-showNStr [] = putStrLn ""
-showNStr xs = do
-    (putStr . (++ " ") . show) (head xs)
-    showNStr (tail xs)
 
 getSemStr :: String -> String
 getSemStr [] = []

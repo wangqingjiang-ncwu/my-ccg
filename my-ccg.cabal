@@ -38,7 +38,6 @@ library
       SentParse
       Output
 --    OutputTest
-      Test
       DevTest
   other-modules:
       Paths_my_ccg

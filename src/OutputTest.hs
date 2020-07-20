@@ -15,10 +15,6 @@ outputTest :: IO()
 outputTest = do
     putStrLn "Output:"
 
-    putStrLn "The result of showNStr [\"np\",\"(s\\.np)/.np\",\"np\"] is" 
-    showNStr ["np","(s\\.np)/.np","np"]
-    putStrLn ""
-
     putStrLn "The result of showNCate [(np,\"Frank'\"),((s\\.np)/.np,\"loves'\"),(np,\"Mary'\")] is"
     let c1 = (getCateFromString "np", "Frank'")
     let c2 = (getCateFromString "(s\\.np)/.np", "loves'")

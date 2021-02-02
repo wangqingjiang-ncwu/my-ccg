@@ -3,7 +3,49 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: HDBC-2.4.0.2@sha256:77de460b831e7e5cea8fa0f5c0271ac5465d911d988443acef605fddf2ad2550,2997
+    pantry-tree:
+      size: 1004
+      sha256: f65f6e768b8edc22f491b65d3eb8efbfeddef465847b92161ae0e654314a5dee
+  original:
+    hackage: HDBC-2.4.0.2
+- completed:
+    hackage: HDBC-mysql-0.7.1.0@sha256:0a10703f7fd1bd19c8061ebd6dd318acbc107d55502936ba21c1ca705ca1d790,1454
+    pantry-tree:
+      size: 463
+      sha256: 88c0deba27d970b269b603c24edb10c53966683ff914cce39d30bc77c09cc8c1
+  original:
+    hackage: HDBC-mysql-0.7.1.0
+- completed:
+    hackage: MissingH-1.4.1.0@sha256:ddb160200696a6ac2c241a96365fa0850d2b0023f2bacc6a2496d6bb1f43edcc,4340
+    pantry-tree:
+      size: 5697
+      sha256: 265b5d2c41d4e9d39104c0cefc05b371429fb72db208afe909215bb30fdff792
+  original:
+    hackage: MissingH-1.4.1.0
+- completed:
+    hackage: bytestring-0.10.8.2@sha256:0a58355cb91bc9930f951a6d14f5fb4a6022647c3aab2b7223e888843bb6a832,8921
+    pantry-tree:
+      size: 2788
+      sha256: 5ebb0fddb2f9cdf4a295bbb610279ba7651547355d882942ad08c62efb00183c
+  original:
+    hackage: bytestring-0.10.8.2
+- completed:
+    hackage: hspec-2.6.1@sha256:2abaa8bed30616e123c36745059b6f7bf3de3d52f7220b38939d04c0a805b7e9,1769
+    pantry-tree:
+      size: 532
+      sha256: 75d147956a84025f73234eaa43b6b6f7a4099923c761505ace7a7938204012cc
+  original:
+    hackage: hspec-2.6.1
+- completed:
+    hackage: io-streams-1.5.1.0@sha256:c7ee91d2bdd4c21e8ac617bc021b2c2162c725756113f9b84a7689d819a5302c,9166
+    pantry-tree:
+      size: 3465
+      sha256: 59895313bac0558be1b93c1550d84ad62ac005771b6ed45c9aea0c53e5a66626
+  original:
+    hackage: io-streams-1.5.1.0
 snapshots:
 - completed:
     size: 497508

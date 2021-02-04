@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1fc22a608b3435927618d06a67226736a7e951ea47a3b4727afb97da1704d780
+-- hash: 5478b98bf35f6f31cf9290eb1d44f8f20dca331c587a1a1369b0908bb3e58054
 
 name:           my-ccg
 version:        0.2.3.0
@@ -15,7 +15,7 @@ homepage:       https://github.com/wangqingjiang-ncwu/my-ccg#readme
 bug-reports:    https://github.com/wangqingjiang-ncwu/my-ccg/issues
 author:         China University of Water Resources and Electric Power
 maintainer:     wangqingjiang@ncwu.edu.cn
-copyright:      Copyright (c) 2019-2020 China University of Water Resources and Electric Power
+copyright:      Copyright (c) 2019-2021 China University of Water Resources and Electric Power
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -30,20 +30,18 @@ source-repository head
 library
   exposed-modules:
       Category
-      Rule
       Corpus
-      Phrase
-      Parse
-      Utils
-      SentParse
       Output
---    OutputTest
-      DevTest
+      OutputTest
+      Parse
+      Phrase
+      Rule
+      SentParse
+      Utils
   other-modules:
       Paths_my_ccg
   hs-source-dirs:
       src
-      app
   build-depends:
       HDBC
     , HDBC-mysql
@@ -57,6 +55,7 @@ library
 executable my-ccg-exe
   main-is: Main.hs
   other-modules:
+      DevTest
       Paths_my_ccg
   hs-source-dirs:
       app
@@ -78,8 +77,8 @@ test-suite my-ccg-test
   other-modules:
       CategorySpec
       OutputSpec
-      PhraseSpec
       ParseSpec
+      PhraseSpec
       RuleSpec
       Paths_my_ccg
   hs-source-dirs:

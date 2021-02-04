@@ -1,4 +1,4 @@
-.stack-work/
-dist/
+# The directories or files will be ignored when push onto GitHub server.
+
 
 

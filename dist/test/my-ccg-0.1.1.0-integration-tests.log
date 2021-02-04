@@ -1,0 +1,4 @@
+Test suite integration-tests: RUNNING...
+test suite for system integration is not yet implemented.
+Test suite integration-tests: PASS
+Test suite logged to: dist/test/my-ccg-0.1.1.0-integration-tests.log

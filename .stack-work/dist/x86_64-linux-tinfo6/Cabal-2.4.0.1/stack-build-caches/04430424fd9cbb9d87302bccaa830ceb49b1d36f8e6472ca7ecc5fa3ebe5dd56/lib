@@ -1,0 +1,56 @@
+/home/qingjiangwang/my-ccg/src/Corpus.hs:
+  hash: ee9ab9c06d50eb64369096dee03f9366cf573179d2e25f36db54f2adf538d798
+  size: 10707
+  modtime: 1589018201
+/home/qingjiangwang/my-ccg/src/Rule.hs:
+  hash: f4e23d68b38e27af48fda437f9fd831fb776ed772f20e5e9a43a9db4fe905864
+  size: 13599
+  modtime: 1589038651
+/home/qingjiangwang/my-ccg/src/OutputTest.hs:
+  hash: d702844f83c3d843c6f510fa3b03ef5224c577229d3028b3689bfe109deb8efe
+  size: 24363
+  modtime: 1588516749
+/home/qingjiangwang/my-ccg/package.yaml:
+  hash: 0195dc87c426563a20184afd048e6ca90c64468b302a7636f728266b283d7040
+  size: 1415
+  modtime: 1578789858
+/home/qingjiangwang/my-ccg/src/Parse.hs:
+  hash: edc6af954804c5654ca3b2c19cb8af1d96a91aaefc9cdd1828681372eb29d2bd
+  size: 35117
+  modtime: 1589121571
+/home/qingjiangwang/my-ccg/my-ccg.cabal:
+  hash: 1f5e32c68bc87d84dc6d24e0e9ea3eec7b95ce28cf639dc4fa9f2f3f7f4219af
+  size: 2208
+  modtime: 1589064810
+/home/qingjiangwang/my-ccg/README.md:
+  hash: dc4b4e59e67598f3d35925fb1520909a7b3e983a8184cf3ddd6fb3fc8f23c0d4
+  size: 90
+  modtime: 1568103613
+/home/qingjiangwang/my-ccg/src/Category.hs:
+  hash: 4b89689258cc79feb5c76f0a6eeac233ccc0a791df89d380ddc2ac8d834b751c
+  size: 7864
+  modtime: 1588586789
+/home/qingjiangwang/my-ccg/src/SentParse.hs:
+  hash: 2de2223ec4e9253d6a76b9377712017939e3b414f4063a82921d72fc0e7a0b79
+  size: 14860
+  modtime: 1589123883
+/home/qingjiangwang/my-ccg/src/Output.hs:
+  hash: fcf90c0b23d6e5489dba03fc251ac8b2b26df8e1a502e8a7940bf229a0e6bc25
+  size: 13865
+  modtime: 1588384836
+/home/qingjiangwang/my-ccg/src/Utils.hs:
+  hash: 9980d6b8344f03bfb9bbe48f3d5dda03053348244104c3bd17a438d925574ee4
+  size: 3210
+  modtime: 1589012541
+/home/qingjiangwang/my-ccg/ChangeLog.md:
+  hash: 92da2aaefd335f44adc50d4372ea0e9c15ead85e8f493494b073834bb1b7e194
+  size: 46
+  modtime: 1563406398
+/home/qingjiangwang/my-ccg/app/Test.hs:
+  hash: b3ba4c93e74f44f878487e28a104f217597b04a2b29277a2b14a779a97fb3bd1
+  size: 886
+  modtime: 1588385406
+/home/qingjiangwang/my-ccg/src/Phrase.hs:
+  hash: bcbb6c51e224ed2ef49cd4390f7bcbd9c787cb116865c55aca0e278f1b752cab
+  size: 13616
+  modtime: 1588664096

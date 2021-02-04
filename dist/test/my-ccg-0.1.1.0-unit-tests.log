@@ -1,0 +1,94 @@
+Test suite unit-tests: RUNNING...
+
+Category
+  Category
+    returns the result of cateEqual s np is False
+    returns the result of cateEqual s\.np s\*np is True
+    returns the result of cateEqual (s\.np)/.np (s\.np)/xnp is True
+    returns the first element of slashes
+    returns the first element of primitives
+    nilCate is the category Nil
+    sCate is the category s
+    npCate is the category np
+    Result of veriStrForCate "s\.np" is True
+    Result of getCateFromString  "s\.np" is category s\.np
+    Result of getCateFromString  "(s\.np)/.np" is category (s\.np)/.np
+    Result of indexOfSlash 0 0 "(s\*np)/#(s\*np)" is 7
+    Result of leftStr (s\*np)/#(s\.np) is s\*np
+    Result of rightStr (s\*np)/#(s\.np) is s\.np
+    Result of midSlashStr (s\*np)/#(s\.np) is /#
+    Result isNil Nil is True
+    Result isPrimitive (Primitive "s") is True
+    Result isDerivative (getCateFromString "(s\.np)/#(s\.np)") is True
+Output
+  Output
+    All functions in module Output are IO-type, and not-testable now.
+Parse
+  Parse
+    The result of initPhraCate [] is []
+    The result of initPhraCate [s] is [((0,0),[(s,"Desig","Frank'")],0)]
+    The result of initPhraCate [np, (s\.np)/.np, np] is [((0,0),[(np,"Desig","Frank'")],0),((1,0),[((s\.np)/.np,"Desig","loves'")],1),((2,0),[(np,"Desig","Mary'")],2)]
+    The result of createPhraCate 0 1 s "Np/s" "smiles' Frank'" 1 is ((0,1),[(s, "Np/s", "smiles' Frank'")],1)
+    The result of applying func pclt to ((0,0),[(np,"Desig","Frank'")],0) and ((1,0),[((s\.np)/.np,"Desig","loves'")],1) is True
+    The result of applying func pclt to ((0,0),[(np,"Desig","Frank'")],0) and ((0,0),[(s/.np,"Desig","loves' Mary'")],0) is False
+    The result of pcBelong ((1,0),[(s\.np)/.np, "Desig", "likes'")],1) ((1,0),[(s\.np)/.np, "Desig", "likes'")],1) is True
+    The result of pcBelong ((1,0),[(s\.np)/.np, "Desig", "likes'")],1) ((1,0),[(s\.np)/.np, "Desig", "likes'"),(np, ">","book'")],1) is True
+    The result of pcBelong ((1,0),[(s\.np)/.np, "Desig", "likes'"),(np, ">","book'")],1) ((1,0),[(s\.np)/.np, "Desig", "likes'")],1) is False
+    The result of stOfCate ((1,0),[(s\.np, "Desig", "smiles'")],1) is 1
+    The result of spOfCate ((1,0),[(s\.np, "Desig", "smiles'")],1) is 0
+    The result of ssOfCate ((1,0),[(s\.np, "Desig", "smiles'")],1) is 1
+    The result of ctsOfCate ((1,0),[(s\.np, "Desig", "smiles'")],1) is [(s\.np, "Desig", "smiles'")]
+    The result of caOfCate ((1,0),[(s\.np, "Desig", "smiles'")],1) is [s\.np]
+    The result of cateComb ((0,0),[(np, "Desig", "Frank'")],0) ((1,0),[(s\.np, "Desig", "smiles")],1) is ((0,1),[(s, "<", "smiles' Frank'")],1)
+    The result of cateComb ((0,0),[(np, "Desig", "Frank'")],0) ((1,0),[(s\.np,"Desig","smiles'")],1) is NOT ((0,1),[(np,"Desig","smiles' Frank'"],1)
+    The result of cateComb ((0,0),[(np,"Desig","Frank'")],0) ((1,0),[((s\.np)/.np,"Desig","loves'")],1) is ((0,1),[(s/.np,">T->B"),"Frank' loves"],1)
+    The result of cateComb ((0,0),[(s,"Desig","Frank_cries'")],0) ((1,0),[(s\.np,"Desig","is_bad'")],1) is ((0,1),[(s,"Np/s-<","is_bad' Frank_cries'")],1)
+    The result of cateComb ((0,0),[((s\.np)/.np,"Desig","loves'")],0) ((1,0),[(s,"Desig","Frank_does_it'")],1) is ((0,1),[(s\.np,"Np/s->","loves' Frank_does_it'")],1)
+    The result of cateComb ((0,0),[((s\.np)/.np,"Desig","loving'")],0) ((1,0),[(s\.np,"Desig","is_forever'")],1) is ((0,1),[(s,"Np/v-<","is_forever' loving'"),(s\.np,"Np/v->","loving' is_forever'")],1)
+    The result of cateComb ((0,0),[(np/.np,"Desig","Good'")],0) ((1,1),[((s\.np)/.np,">B","is_better_than' bad'"), (s\.np,">","is_better_than' bad'")],2) is ((0,2),[(s/.np,"<Bx","(is_better_than' bad') Good'"),(np,"Np/v->","Good' (is_better_than' bad')"),(s,"Np/a-<","(is_better_than' bad') Good'"),(s/.np,"Np/a->T->B","Good' (is_better_than' bad')")],1)
+    The result of getNuOfInputCates ((0,0),[(np,"Desig","Frank'")],0) ((1,0),[((s\.np)/.np,"Desig","loves'")],1) ((0,1),[(s/.np,"<","loves' Frank'")],1) is 2
+    The result of parse [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[((s\.np)/.np,"Desig","loves'")],1)] is [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[(s\.np)/.np,"Desig","loves'")],1), ((0,1),[(s/.np,">T->B","Frank' loves'")],1)]
+    The result of parse [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[((s\.np)/.np,"Desig","loves'")],1), ((2,0),[(np,"Desig","Mary'")],2)] is [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[((s\.np)/.np,"Desig","loves'")],1), ((2,0),[(np,"Desig","Mary'")],2), ((0,1),[(s/.np,">T->B","Frank' loves'")],1), ((1,1),[(s\.np,">","loves' Mary'"),((s\.np)/.np,"A/n->B","loves' Mary'")],2), ((0,2),[(s,"<","(loves' Mary') Frank'"),(s/.np,">T->B","Frank' (loves' Mary')"),(s/.np,"A/n-<Bx","(loves' Mary') Frank'")],1), ((0,2),[(s,">","(Frank' loves') Mary'"),(s/.np,"A/n->B","(Frank' loves') Mary'")],2)], without considering element order.
+    The result of parse [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig","wins'")],2)] is [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig","wins'")],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'"),(np/.np,"A/n->B","Brave' Frank'")],2), ((0,2),[(np,"Np/s->","Brave' (wins' Frank')")],1), ((0,2),[(s,"<","wins' (Brave' Frank')"),(np,"Np/v->","(Brave' Frank') wins'"),(s,"Np/a-<","wins' (Brave' Frank')")],2)], without considering element order.
+    The result of atomizePhraCate [((0,0),[(np,"Desig","Frank")],1), ((1,1),[(s\.np,">","loves' Mary'"),((s/.np,">T->B","Tim' loves'"))],2)] is [((0,0),[(np,"Desig","Frank")],1), ((1,1),[(s\.np,">","loves' Mary'"),2)],2), ((1,1),[(s/.np,">T->B","Tim' loves'")],2)]
+    The result of findCate （0,-1) [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[(s\.np,"Desig","smiles")],1)] is []
+    The result of findCate （0,0) [((0,0),[(np,"Desig","Frank'")],0), ((1,0),[(s\.np,"Desig","loves' Mary'")],1)] is ((0,0),[(np,"Desig","Frank'")],0)
+    The result of findSplitCate ((1,0),[(np,"Desig","Frank'")],1) [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is []
+    The result of findSplitCate ((0,2),[(s,"<","wins' (Brave' Frank')")],2) [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,1),[(np,">","Brave' Frank'")],1), (2,0),[(s\.np,"Desig","wins'")],2)]
+    The result of findSplitCate ((0,2),[(s,"<","wins' (Brave' Frank')")],2) [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,1),[(np,">","Brave' Frank'")],1), (2,0),[(s\.np,"Desig","wins'")],2)]
+    The result of findSplitCate ((1,1),[(s,"<","wins' Frank'")],2) [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((1,0),[(np,"Desig","Frank'")],1), (2,0),[(s\*np,"Desig","wins'")],2)]
+    The result of findTipsOfTree [((1,1),[(s,"<","wins' Frank'")],2)] [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((1,1),[(s,"<","wins' Frank'")],2)]
+    The result of findTipsOfTree [((0,2),[(s,"<","wins' (Brave' Frank')")],2),((0,1),[(np,">","Brave' Frank'")],1),((2,0),[(s\*np,"Desig","wins'")],2)] [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,1),[(np,">","Brave' Frank'")],1)]
+    The result of findTipsOfTree [((0,0),[(np/.np,"Desig","Good'")],0), ((1,1),[((s\.np)/.np,">B","is_better_than' bad'")],2) ((0,2),[(np,"Np/v->","Good' (is_better_than' bad')")],1)] [(s,"Np/a-<","(is_better_than' bad') Good'")],1)  [((0,0),[(np/.np,"Desig","Good'")],0), ((1,0),[((s\.np)/.np,"Desig","is_better_than'")],1), ((2,0),[(np/.np,"Desig","bad'")],2), ((0,1),[(np,"Np/v->","Good' is_better_than'")],1), ((0,1),[(s/.np,"Np/a->T->B","Good' is_better_than'")],1), ((1,1),[((s\.np)/.np,">B","is_better_than' bad'")],2), ((1,1),[(s\.np,"Np/a->","is_better_than' bad'")],2), ((0,2),[(np,"Np/v->","Good' (is_better_than' bad')")],1), ((0,2),[(s,"Np/a-<","(is_better_than' bad') Good'")],1), ((0,2),[(s/.np,"Np/a->T->B","Good' (is_better_than' bad')")],1), ((0,2),[(s/.np,">B","(Good' is_better_than') bad'")],2), ((0,2),[(s,"Np/a->","(Good' is_better_than') bad'")],2)] is [((1,1),[((s\.np)/.np,">B","is_better_than' bad'")],2), ((0,2),[(np,"Np/v->","Good' (is_better_than' bad')")],1)]
+    The result of findCateBySpan 1 [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2)]
+    The result of findCateBySpan 0 [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,0),[(np/.np, "Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s, "Desig","wins'")],2)]
+    The result of findCateBySpan 2 [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)]
+    The result of divPhraCateBySpan [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [[((0,0),[(np/.np, "Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np, "Desig","wins'")],2)], [((0,1),[(np, ">","Brave' Frank'")],1)], [((0,2),[(s,"<","wins' (Brave' Frank')")],2)]]
+    The result of growTree [((0,2),[(s, ">","(loves' Frank') Mary'")],2)] [((0,0),[(np, "Desig","Frank'")],0), ((1,0),[((s\.np)/.np, "Desig","loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,1),[(s/.np,">T->B","Frank' loves'")],1), ((1,1),[(s\.np, "<","loves' Frank'")],2), ((0,2),[(s, "<","(loves' Mary') Frank'")],1), ((0,2),[(s, ">", "(Frank' loves') Mary'")],2) is [((0,0),[(np, "Desig","Frank'")],0), ((1,0),[((s\.np)/.np, "Desig","loves'")],1), ((0,1),[(s/.np, ">T->B","Frank' loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,2),[(s, ">","(Frank' loves') Mary'")],2)]
+    The result of growTree [((0,2),[(s, "<", "(loves' Mary') Frank'")],1)]  [((0,0),[(np, "Desig","Frank'")],0), ((1,0),[((s\.np)/.np, "Desig","loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,1),[(s/.np,">T->B","Frank' loves'")],1), ((1,1),[(s\.np, "<","loves' Frank'")],2), ((0,2),[(s, "<","(loves' Mary') Frank'")],1), ((0,2),[(s, ">", "(Frank' loves') Mary'")],2) is [((1,0),[(s\.np/.np, "Desig","loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,0),[(np, "Desig","Frank'")],0), ((1,1),[(s\.np, ">","loves' Mary'")],2), ((0,2),[(s, "<", "(loves' Mary') Frank'")],1)]
+    The result of growTree ((0,2),[(np,"Np/v->","Good' (is_better_than' bad')")],1)  [((0,0),[(np/.np,"Desig","Good'")],0), ((1,0),[((s\.np)/.np,"Desig","is_better_than'")],1), ((2,0),[(np/.np,"Desig","bad'")],2), ((0,1),[(np,"Np/v->","Good' is_better_than'")],1), ((0,1),[(s/.np,"Np/a->T->B","Good' is_better_than'")],1), ((1,1),[((s\.np)/.np,">B","is_better_than' bad'")],2), ((1,1),[(s\.np,"Np/a->","is_better_than' bad'")],2), ((0,2),[(np,"Np/v->","Good' (is_better_than' bad')")],1), ((0,2),[(s,"Np/a-<","(is_better_than' bad') Good'")],1), ((0,2),[(s/.np,"Np/a->T->B","Good' (is_better_than' bad')")],1), ((0,2),[(s/.np,">B","(Good' is_better_than') bad'")],2), ((0,2),[(s,"Np/a->","(Good' is_better_than') bad'")],2)] is [(((1,0),[(s\np/.np,"Desig","is_better_than'")],1), ((2,0),[(np/.np,"Desig","bad'")],1))]
+    The result of growForest [[((0,2),[(s, "<", "(loves' Mary') Frank'")],1)], [((0,2),[(s, ">","(loves' Frank') Mary'")],2)]]  [((0,0),[(np, "Desig","Frank'")],0), ((1,0),[((s\.np)/.np, "Desig","loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,1),[(s/.np,">T->B","Frank' loves'")],1), ((1,1),[(s\.np, "<","loves' Frank'")],2), ((0,2),[(s, "<","(loves' Mary') Frank'")],1), ((0,2),[(s, ">", "(Frank' loves') Mary'")],2) is [[((1,0),[(s\.np/.np, "Desig","loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,0),[(np, "Desig","Frank'")],0), ((1,1),[(s\.np, ">","loves' Mary'")],2), ((0,2),[(s, "<", "(loves' Mary') Frank'")],1)], [((0,0),[(np, "Desig","Frank'")],0), ((1,0),[((s\.np)/.np, "Desig","loves'")],1), ((0,1),[(s/.np, ">T->B","Frank' loves'")],1), ((2,0),[(np, "Desig","Mary'")],2), ((0,2),[(s, ">","(Frank' loves') Mary'")],2)]]
+    The result of growForest [[((0,2),[(np,"Np/s->","Brave' (wins' Frank')"],1)], [((0,2),[(s, "<", "wins' (Brave' Frank')")],2)] [((0,0),[(np/.np,"Desig","Brave'")],0), ((1,0),[(np,"Desig","Frank'")],1), ((2,0),[(s\*np,"Desig"),"wins'"],2), ((0,1),[(np,">","Brave' Frank'")],1), ((1,1),[(s,"<","wins' Frank'")],2), ((0,2),[np,"Np/s->","Brave' (wins' Frank')"],1), ((0,2),[(s,"<","wins' (Brave' Frank')")],2)] is [[((1,0),[(np, "Desig","Frank'")],1), ((2,0),[(s\*np, "Desig","wins'")],2), ((0,0),[(np/.np, "Desig","Brave'")],0), ((1,1),[(s, "<","wins' Frank'")],2), ((0,2),[(np,"Np/s->","Brave' (wins' Frank')"],1)], [((0,0),[(np/.np, "Desig","Brave'")],0), ((1,0),[(np, "Desig","Frank'")],1), ((0,1),[(np, ">","Brave' Frank'")],1), ((2,0),[(s\*np, "Desig","wins'")],2), ((0,2),[(s, "<","wins' (Brave' Frank')")],2)
+Rule
+  Rule
+    The result of forwardly application (s/.np, "eat'") to (np, "food'") is (s,">", "eat' food'")
+    The result of forwardly application (s, "(eats' food') Mary'" to (np, "Frank'") is (Nil, ">", "")
+    The result of backwardly application (np, "Frank'") to (s\.np, "eats' food'") is (s,"<", "(eats' food') Frank'")
+    The result of forward harmonic composition ((s\.np)/#(s\.np), "very'") with ((s\.np)/.np,"hates'") is ((s\.np)/.np, ">B", "very' hates'")
+    The result of forward harmonic composition ((s\.np)/*(s\.np), "very'") with ((s\.np)/.np, "hates'") is (Nil, ">B", "")
+    The result of forward harmonic composition^2 ((s\.np)/#(s\.np) "quickly'") with (((s\.np)/#np)/.np), "give'") is (((s\.np)/#np/).np, ">B2", "quickly' give'")
+    The result of backward harmonic composition ((s\.np)\.np "doony'") with ((s\.np)\#(s\.np), "well'") is ((s\.np)\.np, "<B", "well' doony'")
+    The result of forward crossing composition ((s\.np)/x(s\.np), "very'") with ((s\.np)\xnp, "doony'") is ((s\.np)\xnp, ">Bx", "very' doony'")
+    The result of backward crossing composition ((s\.np)/.np, "do'") with ((s\.np)\x(s\.np), "well'") is ((s\.np)/.np, "<Bx", "well' do'")
+    The result of forward raising and harmonic composition (np, "I'") with ((s\.np)/.np, "eat'") is (s/.np, ">T->B", "I' eat'")
+    The result of forward raising and harmonic composition (np, "I'") with (s\.np, "watch' TV'") is (Nil, ">T->B", "")
+    The result of forward raising and harmonic composition (np, "Frank'") with ((s\.np)/.np, "give'") is ((s/.np, ">T->B", "Frank' give'")
+    The result of fordward raising and crossing composition (np, "Frank'") with ((s\.np)\xnp, "doony'") is (s\xnp, ">T->Bx", "Frank' doony'")
+    The result of backward raising and harmonic composition ((s/.np)\#np, "give'") with (np, "Frank'") is (s\#np, "<T-<B", "Frank' give'")
+    The result of backward raising and crossing composition ((s/.np)/.s, "let'") with (np, "him'") is (s/.s, "<T-<Bx", "him' let'")
+    The result of backward raising and crossing composition ((s/.np)/#s, "let'") with (np, "him'") is (Nil, "<T-<Bx","")
+
+Finished in 0.0107 seconds
+79 examples, 0 failures
+Test suite unit-tests: PASS
+Test suite logged to: dist/test/my-ccg-0.1.1.0-unit-tests.log

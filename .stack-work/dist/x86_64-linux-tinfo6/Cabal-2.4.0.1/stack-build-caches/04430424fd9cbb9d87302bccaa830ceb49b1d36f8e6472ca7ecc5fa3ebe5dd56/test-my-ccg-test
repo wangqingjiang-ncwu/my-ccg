@@ -1,0 +1,40 @@
+/home/qingjiangwang/my-ccg/test/ParseSpec.hs:
+  hash: 7629f6f7d81f6f17dbf248b408af5af0d1f35f453b177157e4d1d1360434d636
+  size: 24139
+  modtime: 1589126986
+/home/qingjiangwang/my-ccg/test/RuleSpec.hs:
+  hash: d969eae5abb669a2a4413361764785816d214cc79bdba960c10e5d215c48f3ab
+  size: 5698
+  modtime: 1581089639
+/home/qingjiangwang/my-ccg/package.yaml:
+  hash: 0195dc87c426563a20184afd048e6ca90c64468b302a7636f728266b283d7040
+  size: 1415
+  modtime: 1578789858
+/home/qingjiangwang/my-ccg/my-ccg.cabal:
+  hash: 1f5e32c68bc87d84dc6d24e0e9ea3eec7b95ce28cf639dc4fa9f2f3f7f4219af
+  size: 2208
+  modtime: 1589064810
+/home/qingjiangwang/my-ccg/README.md:
+  hash: dc4b4e59e67598f3d35925fb1520909a7b3e983a8184cf3ddd6fb3fc8f23c0d4
+  size: 90
+  modtime: 1568103613
+/home/qingjiangwang/my-ccg/test/OutputSpec.hs:
+  hash: 30726b734421a7ac57aa94a1cf996ef83a9473e448f5500d45841ac8355932e8
+  size: 352
+  modtime: 1566776588
+/home/qingjiangwang/my-ccg/test/Spec.hs:
+  hash: 52e139d665867d859496d7edbb7c5459e03d4128bd7c6a587a9e8757e32b85dc
+  size: 46
+  modtime: 1564145152
+/home/qingjiangwang/my-ccg/test/CategorySpec.hs:
+  hash: fb254faf8f039ee5852365e2aae991cf3f8032660494074b4c6e42dab3717079
+  size: 2377
+  modtime: 1568731567
+/home/qingjiangwang/my-ccg/test/PhraseSpec.hs:
+  hash: 439b47c6e3cb06440175b734062f175e854abe185a4dd63d8651eddc6370327c
+  size: 13123
+  modtime: 1589100694
+/home/qingjiangwang/my-ccg/ChangeLog.md:
+  hash: 92da2aaefd335f44adc50d4372ea0e9c15ead85e8f493494b073834bb1b7e194
+  size: 46
+  modtime: 1563406398

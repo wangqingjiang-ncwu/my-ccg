@@ -1,6 +1,6 @@
 -- -# LANGUAGE OverloadedStrings #-
 
--- Copyright China University of Water Resources and Electric Power (c) 2019-2020
+-- Copyright (c) 2019-2021 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module Corpus (

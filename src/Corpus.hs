@@ -1,4 +1,4 @@
--- -# LANGUAGE OverloadedStrings #-
+{-# LANGUAGE OverloadedStrings #-}
 
 -- Copyright (c) 2019-2021 China University of Water Resources and Electric Power
 -- All rights reserved.
@@ -17,7 +17,6 @@ module Corpus (
     Prior(..),          -- Prior and its all Constructors
     StruGene,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     OverPair,           -- (PhraCate, PhraCate, Prior)
-    getConn,            -- IO Connection
     psToCate,           -- IO ()
     rawToCate,          -- [(SqlValue]] -> [[SqlValue]]
     psToCateInASent,    -- String -> String
@@ -52,14 +51,15 @@ module Corpus (
     ) where
 
 import Control.Monad
-import Database.HDBC
-import Database.HDBC.MySQL
+import qualified System.IO.Streams as S
+import Database.MySQL.Base
 import Data.List.Utils
 import Data.Tuple.Utils
 import Category
 import Phrase (Tag,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString)
 import Rule
 import Utils
+import Database
 
 -- Datatype POS for parts of speech (word classes).
 type POS = String
@@ -199,58 +199,38 @@ type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 
 type OverPair = (PhraCate, PhraCate, Prior)
 
--- Get a connection with given database.
-
-getConn :: IO Connection
-getConn =  connectMySQL defaultMySQLConnectInfo {
-    mysqlHost = "127.0.0.1",
-    mysqlUser = "hssc",
-    mysqlPassword = "hssc",
-    mysqlDatabase = "ccg4c"
-    }
-
--- Data type for the string of SQL Select statement.
-type SqlStat = String
-
 -- To initialize the column cate_sent by the column raw_sent, translate each part of speech to its category.
 psToCate :: IO ()
 psToCate = do
     conn <- getConn
-    stat1 <- prepare conn "select raw_sent2,serial_num from corpus"
-    executeRaw stat1                                              --Get [[<raw_sent2>, <serial_num>]]
-    rows <- fetchAllRows stat1
-    putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be used.
-    putStrLn $ "Maximal string length of cate_sent is " ++ (show $ maxStrLen $ map (fromSql.head) $ rawToCate rows)
- 
---  colNames <- getColumnNames sth                   -- Get names of columns from results.
---  forM_ colNames $ \colName -> (putStrLn $ show colName)
+    stmt <- prepareStmt conn "select raw_sent2,serial_num from corpus"
+    (defs, is) <- queryStmt conn stmt []                          --([ColumnDef], InputStream [MySQLValue])
+    rows <- S.toList is
+    putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be consumed.
+    putStrLn $ "Maximal string length of cate_sent is " ++ (show $ maxStrLen $ map (fromMySQLText.head) $ rawToCate rows)
+    closeStmt conn stmt
 
-    stat2 <- prepare conn "update corpus set cate_sent = ? where serial_num = ?"
-    executeMany stat2 $ rawToCate rows               -- Update column cate_sent. 
+--    forM_ defs $ \colName -> (putStrLn $ show colName)          -- Get names of columns from results.
+
+    let stmt1 = "update corpus set cate_sent = ? where serial_num = ?"
+    executeMany conn stmt1 $ rawToCate rows                       -- Update column cate_sent.
 
     putStrLn "Category assignments are finished."
 
---  sth <- prepare conn "select serial_num,raw_sent,cate_sent from corpus"
---  executeRaw sth
---  rows <- fetchAllRows sth            -- Get [[<serial_num>, <cate_sent>]].
---  forM_ rows $ \row -> (forM_ row $ \fld -> putStrLn $ fromSql fld)
---  forM_ (last rows) $ \fld -> putStrLn $ fromSql fld
-    commit conn
-    disconnect conn             -- Explicitly close the connection.
+    close conn          -- Explicitly close the connection.
 
 -- Prepare [[<cate_sent>, <serial_num>]] from [[<raw_sent>,<serial_num>]]
-rawToCate :: [[SqlValue]] -> [[SqlValue]]
-rawToCate [] = [] 
-rawToCate (row:rows) = ([toSql $ psToCateInASent $ fromSql $ head row]++[last row]):rawToCate rows
+rawToCate :: [[MySQLValue]] -> [[MySQLValue]]
+rawToCate [] = []
+rawToCate (row:rows) = ([toMySQLText $ psToCateInASent $ fromMySQLText $ head row]++[last row]):rawToCate rows
 
-{- Translate <word>/<pos> into <word>:<cate> in a String, here <word> and <pos> are concrete word and its part of
-   speech.
+{- Translate <word>/<pos> into <word>:<cate> in a String, here <word> and <pos> are concrete word and its part of speech.
  -}
 
 psToCateInASent :: String -> String
 psToCateInASent [] = []
 psToCateInASent xs = unwords $ map (\w -> (head $ split "/" w) ++ ":" ++ getCateSymbFromPos (last $ split "/" w) posCate) (words xs)
-    
+
 -- Get the category symbol from a part of speech, according to the list posCate.
 
 getCateSymbFromPos :: POS -> [(POS, CateSymb)] -> CateSymb
@@ -268,16 +248,16 @@ getCateSymbFromPos pos (c:cs)      --Here, (c:cs) is just the list posCate
 copyCate :: IO ()
 copyCate = do
     conn <- getConn
-    stat1 <- prepare conn "select cate_sent,serial_num from corpus where cate_check = 0"
-    executeRaw stat1                                          --Get [[<cate_sent>, <serial_num>]]
-    rows <- fetchAllRows stat1
+    stmt <- prepareStmt conn "select cate_sent,serial_num from corpus where cate_check = 0"
+    (def, is) <- queryStmt conn stmt []                                         --Get [[<cate_sent>, <serial_num>]]
+    rows <- S.toList is
     putStrLn $ (show $ length rows) ++ " rows has been read."
+    closeStmt conn stmt
 
-    stat2 <- prepare conn "update corpus set cate_sent2 = ? where serial_num = ?"
-    executeMany stat2 rows                                    -- Update column cate_sent2 whose cate_check = 0. 
-    commit conn
-    disconnect conn                                           -- Close the connection.
- 
+    let stmt1 = "update corpus set cate_sent2 = ? where serial_num = ?"
+    executeMany conn stmt1 rows                         -- Update column cate_sent2 whose cate_check = 0.
+    close conn                                          -- Close the connection.
+
 {- Keep column raw_sent not changed, while column raw_sent2 modified manually. The initial values of column
    raw_sent2 are copied from column raw_sent. Actually raw_sent2 can be copied again from raw_sent where ps_check = 0.
    In other words, ps_check will be set 1 after raw_sent is checked by hand.
@@ -286,46 +266,54 @@ copyCate = do
 copyPS :: IO ()
 copyPS = do
     conn <- getConn
-    sth <- prepare conn "select raw_sent,serial_num from corpus where ps_check = 0"
-    executeRaw sth
-    rows <- fetchAllRows sth         --Get [[<raw_sent>, <serial_num>]]
+    stmt <- prepareStmt conn "select raw_sent,serial_num from corpus where ps_check = 0"
+    (defs, is) <- queryStmt conn stmt []
+    rows <- S.toList is              --Get [[MySQLText rs, MySQLInt32 sn]]
                                      --Select's result must be used.
     putStrLn $ (show $ length rows) ++ " rows has been read."
+    resetStmt conn stmt              -- Reset a query statement, all previous resultset will be cleared.
+    closeStmt conn stmt
 
-    sth <- prepare conn "update corpus set raw_sent2 = ? where serial_num = ?"
-    executeMany sth rows    -- Update column cate_sent2 whose ps_check = 0. 
-    commit conn             -- Commit any pending data to the database.
-    disconnect conn         -- Close the connection.
+    let stmt1 = "update corpus set raw_sent2 = ? where serial_num = ?"
+    executeMany conn stmt1 rows      -- Update column cate_sent2 whose ps_check = 0.
+    close conn                       -- Close the connection.
 
 -- Again make Field 'id' in Table 'stru_gene' autoincrement from 1, used when 'id' values are not continuous.
 resetStruGene_Id :: IO ()
 resetStruGene_Id = do
     conn <- getConn
-    stat1 <- prepare conn "select * from stru_gene where leftOver = ''"
-    cols <- getColumnNames stat1
---  forM_ cols $ \col -> putStr (show col ++ " ")
+    stmt <- prepareStmt conn "select * from stru_gene where leftOver = ''"
+    (cols, is) <- queryStmt conn stmt []
+    forM_ cols $ \col -> putStr (show col ++ " ")
+    resetStmt conn stmt                            -- Reset a query statement
+
     putStrLn "Field 'id' of Table 'stru_gene' has been reset."
-    if (cols!!0) == "id"     -- Field 'id' exists.
+    if (show (getColumnName (cols!!0))) == "id"     -- Field 'id' exists.
       then do
-        stat2 <- prepare conn "alter table stru_gene drop column id"
-        executeRaw stat2
-        stat3 <- prepare conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
-        executeRaw stat3
+        stmt <- prepareStmt conn "alter table stru_gene drop column id"
+        executeStmt conn stmt []
+        resetStmt conn stmt
+
+        stmt <- prepareStmt conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
+        executeStmt conn stmt []
       else do                -- Field 'id' doesn't exist.
-        stat4 <- prepare conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
-        executeRaw stat4
-    disconnect conn
+        stmt <- prepareStmt conn "alter table stru_gene add column id int(6) unsigned auto_increment primary key first"
+        executeStmt conn stmt []
+    closeStmt conn stmt
+    close conn
 
 -- Set Fields 'tree' and 'script' in Table 'corpus' default value "[]".
 setCorpusDefault :: IO ()
 setCorpusDefault = do
     conn <- getConn
-    stat1 <- prepare conn "update corpus set tree = '[]' where isnull(tree)"
-    executeRaw stat1
-    stat2 <- prepare conn "update corpus set script = '[]' where isnull(script)"
-    executeRaw stat2
-    commit conn
-    disconnect conn
+    stmt <- prepareStmt conn "update corpus set tree = '[]' where isnull(tree)"
+    executeStmt conn stmt []
+    resetStmt conn stmt
+
+    stmt <- prepareStmt conn "update corpus set script = '[]' where isnull(script)"
+    executeStmt conn stmt []
+    closeStmt conn stmt
+    close conn
 
 {- A script is a triple, recording parsing instructions for a clause, which include the serial number of the clause,
    category-converted rules for every trip of recursive parsing, and all banned phrasal categories.
@@ -402,7 +390,7 @@ nTreeToString trees = listToString (map treeToString trees)
 
 type Closure = [PhraCate]
 type Forest = [[PhraCate]]
-    
+
 -- Read [Closure] from a String.
 readClosures :: String -> [Closure]
 readClosures str = map readPCList (stringToList str)
@@ -430,4 +418,3 @@ forestToString forest = listToString (map nPhraCateToString forest)
 -- Get the String from a [Forest] value.
 nForestToString :: [Forest] -> String
 nForestToString nForest = listToString (map forestToString nForest)
-

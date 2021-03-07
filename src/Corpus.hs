@@ -17,12 +17,12 @@ module Corpus (
     Prior(..),          -- Prior and its all Constructors
     StruGene,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     OverPair,           -- (PhraCate, PhraCate, Prior)
-    psToCate,           -- IO ()
+    posToCate,          -- IO ()
     rawToCate,          -- [(SqlValue]] -> [[SqlValue]]
-    psToCateInASent,    -- String -> String
+    posToCateInASent,   -- String -> String
     getCateSymbFromPos, -- POS -> [(POS, CateSymb)] -> CateSymb
     copyCate,           -- IO ()
-    copyPS,             -- IO ()
+    copyRawSent,        -- IO ()
     resetStruGene_Id,   -- IO ()
     setCorpusDefault,   -- IO ()
     ClauIdx,            -- Int
@@ -199,9 +199,9 @@ type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 
 type OverPair = (PhraCate, PhraCate, Prior)
 
--- To initialize the column cate_sent by the column raw_sent, translate each part of speech to its category.
-psToCate :: IO ()
-psToCate = do
+-- To initialize the column cate_sent by the column raw_sent2, translate each part of speech to its category.
+posToCate :: IO ()
+posToCate = do
     conn <- getConn
     stmt <- prepareStmt conn "select raw_sent2,serial_num from corpus"
     (defs, is) <- queryStmt conn stmt []                          --([ColumnDef], InputStream [MySQLValue])
@@ -222,14 +222,14 @@ psToCate = do
 -- Prepare [[<cate_sent>, <serial_num>]] from [[<raw_sent>,<serial_num>]]
 rawToCate :: [[MySQLValue]] -> [[MySQLValue]]
 rawToCate [] = []
-rawToCate (row:rows) = ([toMySQLText $ psToCateInASent $ fromMySQLText $ head row]++[last row]):rawToCate rows
+rawToCate (row:rows) = ([toMySQLText $ posToCateInASent $ fromMySQLText $ head row]++[last row]):rawToCate rows
 
 {- Translate <word>/<pos> into <word>:<cate> in a String, here <word> and <pos> are concrete word and its part of speech.
  -}
 
-psToCateInASent :: String -> String
-psToCateInASent [] = []
-psToCateInASent xs = unwords $ map (\w -> (head $ split "/" w) ++ ":" ++ getCateSymbFromPos (last $ split "/" w) posCate) (words xs)
+posToCateInASent :: String -> String
+posToCateInASent [] = []
+posToCateInASent xs = unwords $ map (\w -> (head $ split "/" w) ++ ":" ++ getCateSymbFromPos (last $ split "/" w) posCate) (words xs)
 
 -- Get the category symbol from a part of speech, according to the list posCate.
 
@@ -260,22 +260,23 @@ copyCate = do
 
 {- Keep column raw_sent not changed, while column raw_sent2 modified manually. The initial values of column
    raw_sent2 are copied from column raw_sent. Actually raw_sent2 can be copied again from raw_sent where ps_check = 0.
-   In other words, ps_check will be set 1 after raw_sent is checked by hand.
+   In other words, pos_check will be set 1 after raw_sent2 is checked by hand.
  -}
 
-copyPS :: IO ()
-copyPS = do
+copyRawSent :: IO ()
+copyRawSent = do
     conn <- getConn
-    stmt <- prepareStmt conn "select raw_sent,serial_num from corpus where ps_check = 0"
+    stmt <- prepareStmt conn "select raw_sent,serial_num from corpus where pos_check = 0"
     (defs, is) <- queryStmt conn stmt []
     rows <- S.toList is              --Get [[MySQLText rs, MySQLInt32 sn]]
                                      --Select's result must be used.
-    putStrLn $ (show $ length rows) ++ " rows has been read."
-    resetStmt conn stmt              -- Reset a query statement, all previous resultset will be cleared.
-    closeStmt conn stmt
+    putStrLn $ (show $ length rows) ++ " rows have been read."
 
     let stmt1 = "update corpus set raw_sent2 = ? where serial_num = ?"
-    executeMany conn stmt1 rows      -- Update column cate_sent2 whose ps_check = 0.
+    oks <- executeMany conn stmt1 rows      -- Update column cate_sent2 whose ps_check = 0.
+    putStrLn $ show (length oks) ++ " rows have been copied."
+
+    closeStmt conn stmt
     close conn                       -- Close the connection.
 
 -- Again make Field 'id' in Table 'stru_gene' autoincrement from 1, used when 'id' values are not continuous.

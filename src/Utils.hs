@@ -7,12 +7,12 @@ module Utils (
     thd4,          -- (a,b,c,d) -> c
     fth4,          -- (a,b,c,d) -> d
     fst5,          -- (a,b,c,d,e) -> a
-    snd5,          -- (a,b,c,d,e) -> b                       
+    snd5,          -- (a,b,c,d,e) -> b
     thd5,          -- (a,b,c,d,e) -> c
     fth5,          -- (a,b,c,d,e) -> d
     fif5,          -- (a,b,c,d,e) -> e
     fst6,          -- (a,b,c,d,e,f) -> a
-    snd6,          -- (a,b,c,d,e,f) -> b                       
+    snd6,          -- (a,b,c,d,e,f) -> b
     thd6,          -- (a,b,c,d,e,f) -> c
     fth6,          -- (a,b,c,d,e,f) -> d
     fif6,          -- (a,b,c,d,e,f) -> e
@@ -24,6 +24,7 @@ module Utils (
     throwFstBrac,  -- String -> String
     throwLastBrac, -- String -> String
     splitAtDeli,   -- Char -> String -> [String]
+    splitAtDeliThrowSpace,       -- Char -> String -> [String]
     maxStrLen,     -- [String] -> Int
     doubleBackSlash,   -- String -> String
     putNStr,       -- [String] -> IO ()
@@ -43,11 +44,13 @@ module Utils (
     stringToList,      -- String -> [String]
     listToString,      -- [String] -> String
     stringToTriple,    -- String -> (String,String,String)
-    indexOfDelimiter   -- Int -> Int -> Int -> String -> Int  
+    indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
+    rewriteBackSlash   -- String -> String
     ) where
 
 import Data.Tuple
 import Data.List
+import Data.String.Utils
 
 -- Functions on four tuple.
 
@@ -160,6 +163,16 @@ splitAtDeli c cs
       ind = elemIndex c cs
       i = maybe (-1) (0+) ind     -- Result -1 for no delimiter.
 
+-- Split a string with designated delimiter, and every substring throws out its left and right whitespaces.
+splitAtDeliThrowSpace :: Char -> String -> [String]
+splitAtDeliThrowSpace _ "" = []
+splitAtDeliThrowSpace c cs
+    | i /= -1 = (lstrip (rstrip (take i cs))) : splitAtDeli c (drop (i+1) cs)
+    | otherwise = [cs]
+    where
+      ind = elemIndex c cs
+      i = maybe (-1) (0+) ind     -- Result -1 for no delimiter.
+
 -- Calculate the string-length maximum in a String list.
 maxStrLen :: [String] -> Int
 maxStrLen [] = 0
@@ -184,11 +197,7 @@ putNStr (s:ss) = do
 
 -- Throw away head spaces and tail spaces from a character string.
 throwHTSpace :: String -> String
-throwHTSpace "" = ""
-throwHTSpace cs
-    | head cs == ' ' = throwHTSpace $ tail cs
-    | last cs == ' ' = throwHTSpace $ init cs
-    | otherwise = cs 
+throwHTSpace cs = lstrip $ rstrip cs
 
 {- Throw away head spaces and tail spaces in each string element as well as head spaces and tail spaces of the whole
    string list, here the string list is converted from a list.
@@ -217,7 +226,7 @@ listHead' listStr
     | idx == -1 = listStr''
     | otherwise = take idx listStr''
     where
-      listStr' = throwHTSpace listStr 
+      listStr' = throwHTSpace listStr
       listStr'' = init (tail listStr')
       idx = indexOfDelimiter 0 0 0 ',' listStr''
 
@@ -233,12 +242,12 @@ listLast str
 
 -- Function listLast' to get the String of last element from the String of this list,.
 listLast' :: String -> String
-listLast' listStr 
+listLast' listStr
     | listStr' == "" = error "listLast: This is a empty string."
     | head listStr' /= '[' || last listStr' /= ']' = error "listLast': This is not the string of a list."
     | idx == -1 = listStr''
     | otherwise = listLast' ("[" ++ drop (idx + 1) listStr'' ++ "]")
-    where 
+    where
       listStr' = throwHTSpace listStr
       listStr'' = init (tail listStr')
       idx = indexOfDelimiter 0 0 0 ',' listStr''
@@ -263,7 +272,7 @@ takeNElem n listStr
     | n == 0 || listStr == "" = ""
     | n == 1 && idx /= -1 = take idx listStr
     | n == 1 = listStr                               -- Only one element.
-    | n /= 1 && idx /= -1 = take idx listStr ++ "," ++ (takeNElem (n - 1) (drop (idx + 1) listStr)) 
+    | n /= 1 && idx /= -1 = take idx listStr ++ "," ++ (takeNElem (n - 1) (drop (idx + 1) listStr))
     | otherwise = listStr
     where
       idx = indexOfDelimiter 0 0 0 ',' listStr
@@ -274,7 +283,7 @@ takeNElem n listStr
 listDrop :: Int -> String -> String
 listDrop n listStr = throwHTSpaceInList (listDrop' n listStr)
 
-{- The wrapper of Function dropNElem, using '[' and ']' to bracket the result of Function dropNElem. This function 
+{- The wrapper of Function dropNElem, using '[' and ']' to bracket the result of Function dropNElem. This function
    drops n elements from the beginning of a list.
  -}
 listDrop' :: Int -> String -> String
@@ -290,7 +299,7 @@ dropNElem n listStr
     | n == 0 = listStr
     | listStr == "" = ""
     | idx == -1 = ""
-    | otherwise = dropNElem (n - 1) (drop (idx + 1) listStr)                 
+    | otherwise = dropNElem (n - 1) (drop (idx + 1) listStr)
     where
       idx = indexOfDelimiter 0 0 0 ',' listStr
 
@@ -314,11 +323,11 @@ stringToList str
 listToString :: [String] -> String
 listToString [] = "[]"
 listToString [s] = "[" ++ s ++ "]"
-listToString (s:ss) = "[" ++ s ++ "," ++ init (tail (listToString ss)) ++ "]" 
+listToString (s:ss) = "[" ++ s ++ "," ++ init (tail (listToString ss)) ++ "]"
 
 -- Get (String, String, String) from the String of a triple.
 stringToTriple :: String -> (String, String, String)
-stringToTriple str = (first, second, third) 
+stringToTriple str = (first, second, third)
     where
       str' = "[" ++ init (tail (throwHTSpace str)) ++ "]"
       first = listHead str'
@@ -342,4 +351,8 @@ indexOfDelimiter nlp nlb i de str
     where
       x = str!!i
 
-
+-- Rewrite twice for every back slash in a string.
+rewriteBackSlash :: String -> String
+rewriteBackSlash ('\\':xs) = '\\' : ('\\' : rewriteBackSlash xs)
+rewriteBackSlash (x:xs) = x : rewriteBackSlash xs
+rewriteBackSlash ""           = ""

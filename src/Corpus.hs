@@ -4,50 +4,54 @@
 -- All rights reserved.
 
 module Corpus (
-    POS,                -- String
-    CateSymb,           -- String
-    pos,                -- [POS]
-    posCate,            -- [(POS, CateSymb)]
-    phraStruList,       -- [PhraStru]
-    LeftExtend,         -- [(Category,Tag,PhraStru)]
-    LeftOver,           -- (Category,Tag,PhraStru)
-    RightOver,          -- (Category,Tag,PhraStru)
-    RightExtend,        -- [(Category,Tag,PhraStru)]
-    OverType,           -- Int
-    Prior(..),          -- Prior and its all Constructors
-    StruGene,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
-    OverPair,           -- (PhraCate, PhraCate, Prior)
-    posToCate,          -- IO ()
-    rawToCate,          -- [(SqlValue]] -> [[SqlValue]]
-    posToCateInASent,   -- String -> String
-    getCateSymbFromPos, -- POS -> [(POS, CateSymb)] -> CateSymb
-    copyCate,           -- IO ()
-    copyRawSent,        -- IO ()
-    resetStruGene_Id,   -- IO ()
-    setCorpusDefault,   -- IO ()
-    ClauIdx,            -- Int
-    BanPCs,             -- [PhraCate]
-    Script,             -- (ClauIdx,[[Rule]],BanPCs)
-    Tree,               -- [PhraCate]
-    Closure,            -- [PhraCate]
-    Forest,             -- [[PhraCate]]
-    readScripts,        -- String -> [Script]
-    readScript,         -- String -> Script
-    readPCList,         -- String -> [PhraCate]
-    readTrees,          -- String -> [Tree]
-    readRuleSet,        -- String -> [Rule]
-    readRule,           -- String -> Rule
-    readClosures,       -- String -> [Closure]
-    readForests,        -- String -> [Forest]
-    readForest,         -- String -> Forest
-    scriptToString,     -- Script -> String
-    nScriptToString,    -- [Script] -> String
-    treeToString,       -- Tree -> String
-    nTreeToString,      -- [Tree] -> String
-    closureToString,    -- Closure -> String
-    nClosureToString,   -- [Closure] -> String
-    forestToString,     -- Forest -> String
-    nForestToString     -- [Forest] -> String
+    POS,                 -- String
+    CateSymb,            -- String
+    pos,                 -- [POS]
+    posCate,             -- [(POS, CateSymb)]
+    phraStruList,        -- [PhraStru]
+    LeftExtend,          -- [(Category,Tag,PhraStru)]
+    LeftOver,            -- (Category,Tag,PhraStru)
+    RightOver,           -- (Category,Tag,PhraStru)
+    RightExtend,         -- [(Category,Tag,PhraStru)]
+    OverType,            -- Int
+    Prior(..),           -- Prior and its all Constructors
+    StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+    OverPair,            -- (PhraCate, PhraCate, Prior)
+    posToCate,           -- IO ()
+    posToCateForASent,   -- Int -> IO ()
+    rawToCate,           -- [(MySQLValue]] -> [[MySQLValue]]
+    rawToCateForASent,   -- MySQLValue -> MySQLValue
+    posToCateInASent,    -- String -> String
+    getCateSymbFromPos,  -- POS -> [(POS, CateSymb)] -> CateSymb
+    copyCate,            -- IO ()
+    copyCateForASent,    -- Int -> IO ()
+    copyRawSent,         -- IO ()
+    copyRawSentForASent, -- Int -> IO ()
+    resetStruGene_Id,    -- IO ()
+    setTreeScriptNull,   -- IO ()
+    ClauIdx,             -- Int
+    BanPCs,              -- [PhraCate]
+    Script,              -- (ClauIdx,[[Rule]],BanPCs)
+    Tree,                -- [PhraCate]
+    Closure,             -- [PhraCate]
+    Forest,              -- [[PhraCate]]
+    readScripts,         -- String -> [Script]
+    readScript,          -- String -> Script
+    readPCList,          -- String -> [PhraCate]
+    readTrees,           -- String -> [Tree]
+    readRuleSet,         -- String -> [Rule]
+    readRule,            -- String -> Rule
+    readClosures,        -- String -> [Closure]
+    readForests,         -- String -> [Forest]
+    readForest,          -- String -> Forest
+    scriptToString,      -- Script -> String
+    nScriptToString,     -- [Script] -> String
+    treeToString,        -- Tree -> String
+    nTreeToString,       -- [Tree] -> String
+    closureToString,     -- Closure -> String
+    nClosureToString,    -- [Closure] -> String
+    forestToString,      -- Forest -> String
+    nForestToString      -- [Forest] -> String
     ) where
 
 import Control.Monad
@@ -109,16 +113,16 @@ posCate = [("n","np"),
            ("vu","(s\\.np)/#(s\\.np)"),
            ("vd","(s\\.np)\\x(s\\.np)"),
            ("a","np/.np"),
-           ("aq","np/.np|(s\\.np)\\x(s\\.np)"),
+           ("aq","np/.np"),
            ("as","np/.np"),
            ("f","np/*np"),
-           ("m","np/.np"),
-           ("q","(np/.np)\\*(np/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|(s/*s)\\*(np/.np)"),
+           ("m","np/*np"),
+           ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
            ("c","(X\\*X)/*X|X\\*X|X/*X"),
-           ("u","(np/*np)\\*np|(np/*np)\\*(np/.np)|(np/*np)\\*(s/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)"),
+           ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)"),
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -167,7 +171,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList = ["MQ","XX","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
+phraStruList =  ["MQ","XX","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -207,22 +211,54 @@ posToCate = do
     (defs, is) <- queryStmt conn stmt []                          --([ColumnDef], InputStream [MySQLValue])
     rows <- S.toList is
     putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be consumed.
-    putStrLn $ "Maximal string length of cate_sent is " ++ (show $ maxStrLen $ map (fromMySQLText.head) $ rawToCate rows)
-    closeStmt conn stmt
+    let cate_sent_sns = rawToCate rows
 
---    forM_ defs $ \colName -> (putStrLn $ show colName)          -- Get names of columns from results.
+--  putStrLn $ "Maximal length of cate_sent is " ++ (show $ maxStrLen $ map (fromMySQLText . head) cate_sent_sns)
+--  forM_ defs $ \colName -> (putStrLn $ show colName)            -- Get names of columns from results.
+    putStrLn $ show (cate_sent_sns!!0)
+    putStrLn $ show (cate_sent_sns!!1)
 
     let stmt1 = "update corpus set cate_sent = ? where serial_num = ?"
-    executeMany conn stmt1 $ rawToCate rows                       -- Update column cate_sent.
+    oks <- executeMany conn stmt1 cate_sent_sns                   -- Update column cate_sent.
+--  oks <- executeMany conn stmt1 (take 3738 cate_sent_sns)       -- Restricted by Network.Socket.sendbuf
+    putStrLn $ show (length oks) ++ " rows have been updated."
 
-    putStrLn "Category assignments are finished."
+    closeStmt conn stmt
+    close conn                                                    -- Explicitly close the connection.
 
+-- Another version of posToCate used to initialize the column cate_sent for one sentence.
+posToCateForASent :: Int -> IO ()
+posToCateForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select raw_sent2 from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
+    raw_sent <- S.read is
+
+    let cate_sent = case raw_sent of
+                      Just x -> rawToCateForASent (head x)
+                      Nothing -> error "posToCateForASent: No raw_sent was read."
+--  putStrLn $ show raw_sent
+--  putStrLn $ show cate_sent
+    skipToEof is               -- Go to the end of the stream.
+
+    stmt1 <- prepareStmt conn "update corpus set cate_sent = ? where serial_num = ?"
+    ok <- executeStmt conn stmt1 [cate_sent, toMySQLInt32 sn]        -- Update column cate_sent.
+    putStrLn $ "Row " ++ show sn ++ " has been updated."
+
+    skipToEof is               -- Go to the end of the stream.
+    closeStmt conn stmt
+    closeStmt conn stmt1
     close conn          -- Explicitly close the connection.
 
 -- Prepare [[<cate_sent>, <serial_num>]] from [[<raw_sent>,<serial_num>]]
 rawToCate :: [[MySQLValue]] -> [[MySQLValue]]
 rawToCate [] = []
 rawToCate (row:rows) = ([toMySQLText $ posToCateInASent $ fromMySQLText $ head row]++[last row]):rawToCate rows
+
+-- Another version of rawToCate for one sentence, preparing MySQLValue of <cate_sent> from that of <raw_sent>.
+rawToCateForASent :: MySQLValue -> MySQLValue
+rawToCateForASent (MySQLText "") = MySQLText ""
+rawToCateForASent raw_sent = toMySQLText $ posToCateInASent $ fromMySQLText raw_sent
 
 {- Translate <word>/<pos> into <word>:<cate> in a String, here <word> and <pos> are concrete word and its part of speech.
  -}
@@ -242,9 +278,8 @@ getCateSymbFromPos pos (c:cs)      --Here, (c:cs) is just the list posCate
 
 {- Keep column cate_sent not changed, while column cate_sent2 modified manually. The initial values of column
    cate_sent2 are copied from column cate_sent. Actually cate_sent2 can be copied again from cate_sent where
-   cate_check = 0. In other words, cate_check will be set 1 after cate_sent is checked by hand.
+   cate_check = 0. In other words, cate_check will be set 1 after cate_sent2 is checked by hand.
  -}
-
 copyCate :: IO ()
 copyCate = do
     conn <- getConn
@@ -255,14 +290,37 @@ copyCate = do
     closeStmt conn stmt
 
     let stmt1 = "update corpus set cate_sent2 = ? where serial_num = ?"
-    executeMany conn stmt1 rows                         -- Update column cate_sent2 whose cate_check = 0.
-    close conn                                          -- Close the connection.
+    oks <- executeMany conn stmt1 rows                              -- Update column cate_sent2 whose cate_check = 0.
+--  oks <- executeMany conn stmt1 (take 3500 rows)                  -- Restricted by Network.Socket.sendbuf
+    putStrLn $ show (length oks) ++ " rows have been updated."
+    close conn                                                      -- Close the connection.
+
+{- Another version for copyCate, which complete copy column cate_sent to column cate_sent2 for given row. Actually
+   cate_sent2 can be copied again from cate_sent when cate_check = 0. In other words, cate_check will be set 1 after cate_sent2 is checked by hand.
+ -}
+copyCateForASent :: Int -> IO ()
+copyCateForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select cate_sent from corpus where cate_check = 0 and serial_num = ?"
+    (def, is) <- queryStmt conn stmt [toMySQLInt32 sn]          -- Get [[<cate_sent>]]
+    cate_sent <- S.read is                                      -- Get Just [<cate_sent>]
+    let cate_sent2 = case cate_sent of
+                       Just x -> x!!0                           -- Get <cate_sent>
+                       Nothing -> error "copyCateForASent: No cate_sent was read."
+    skipToEof is        -- Go to the end of the stream, consuming result set before executing next SQL statement.
+
+    stmt1 <- prepareStmt conn "update corpus set cate_sent2 = ? where serial_num = ?"
+    ok <- executeStmt conn stmt1 [cate_sent2, toMySQLInt32 sn]        -- Update column cate_sent.
+    putStrLn $ "Row " ++ show sn ++ " has been updated."
+
+    closeStmt conn stmt
+    closeStmt conn stmt1
+    close conn
 
 {- Keep column raw_sent not changed, while column raw_sent2 modified manually. The initial values of column
    raw_sent2 are copied from column raw_sent. Actually raw_sent2 can be copied again from raw_sent where ps_check = 0.
    In other words, pos_check will be set 1 after raw_sent2 is checked by hand.
  -}
-
 copyRawSent :: IO ()
 copyRawSent = do
     conn <- getConn
@@ -271,6 +329,7 @@ copyRawSent = do
     rows <- S.toList is              --Get [[MySQLText rs, MySQLInt32 sn]]
                                      --Select's result must be used.
     putStrLn $ (show $ length rows) ++ " rows have been read."
+--  putStrLn $ show (rows!!0)
 
     let stmt1 = "update corpus set raw_sent2 = ? where serial_num = ?"
     oks <- executeMany conn stmt1 rows      -- Update column cate_sent2 whose ps_check = 0.
@@ -278,6 +337,27 @@ copyRawSent = do
 
     closeStmt conn stmt
     close conn                       -- Close the connection.
+
+{- Another version of copyRawSent for copying column raw_sent to column raw_sent2 for a given row. Actually raw_sent2 can be copied again from raw_sent where ps_check = 0. In other words, pos_check will be set 1 after raw_sent2 is checked by hand.
+ -}
+copyRawSentForASent :: Int -> IO ()
+copyRawSentForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select raw_sent from corpus where pos_check = 0 and serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    raw_sent <- S.read is                -- Get Just [MySQLText]
+    let raw_sent2 = case raw_sent of
+                      Just x -> x!!0     -- Get MySQLText
+                      Nothing -> error "copyRawSentForASent: No raw_sent was read."
+    skipToEof is        -- Go to the end of the stream, consuming result set before executing next SQL statement.
+
+    stmt1 <- prepareStmt conn "update corpus set raw_sent2 = ? where serial_num = ?"
+    ok <- executeStmt conn stmt1 [raw_sent2, toMySQLInt32 sn]        -- Update column raw_sent.
+    putStrLn $ "Row " ++ show sn ++ " has been updated."
+
+    closeStmt conn stmt
+    closeStmt conn stmt1
+    close conn                          -- Close the connection.
 
 -- Again make Field 'id' in Table 'stru_gene' autoincrement from 1, used when 'id' values are not continuous.
 resetStruGene_Id :: IO ()
@@ -303,9 +383,9 @@ resetStruGene_Id = do
     closeStmt conn stmt
     close conn
 
--- Set Fields 'tree' and 'script' in Table 'corpus' default value "[]".
-setCorpusDefault :: IO ()
-setCorpusDefault = do
+-- Initialize Fields 'tree' and 'script' in Table 'corpus' as value "[]".
+setTreeScriptNull :: IO ()
+setTreeScriptNull = do
     conn <- getConn
     stmt <- prepareStmt conn "update corpus set tree = '[]' where isnull(tree)"
     executeStmt conn stmt []
@@ -364,6 +444,7 @@ readRule str
     | str == "D/v" = Dv
     | str == "S/a" = Sa
     | str == "O/a" = Oa
+    | str == "Hn/a" = Hna
     | str == "P/a" = Pa
     | str == "Cv/a" = Cva
     | str == "Cn/a" = Cna

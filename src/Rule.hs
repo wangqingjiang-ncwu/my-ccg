@@ -35,7 +35,7 @@ import Utils
 -- CCG rules constitute a functional list.
 rules :: [(Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)]
 
--- rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, raiFh, raiFc, raiBh, raiBc] 
+-- rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, raiFh, raiFc, raiBh, raiBc]
 rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, raiFh]
 
 -- In parsing trees, every combination should print its corresponding rule tag.
@@ -49,7 +49,7 @@ semComb se1 se2
     | elem ' ' se1 == False && elem ' ' se2 == False = se1 ++ " " ++ se2
     | elem ' ' se1 == True  && elem ' ' se2 == False = "(" ++ se1 ++ ")" ++ " " ++ se2
     | elem ' ' se1 == False && elem ' ' se2 == True  = se1 ++ " " ++ "(" ++ se2 ++ ")"
-    | otherwise = "(" ++ se1 ++ ")" ++ " " ++ "(" ++ se2 ++ ")" 
+    | otherwise = "(" ++ se1 ++ ")" ++ " " ++ "(" ++ se2 ++ ")"
 
 -- CCG forward application
 appF :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
@@ -81,7 +81,7 @@ appB cate1 cate2
     | isPrimitive ca2 = (nilCate, "<", "", "", False)
     | ca2 == getCateFromString "X\\*X" = (ca1, "<", semComb se2 se1, "CC", True)
     | isAvail && cn2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
-    | isAvail && ca1 == adjCate && (ca2 == getCateFromString "(np/.np)\\*(np/.np)" || ca2 == getCateFromString "((s\\.np)/#(s\\.np))\\*(np/.np)" || ca2 == getCateFromString "(s/*s)\\*(np/.np)") = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
+    | isAvail && ca1 == quantityCate = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail && ca1 == adjCate && ca2 == getCateFromString "(np/*np)\\*(np/.np)" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && cateEqual ca2 (getCateFromString "s\\.np") = (leftCate ca2, "<", semComb se2 se1, "SP", True)
     | isAvail && ca1 == npCate && cateEqual ca2 (getCateFromString "np\\.np") = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
@@ -113,7 +113,7 @@ comFh cate1 cate2
     ca2 = fst3 cate2
     se2 = snd3 cate2
     isAvail = (midSlash ca1 == "/#" || midSlash ca1 == "/.") && (midSlash ca2 == "/#" || midSlash ca2 == "/.") && rightCate ca1 == leftCate ca2
-        
+
 -- CCG forward harmonic composition^2, like X/Y (Y/Z)/W -> (X/Z)/W.
 -- To now, the rule is only used for "adverbal + double objects-transitive verb" structure.
 comFh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
@@ -234,13 +234,13 @@ raiBc cate1 cate2
    (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)D/v, (8)S/a, (9)O/a, (10)P/a, (11)Cv/a, (12)Cn/a, (13)A/n.
  -}
 
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","D/v","S/a","O/a","P/a","Cv/a","Cn/a","A/n"]
+ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","D/v","S/a","O/a","Hn/a","P/a","Cv/a","Cn/a","A/n"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Dv | Sa | Oa | Pa | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Dv | Sa | Oa | Hna | Pa | Cva | Cna | An deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -254,6 +254,7 @@ instance Show Rule where
     show Dv = "D/v"
     show Sa = "S/a"
     show Oa = "O/a"
+    show Hna = "Hn/a"
     show Pa = "P/a"
     show Cva = "Cv/a"
     show Cna = "Cn/a"
@@ -298,6 +299,8 @@ updateOnOff onOff rws
     | rw1 == "-S/a" = updateOnOff (ruleOff Sa onOff) rwt
     | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
     | rw1 == "-O/a" = updateOnOff (ruleOff Oa onOff) rwt
+    | rw1 == "+Hn/a" = updateOnOff (ruleOn Hna onOff) rwt
+    | rw1 == "-Hn/a" = updateOnOff (ruleOff Hna onOff) rwt
     | rw1 == "+P/a" = updateOnOff (ruleOn Pa onOff) rwt
     | rw1 == "-P/a" = updateOnOff (ruleOff Pa onOff) rwt
     | rw1 == "+Cv/a" = updateOnOff (ruleOn Cva onOff) rwt
@@ -308,7 +311,7 @@ updateOnOff onOff rws
     | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
     | otherwise = error $ "updateOnOff: Rule switch " ++ rw1 ++ "is not cognizable."
       where
-        rw1 = head rws 
+        rw1 = head rws
         rwt = tail rws
 
 -- Output [Rule] on console
@@ -318,4 +321,3 @@ showOnOff (r:rs) = do
     putStr (show r)
     putStr " "
     showOnOff rs
-

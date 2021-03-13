@@ -38,7 +38,7 @@ import           System.IO
 import qualified System.IO.Streams as S
 import           Database.MySQL.Base
 import           Data.List.Utils
-import           Data.List
+import           Data.List as DL
 import           Data.Tuple.Utils
 import           Data.Int
 import           Data.Text hiding (length)
@@ -47,21 +47,31 @@ import           Data.ByteString hiding (putStr,putStrLn,length,pack,unpack)
 
 fromMySQLInt8 :: MySQLValue -> Int
 fromMySQLInt8 (MySQLInt8 a) = read (show a) :: Int
+fromMySQLInt8 _ = error "fromMySQLInt8: Parameter error."
 
 fromMySQLInt32U :: MySQLValue -> Int
 fromMySQLInt32U (MySQLInt32U a) = read (show a) :: Int
+fromMySQLInt32U _ = error "fromMySQLInt32U: Parameter error."
 
 fromMySQLInt32 :: MySQLValue -> Int
 fromMySQLInt32 (MySQLInt32 a) = read (show a) :: Int
+fromMySQLInt32 _ = error "fromMySQLInt32: Parameter error."
 
 fromMySQLText :: MySQLValue -> String
-fromMySQLText (MySQLText a) = unpack a
+fromMySQLText (MySQLText a)
+    | str!!0 == '\"' = DL.init $ DL.tail str     -- Throw away char " at head and rear.
+    | otherwise = str
+    where
+      str = unpack a
+fromMySQLText _ = error "fromMySQLText: Parameter error."
 
 fromMySQLNullText :: MySQLValue -> String
 fromMySQLNullText MySQLNull = ""
+fromMySQLNullText _ = error "fromMySQLNullText: Parameter error."
 
 fromMySQLNullVarchar :: MySQLValue -> String
 fromMySQLNullVarchar MySQLNull = ""
+fromMySQLNullVarchar _ = error "fromMySQLNullVarchar: Parameter error."
 
 toMySQLInt8 :: Int -> MySQLValue
 toMySQLInt8 v = MySQLInt8 (read (show v) :: Int8)
@@ -126,7 +136,8 @@ getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 -- Get a connection with given database.
 getConn :: IO MySQLConn
 getConn = connect defaultConnectInfo {
-    ciHost = "125.219.93.78",
+    ciHost = "125.219.93.4",
+--    ciHost = "127.0.0.1",
     ciUser = "graduate",
     ciPassword = "graduate",
     ciDatabase = "ccg4c"

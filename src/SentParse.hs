@@ -26,10 +26,13 @@ module SentParse (
 import Control.Monad
 import System.IO
 import qualified System.IO.Streams as S
+import qualified Data.ByteString.Char8 as C
+import qualified Data.ByteString as BS
 import Database.MySQL.Base
 import Data.List.Utils
 import Data.List
 import Data.Tuple.Utils
+import Data.String.Utils
 import Phrase
 import Rule
 import Corpus
@@ -45,19 +48,24 @@ getSentFromDB sn = do
     stmt <- prepareStmt conn "select cate_sent2 from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
     S.read is >>= \case
-      Just [MySQLText v] -> return $ show v
+      Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
       Nothing -> return ""
 
 -- Split a sentence into clauses.
 getSent :: String -> IO [String]
-getSent sent = return $ split " \65292:" sent    -- \65292 is Chinese comma.
+getSent sent
+    | endswith " \12290:" sent' = return $ split " \65292:" $ replace " \12290:" "" sent'
+                                             -- \12290 is Chinese period, and \65292 is Chinese comma.
+    | otherwise = return $ split " \65292:" sent'
+    where
+      sent' = lstrip $ rstrip sent           -- Strip whitespaces at left and right ends.
 
 {- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'.
  -}
 parseSent :: Int -> [String] -> IO ()
 parseSent sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
-    putStrLn $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
+    putStr $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
     clauIdx <- getLine
     if clauIdx /= ""                                   -- Not RETURN
       then do
@@ -65,8 +73,8 @@ parseSent sn cs = do
         if ci < 1 || ci > length cs
           then error $ "Clause " ++ show ci ++ " does not exist!"
           else do
-            goBackTo sn ci                               -- Drop trees and scripts of clause <ci> and its subsequents.
-            parseSent' sn (ci - 1) (drop (ci - 1) cs)    -- Skip some clauses
+            goBackTo sn ci                             -- Drop trees and scripts of clause <ci> and its subsequents.
+            parseSent' sn (ci - 1) (drop (ci - 1) cs)  -- Skip some clauses
       else do
         goBackTo sn 1
         parseSent' sn 0 cs
@@ -77,10 +85,16 @@ goBackTo sn ci = do
     conn <- getConn
     stmt <- prepareStmt conn "select tree, script from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
-    rows <- S.toList is
+    row <- S.read is                                   -- Maybe [MySQLText, MySQLText]
+    let row' = case row of
+                 Just x -> x                           -- [MySQLText, MySQLText]
+                 Nothing -> error "goBackTo: No row was read."
+    S.skipToEof is                                     -- Consume result set.
 
-    let trees = readTrees (fromMySQLText ((rows!!0)!!0))
-    let scripts = readScripts (fromMySQLText ((rows!!0)!!1))
+--  putStrLn $ "goBackTo: tree: " ++ (fromMySQLText (head row'))
+
+    let trees = readTrees $ fromMySQLText (head row')
+    let scripts = readScripts $ fromMySQLText (last row')
 
     if length trees + 1 < ci
       then error $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
@@ -117,13 +131,18 @@ storeClauseParsing sn clauIdx rtbPCs = do
     conn <- getConn
     stmt <- prepareStmt conn "select tree, script from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
-    rows <- S.toList is
---  forM_ rows $ \row -> forM_ row $ \col -> putStr (fromMySQLText col)
-    skipToEof is              -- Skip to end-of-stream, discarding all of the yielded values.
+    row <- S.read is                                   -- Maybe [MySQLText, MySQLText]
+    let row' = case row of
+                 Just x -> x                           -- [MySQLText, MySQLText]
+                 Nothing -> error "goBackTo: No row was read."
+    S.skipToEof is                                     -- Skip to end-of-stream.
     closeStmt conn stmt
 
-    let trees = readTrees (fromMySQLText ((rows!!0)!!0))
-    let scripts = readScripts (fromMySQLText ((rows!!0)!!1))
+    let trees = readTrees $ fromMySQLText (head row')
+    let scripts = readScripts $ fromMySQLText (last row')
+    putStrLn $ "storeClauseParsing: trees: " ++ (show trees)
+    putStrLn $ "storeClauseParsing: scripts: " ++ (show scripts)
+
     let trees' = trees ++ [snd3 rtbPCs]
     let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
 
@@ -131,11 +150,11 @@ storeClauseParsing sn clauIdx rtbPCs = do
     putStrLn $ "storeClauseParsing: scripts': " ++ (nScriptToString scripts')
 
     stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
-    ok <- executeStmt conn stmt' [toMySQLText (show (nTreeToString trees')), toMySQLText (show (nScriptToString scripts')), toMySQLInt32 sn]
+    ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
     let rn = getOkAffectedRows ok
     if (rn /= 0)
-    then putStrLn $ "storeClauseParsing: " ++ show rn ++ " row(s) were modified."
-    else error "storeClauseParsing: update failed!"
+      then putStrLn $ "storeClauseParsing: " ++ show rn ++ " row(s) were modified."
+      else error "storeClauseParsing: update failed!"
 
 {- Parsing a clause is a human-machine interactive recursive process.
    Input: A sequence of [Rule], a sequence of phrasal categories, and a sequence of banned phrasal categories;
@@ -165,34 +184,46 @@ parseClause rules nPCs banPCs = do
 doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
     showOnOff onOff
-    putStr "Are rule switches ok? [y/n]: (RETURN for 'y') "
+    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit)"
     ruleSwitchOk <- getLine
-    if ruleSwitchOk /= "y" && ruleSwitchOk /= ""    -- Press key 'n' or other char but not 'y' or RETURN.
+    if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"D/v\", \"S/a\", \"O/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
-        let rws = splitAtDeli ',' ruleSwitchStr     -- ["+O/s","-A/v"]
+        let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
         let newOnOff = updateOnOff onOff rws
         doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
-      else do                                       -- Press key 'y' or directly press RETURN
-        let nPCs2 = trans onOff nPCs banPCs         -- Without pruning, get transitive result
-        putStr "Transitive result before pruning: "
-        showNPhraCate (sortPhraCateBySpan nPCs2)
-        putStr "Banned phrases: "
-        showNPhraCate (banPCs)                      -- Can't use <sortPhraCateBySpan> on <banPCs>.
+      else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
+             then do
+               let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result
+               putStr "Transitive result before pruning: "
+               showNPhraCate (sortPhraCateBySpan nPCs2)
+               putStr "Banned phrases: "
+               showNPhraCate (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
-        overPairs <- updateStruGene nPCs2 [] $ getOverlap nPCs2   -- Record overlapping pairs for future pruning.
-        nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result again, and using pruning
-        putStr "Transitive result after pruning: "
-        showNPhraCate (sortPhraCateBySpan (fst nbPCs))
-        putStr "Banned phrases: "
-        showNPhraCate (snd nbPCs)                   -- If there is any phrase removed, here is not empty.
+               overPairs <- updateStruGene nPCs2 [] $ getOverlap nPCs2   -- Record overlapping pairs for pruning.
+               nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result with pruning.
+               putStr "Transitive result after pruning: "
+               showNPhraCate (sortPhraCateBySpan (fst nbPCs))
+               putStr "Banned phrases: "
+               showNPhraCate (snd nbPCs)                    -- If there is any phrase removed, here is not empty.
 
-        putStr "This trip of transition is ok? [y/n]: (RETURN for 'y') "
-        transOk <- getLine                          -- Get user decision of whether to do next transition
-        if transOk == "y" || transOk == ""          -- Press key 'y' or directly press RETURN
-          then return (onOff,(fst nbPCs),(snd nbPCs))
-          else doTrans onOff nPCs banPCs            -- Redo this trip of transition by modifying structural genes.
+               putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
+               transOk <- getLine                           -- Get user decision of whether to do next transition
+               if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
+                 then return (onOff,(fst nbPCs),(snd nbPCs))
+                 else if transOk == "n"
+                        then doTrans onOff nPCs banPCs      -- Redo this trip of transition.
+                        else if transOk == "e"
+                               then error "doTrans: Exit."
+                               else do
+                                 putStrLn "Please input 'y', 'n', or 'e'!"
+                                 doTrans onOff nPCs banPCs
+             else if ruleSwitchOk == "e"
+                    then error "doTrans: Exit."
+                    else do
+                      putStrLn "Please input 'y', 'n', or 'e'!"
+                      doTrans onOff nPCs banPCs
 
 {- Insert or update related structural genes in Table stru_gene, and recursively create overlapping pairs.
    For every pair of overlapping phrases, its overlap type, left- and right-extend phrases are found in a given set
@@ -213,7 +244,8 @@ updateStruGene nPCs overPairs (pcp:pcps) = do
       reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
       struGene = (leps,lop,rop,reps,ot)
 
-{- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input list of OverPair(s), then return the new OverPair list.
+{- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input
+   list of OverPair(s), then return the new OverPair list.
  -}
 updateStruGene' :: ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
 updateStruGene' gene overPairs = do
@@ -244,16 +276,17 @@ updateStruGene' gene overPairs = do
                                        "rightExtend = '" ++ show re ++ "' && " ++
                                           "overType = "  ++ show ot
     conn <- getConn
-    let que = read (show "select id, prior from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv) :: Query
-    stmt <- prepareStmt conn que
+    let sqlstat = read (show ("select id, prior from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
+
     rows <- S.toList is
     if rows /= []
       then
         if length rows > 1
           then error "updateStruGene': Find duplicate structural genes."
           else do
-            let id = fromMySQLInt32 ((rows!!0)!!0)
+            let id = fromMySQLInt32U ((rows!!0)!!0)
             let prior = fromMySQLText ((rows!!0)!!1)
             putStrLn $ "updateStruGene': (" ++ show id ++ ")Prior: " ++ prior
             putStr "Is the priority right? [y/n]: (RETURN for 'y') "
@@ -267,16 +300,16 @@ updateStruGene' gene overPairs = do
                 if newPrior == "Lp" || newPrior == "Rp"
                   then do
                     resetStmt conn stmt
-                    let que = read (show "update stru_gene set prior = ? where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv) :: Query
-                    stmt <- prepareStmt conn que
+                    let sqlstat = read (show ("update stru_gene set prior = ? where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
+                    stmt <- prepareStmt conn sqlstat
                     executeStmt conn stmt [toMySQLText newPrior]   -- Update column 'prior' of structural gene.
                     return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
                   else if newPrior == ""
                          then do
                            resetStmt conn stmt
 
-                           let que = read (show "update stru_gene set prior = ? where " ++ "leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv) :: Query
-                           stmt <- prepareStmt conn que
+                           let sqlstat = read (show ("update stru_gene set prior = ? where " ++ "leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
+                           stmt <- prepareStmt conn sqlstat
                            executeStmt conn stmt [toMySQLText "Lp"]       -- Update column 'prior' of structural gene.
 
                            return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
@@ -294,15 +327,17 @@ updateStruGene' gene overPairs = do
             newPrior <- getLine
             if newPrior == "Lp" || newPrior == "Rp"
               then do
-                let que = read (show "insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ newPrior ++ "')") :: Query
-                stmt1 <- prepareStmt conn que
-                executeStmt conn stmt1 []             -- Insert the described structural gene.
+                let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ newPrior ++ "')")) :: Query
+                stmt1 <- prepareStmt conn sqlstat
+                oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+                putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
                 return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
               else if newPrior == ""
                 then do
-                  let que = read (show "insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'Lp')") :: Query
-                  stmt2 <- prepareStmt conn que
-                  executeStmt conn stmt2 []           -- Insert the described structural gene.
+                  let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'Lp')")) :: Query
+                  stmt2 <- prepareStmt conn sqlstat
+                  oks <- executeStmt conn stmt2 []           -- Insert the described structural gene.
+                  putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
                   return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                 else do
                   putStrLn "updateStruGene': Illegal priority"
@@ -328,8 +363,12 @@ readTree_String sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select tree from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
-    rows <- S.toList is              --Get [[<tree>]]
-    return (fromMySQLText ((rows!!0)!!0))
+    row <- S.read is                                --Get [<tree>]
+    let row' = case row of
+                 Just x -> x
+                 Nothing -> error "readTree_String: No tree."
+    S.skipToEof is
+    return (fromMySQLText (row'!!0))
 
 -- Get the list of clause strings from the tree string. Tree string actually is the String of [[PhraCate]].
 sentToClauses :: String -> IO [String]
@@ -406,16 +445,16 @@ storeClauseParsingWithoutPruning sn (nPCs, forest) = do
     conn <- getConn
     stmt <- prepareStmt conn "select closure, forest from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
-    rows <- S.toList is
---  putStr "MySQL closure and forest: "
---  forM_ rows $ \row -> forM_ row $ \col -> putStr (fromSql (col))   -- Use query result before new SQL operation.
---  putStrLn ""
-    skipToEof is        -- Use query result before new SQL operation.
+    row <- S.read is                                   -- Maybe [MySQLText, MySQLText]
+    let row' = case row of
+                 Just x -> x                           -- [MySQLText, MySQLText]
+                 Nothing -> error "storeClauseParsingWithoutPruning: No row was read."
+    S.skipToEof is        -- Use query result before new SQL operation.
 
-    let nClosure = readClosures (fromMySQLText ((rows!!0)!!0))
+    let nClosure = readClosures (fromMySQLText (row'!!0))
 --  putStrLn $ "readClosures: nClosure: " ++ (nClosureToString nClosure)
 
-    let nForest = readForests (fromMySQLText ((rows!!0)!!1))
+    let nForest = readForests (fromMySQLText (row'!!1))
 --  putStrLn $ "readForests: nForest: " ++ (nForestToString nForest)
 
     let nClosure' = nClosure ++ [nPCs]
@@ -425,11 +464,11 @@ storeClauseParsingWithoutPruning sn (nPCs, forest) = do
 --  putStrLn $ "storeClauseParsingWithoutPruning: nForest': " ++ (nForestToString nForest')
 
     stmt' <- prepareStmt conn "update corpus set closure = ?, forest = ? where serial_num = ?"
-    ok <- executeStmt conn stmt' [toMySQLText (show (nClosureToString nClosure')), toMySQLText (show (nForestToString nForest')), toMySQLInt32 sn]
+    ok <- executeStmt conn stmt' [toMySQLText (nClosureToString nClosure'), toMySQLText (nForestToString nForest'), toMySQLInt32 sn]
     let rn = getOkAffectedRows ok
     if (rn == 1)
-    then putStrLn $ "storeClauseParsingWithoutPruning: " ++ show rn ++ " row(s) were modified."
-    else error "storeClauseParsingWithoutPruning: update failed!"
+      then putStrLn $ "storeClauseParsingWithoutPruning: " ++ show rn ++ " row(s) were modified."
+      else error "storeClauseParsingWithoutPruning: update failed!"
 
 {- Get statistics on a phrasal set, including
    (1) Total number of atomized phrasal categories;

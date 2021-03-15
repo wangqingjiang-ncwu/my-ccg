@@ -41,7 +41,7 @@ import Output
 import Utils
 import Database
 
--- Get a sentence from table corpus.
+-- Get a sentence from table corpus, actually the sentence is content of column cate_sent2.
 getSentFromDB :: Int -> IO String
 getSentFromDB sn = do
     conn <- getConn

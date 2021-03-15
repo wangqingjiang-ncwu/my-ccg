@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
 -- Copyright (c) 2019-2021 China University of Water Resources and Electric Power
 -- All rights reserved.
@@ -16,6 +16,10 @@ module Corpus (
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
     StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+    getRawSentForASent,  -- Int -> IO String
+    getRawSent2ForASent, -- Int -> IO String
+    getCateSentForASent, -- Int -> IO String
+    getCateSent2ForASent,  -- Int -> IO String
     OverPair,            -- (PhraCate, PhraCate, Prior)
     posToCate,           -- IO ()
     posToCateForASent,   -- Int -> IO ()
@@ -202,6 +206,46 @@ type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 -- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
 
 type OverPair = (PhraCate, PhraCate, Prior)
+
+-- Get raw part-of-speech marked sentence indicated by serial_num.
+getRawSentForASent :: Int -> IO String
+getRawSentForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select raw_sent from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    S.read is >>= \case
+      Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
+      Nothing -> return ""
+
+-- Get revised part-of-speech marked sentence indicated by serial_num.
+getRawSent2ForASent :: Int -> IO String
+getRawSent2ForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select raw_sent2 from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    S.read is >>= \case
+      Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
+      Nothing -> return ""
+
+-- Get CCG syntactic types-marked sentence indicated by serial_num.
+getCateSentForASent :: Int -> IO String
+getCateSentForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select cate_sent from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    S.read is >>= \case
+      Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
+      Nothing -> return ""
+
+-- Get the revised CCG syntactic types-marked sentence indicated by serial_num.
+getCateSent2ForASent :: Int -> IO String
+getCateSent2ForASent sn = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select cate_sent2 from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    S.read is >>= \case
+      Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
+      Nothing -> return ""
 
 -- To initialize the column cate_sent by the column raw_sent2, translate each part of speech to its category.
 posToCate :: IO ()

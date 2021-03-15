@@ -136,8 +136,8 @@ getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 -- Get a connection with given database.
 getConn :: IO MySQLConn
 getConn = connect defaultConnectInfo {
---    ciHost = "125.219.93.4",
-    ciHost = "127.0.0.1",
+    ciHost = "125.219.93.63",
+--    ciHost = "127.0.0.1",
     ciUser = "graduate",
     ciPassword = "graduate",
     ciDatabase = "ccg4c"

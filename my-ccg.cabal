@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b1daf99a4ac957c5c69d0f85957fba4598f1c8ca3d29081e9a8ca9b63e028fb1
+-- hash: 21d3a32397853068fba8cebe7550894259bff6c1b89883d92f8deab1eaa3e5e6
 
 name:           my-ccg
 version:        0.2.4.0
@@ -28,18 +28,6 @@ source-repository head
   location: https://github.com/wangqingjiang-ncwu/my-ccg
 
 library
-  exposed-modules:
-      Category
-      Corpus
-      Database
-      Lib
-      Output
-      OutputTest
-      Parse
-      Phrase
-      Rule
-      SentParse
-      Utils
   other-modules:
       Paths_my_ccg
   hs-source-dirs:
@@ -57,6 +45,17 @@ library
 executable my-ccg-exe
   main-is: Main.hs
   other-modules:
+      Category
+      Corpus
+      Database
+      Lib
+      Output
+      OutputTest
+      Parse
+      Phrase
+      Rule
+      SentParse
+      Utils
       Paths_my_ccg
   hs-source-dirs:
       app

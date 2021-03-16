@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 21d3a32397853068fba8cebe7550894259bff6c1b89883d92f8deab1eaa3e5e6
+-- hash: be6573fd1066f92e25bf816afd863271699be9b92e492069dc5fe2f609d19d78
 
 name:           my-ccg
 version:        0.2.4.0
@@ -48,7 +48,6 @@ executable my-ccg-exe
       Category
       Corpus
       Database
-      Lib
       Output
       OutputTest
       Parse

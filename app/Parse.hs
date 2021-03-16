@@ -135,8 +135,7 @@ cateComb onOff pc1 pc2
           csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
       catesByvToD = [(fst5 cate, "D/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToD]
 
-{- The conversion from adjective to noun happens when the adjective occupies subject, object or nominal headword
-   position.
+{- The conversion from adjective to noun happens when the adjective occupies subject, object, AHn's headword position, or followed by auxiliary '的'.
  -}
       a_S = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
       ctspaByaToS = [rule cate1 cate2 | rule <- [appB, raiFh], cate1 <- a_S, cate2 <- csp_2, elem Sa onOff]
@@ -155,7 +154,7 @@ cateComb onOff pc1 pc2
       a_Hn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
       ctspaByaToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_Hn, elem Hna onOff]
           where
-          csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
+          csp_1 = removeDup [x| x<- csp1, fst3 x == adjCate]
       catesByaToHn = [(fst5 cate, "Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToHn]
 
 -- The conversion from adjective to predicate verb happens when the adjective occupies predicate position.

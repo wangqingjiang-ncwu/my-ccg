@@ -241,4 +241,4 @@ quantityCate = getCateFromString "np/*np"
 -- Auxiliary word #1 is '的'
 
 aux1Cate :: Category
-aux1Cate = getCateFromString "(np/*np)\\*np"
+aux1Cate = getCateFromString "(np/*np)\\*(np/.np)"

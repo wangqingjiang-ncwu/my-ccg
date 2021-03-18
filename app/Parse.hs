@@ -179,11 +179,11 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
       catesByaToCn = [(fst5 cate, "Cn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCn]
 
--- The conversion from noun to adjective is ONLY allowed when nouns act as attribute.
+-- The conversion from noun to adjective is ONLY allowed when nouns act as attribute or are followed by auxiliary '的'.
       n_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+      ctspaBynToA = [rule cate1 cate2 | rule <- [appF, appB], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+          csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) [npCate, aux1Cate])]
       catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
 
 {- The two adjacent categories "np np/.np" convert to "np/.np np", forming structure AHn, here noun-to-adjective and

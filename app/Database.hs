@@ -31,6 +31,7 @@ module Database (
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
   getConn,                     -- IO MySQLConn
+  getConnByUserWqj             -- IO MySQLConn
   ) where
 
 import           Control.Monad
@@ -133,12 +134,22 @@ getOkStatus (OK _ _ okStatus _) = okStatus
 getOkWarningCnt :: OK -> Word16
 getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 
--- Get a connection with given database.
+-- Get a connection to database 'ccg4c' with given user.
 getConn :: IO MySQLConn
 getConn = connect defaultConnectInfo {
     ciHost = "125.219.93.63",
 --    ciHost = "127.0.0.1",
     ciUser = "graduate",
     ciPassword = "graduate",
+    ciDatabase = "ccg4c"
+    }
+
+-- Get a connection to database 'ccg4c' with user 'wqj'.
+getConnByUserWqj :: IO MySQLConn
+getConnByUserWqj = connect defaultConnectInfo {
+    ciHost = "125.219.93.63",
+--    ciHost = "127.0.0.1",
+    ciUser = "wqj",
+    ciPassword = "wqj",
     ciDatabase = "ccg4c"
     }

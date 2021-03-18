@@ -55,7 +55,8 @@ module Corpus (
     closureToString,     -- Closure -> String
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
-    nForestToString      -- [Forest] -> String
+    nForestToString,     -- [Forest] -> String
+    setIpcOfRows         -- Int -> Int -> String -> IO ()
     ) where
 
 import Control.Monad
@@ -544,3 +545,29 @@ forestToString forest = listToString (map nPhraCateToString forest)
 -- Get the String from a [Forest] value.
 nForestToString :: [Forest] -> String
 nForestToString nForest = listToString (map forestToString nForest)
+
+{- Set attribue 'ipc' of certain rows as an user of this software. In table corpus,
+   column 'ipc' records the intellectual property creator (IPC), who will complete or have
+   completed the parsing of one row (namely sentence).
+   ONLY user 'wqj' can execute this function to designate a certain software user as IPC of certain rows,
+   but this access control has not implemented.
+ -}
+setIpcOfRows :: Int -> Int -> String -> IO ()
+setIpcOfRows startRow endRow username = do
+    conn <- getConnByUserWqj
+    stmt <- prepareStmt conn "select * from user where name = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLText username]
+    row <- S.read is                -- Get Just [MySQLText]
+    let username' = case row of
+                      Just x -> fromMySQLText (x!!0)     -- The first element of x is MySQLText 'name'
+                      Nothing -> error "setIpcOfRows: No this user."
+    skipToEof is        -- Go to the end of the stream, consuming result set before executing next SQL statement.
+    closeStmt conn stmt
+    if (username' /= username)
+      then error "setIpcOfRows: Unexpected failure."
+      else do
+        stmt1 <- prepareStmt conn "update corpus set ipc = ? where serial_num >= ? && serial_num <= ?"
+        ok <- executeStmt conn stmt1 [toMySQLText username, toMySQLInt32 startRow, toMySQLInt32 endRow]   -- Update column ipc.
+        putStrLn $ show (getOkAffectedRows ok) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
+        closeStmt conn stmt1
+    close conn                       -- Close the connection.

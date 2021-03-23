@@ -54,9 +54,11 @@ getSentFromDB sn = do
 -- Split a sentence into clauses.
 getSent :: String -> IO [String]
 getSent sent
-    | endswith " \12290:" sent' = return $ split " \65292:" $ replace " \12290:" "" sent'
+    | endswith " \12290:" sent' = return $ split " \65292: " $ replace " \12290:" "" sent'
                                              -- \12290 is Chinese period, and \65292 is Chinese comma.
-    | otherwise = return $ split " \65292:" sent'
+          -- If Chinese comma has part-of-speech 'c', the colon (:) will be followed by "(X\*X)/*X" instead of "".
+          -- So Chinese commas without syntactic types are seperators of clauses.
+    | otherwise = return $ split " \65292: " sent'
     where
       sent' = lstrip $ rstrip sent           -- Strip whitespaces at left and right ends.
 
@@ -184,11 +186,11 @@ parseClause rules nPCs banPCs = do
 doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
     showOnOff onOff
-    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit)"
+    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) "
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"P/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"O/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"P/a\", \"D/a\", \"Cv/a\", \"Cn/a\", and \"A/n\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
         let newOnOff = updateOnOff onOff rws

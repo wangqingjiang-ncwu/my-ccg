@@ -37,7 +37,11 @@ module Category (
     adj2VerbCompCate,   -- Category, "(s\.np)\x(s\.np)"
     adj2NounCompCate,   -- Category, "np\*np"
     quantityCate,       -- Category, "np/*np"
-    aux1Cate            -- Category, "(np/*np)\*(np/.np)"
+    aux1Cate,           -- Category, "(np/*np)\*X"
+    aux2Cate,           -- Category, "((s\.np)/#(s\.np))\*X"
+    aux3Cate,           -- Category, "((s\.np)\x(s\.np))/*X"
+    aux4Cate,           -- Category, "(s\.np)\x(s\.np)"
+    aux5Cate            -- Category, "X\*X"
     ) where
 
 type Slash = String
@@ -239,6 +243,21 @@ quantityCate :: Category
 quantityCate = getCateFromString "np/*np"
 
 -- Auxiliary word #1 is '的'
-
 aux1Cate :: Category
-aux1Cate = getCateFromString "(np/*np)\\*(np/.np)"
+aux1Cate = getCateFromString "(np/*np)\\*X"
+
+-- Auxiliary word #2 is '地'
+aux2Cate :: Category
+aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*X"
+
+-- Auxiliary word #3 is '得'
+aux3Cate :: Category
+aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*X"
+
+-- Auxiliary word #4 is '着', '了', or '过'
+aux4Cate :: Category
+aux4Cate = getCateFromString "(s\\.np)\\x(s\\.np)"
+
+-- Auxiliary word #5 is '等', '似的', '一样', and so on.
+aux5Cate :: Category
+aux5Cate = getCateFromString "X\\*X"

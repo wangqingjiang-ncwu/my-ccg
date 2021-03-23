@@ -88,7 +88,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
        "d",
        "p",
        "c",
-       "u",                -- Auxiliary word #1, #2, and #3 are '的', '地', and '得' respectively.
+       "u",   -- Auxiliary word #1, #2, #3, and #4 are '的', '地', '得', and '着|了|过' respectively.
        "e",
        "o",
        "i","in","iv","ia","ic",
@@ -126,8 +126,8 @@ posCate = [("n","np"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
-           ("c","(X\\*X)/*X|X\\*X|X/*X"),
-           ("u","(np/*np)\\*(np/.np)|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)"),
+           ("c","(X\\*X)/*X"),
+           ("u","(np/*np)\\*X|((s\\.np)/#(s\\.np))\\*X|((s\\.np)\\x(s\\.np))/*X|(s\\.np)\\x(s\\.np)|X\\*X"),
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -154,6 +154,7 @@ posCate = [("n","np"),
 {- To now, the recognizable phrasal structures are as following.
    MQ: Quantity phrase
    XX: Conjunction phrase
+   CC: ??
    DHv: Adverbial-verb (headword) phrase
    HvC: Verb (headword)-complement phrase
    DHa: Adverbial-adjective (headword) phrase
@@ -167,6 +168,8 @@ posCate = [("n","np"),
    U1P: 1-auxiliary word phrase, namely with '的' as end
    U2P: 2-auxiliary word phrase, namely with '地' as end
    U3P: 3-auxiliary word phrase, namely with '得' as end
+   U4P: 4-auxiliary word phrase, namely with '着|了|过' as end, identical to HvC.
+   U5P: 5-auxiliary word phrase, namely with '等|似的|一样' as end
    PO: Preposition object phrase
    SP: Subject-predicate phrase
    EM: Exclamation mood
@@ -479,21 +482,22 @@ readRuleSet str = map readRule (stringToList str)
 -- Read a rule from a string.
 readRule :: String -> Rule
 readRule str
-    | str == "S/s" = Ss
-    | str == "O/s" = Os
-    | str == "A/s" = As
-    | str == "S/v" = Sv
-    | str == "O/v" = Ov
-    | str == "A/v" = Av
-    | str == "Hn/v" = Hnv
-    | str == "D/v" = Dv
-    | str == "S/a" = Sa
-    | str == "O/a" = Oa
-    | str == "Hn/a" = Hna
-    | str == "P/a" = Pa
-    | str == "Cv/a" = Cva
-    | str == "Cn/a" = Cna
-    | str == "A/n" = An
+    | str == "S/s" = Ss        -- 1
+    | str == "O/s" = Os        -- 2
+    | str == "A/s" = As        -- 3
+    | str == "S/v" = Sv        -- 4
+    | str == "O/v" = Ov        -- 5
+    | str == "A/v" = Av        -- 6
+    | str == "Hn/v" = Hnv      -- 7
+    | str == "D/v" = Dv        -- 8
+    | str == "S/a" = Sa        -- 9
+    | str == "O/a" = Oa        -- 10
+    | str == "Hn/a" = Hna      -- 11
+    | str == "P/a" = Pa        -- 12
+    | str == "D/a" = Da        -- 13
+    | str == "Cv/a" = Cva      -- 14
+    | str == "Cn/a" = Cna      -- 15
+    | str == "A/n" = An        -- 16
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

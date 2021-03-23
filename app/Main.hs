@@ -101,7 +101,7 @@ interpreter username = do
     putStrLn " 6 -> Copy CCG-marked sentence indicated by serial_num to column cate_sent2."
     putStrLn " 7 -> Get revised CCG-marked sentence indicated by serial_num."
     putStrLn " 8 -> Parse the sentence indicated by serial_num."
-    putStrLn " 9 -> Disply parsing Trees of the sentence indicated by serial_num."
+    putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num."
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
     line <- getLine
@@ -119,7 +119,7 @@ interpreter username = do
              "6" -> doCopyCateForASent username
              "7" -> doGetCateSent2ForASent username
              "8" -> doParseSent username
-             "9" -> doDisplyTreesForASent username
+             "9" -> doDisplayTreesForASent username
              "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
@@ -276,31 +276,33 @@ doParseSent username = do
     if ok
       then do                          -- Pass authentication!
         conn <- getConn
-        stmt <- prepareStmt conn "select cate_check from corpus where serial_num = ?"
+        stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
         (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
-        cate_check <- S.read is
-        let cate_check' = case cate_check of
-                            Just x -> fromMySQLInt8 (head x)
-                            Nothing -> error "doParseSent: No cate_check was read."
+        cate_tree_check <- S.read is
+        let cate_tree_check' = case cate_tree_check of
+                                 Just x -> x
+                                 Nothing -> error "doParseSent: No cate_tree_check was read."
         skipToEof is                                                   -- Go to the end of the stream.
-        if cate_check' == 0
+        let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
+        let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
+        if (cate_check == 0 || tree_check == 1)
           then do
-             putStrLn "Parsing sentence failed because column 'cate_check' is 0."
+             putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
              interpreter username
-          else if cate_check' == 1
+          else if (cate_check == 1 && tree_check == 0)
                  then do
                    getSentFromDB sn >>= getSent >>= parseSent sn
                    interpreter username
                  else do
-                   putStrLn "cate_check value is abnormal."
+                   putStrLn "Value of cate_check or tree_check is abnormal."
                    interpreter username
       else do
         putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
         interpreter username
 
--- 9. Disply parsing Trees of the sentence indicated by serial_num.
-doDisplyTreesForASent :: String -> IO ()
-doDisplyTreesForASent username = do
+-- 9. Display parsing Trees of the sentence indicated by serial_num.
+doDisplayTreesForASent :: String -> IO ()
+doDisplayTreesForASent username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int

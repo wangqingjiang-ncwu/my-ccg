@@ -10,7 +10,7 @@ module Parse (
     prune,             -- [PhraCate] -> [PhraCate]
 --  prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
-    findPhraWithLowestPrio,  -- [PhraCate] -> [(PhraCate,PhraCate)] -> PhraCate
+    findPhraWithLowestPrio,  -- [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> PhraCate
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
     getOverType,       -- [PhraCate] -> PhraCate -> PhraCate -> Int
     removeOnePC,       -- PhraCate -> [PhraCate] -> [PhraCate]
@@ -304,7 +304,7 @@ prune overPairs pcs = do
      if pcps == []                                  -- No overlapping phrases
        then return pcs
        else do
-         pc <- findPhraWithLowestPrio pcs pcps overPairs   -- Find the phrase with lowest priority among all phrases.
+         pc <- findPhraWithLowestPrio pcps pcps overPairs   -- Find the phrase with lowest priority among all phrases.
          prune overPairs $ removeOnePC pc pcs
 
 {- A wrapper of Function <prune> to input the phrases to be pruned and the banned phrases, return the result and
@@ -325,35 +325,35 @@ getOverlap :: [PhraCate] -> [(PhraCate, PhraCate)]
 getOverlap [] = []
 getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, pclt x y, (acOfCate x)!!0 || (acOfCate y)!!0, getOverType pcs x y /= 0]
 
-{- Overlapping relation is unidirectional. (<pc1>, <pc2>) is overlapping, then (<pc2>, <pc1>) is not overlapping.
+{- Here, overlapping relation is unidirectional. (<pc1>, <pc2>) is overlapping, then (<pc2>, <pc1>) is not overlapping.
    The relation has no transitivity. Without loss of generality, let AB and BC be overlapping pairs, then AC might be
-   not overlapping, one possible reason of which is both A and C are inactive. A phrase has the lowest priority means
+   not overlapping, one possible reason of which is both A and C are inactive. One phrase has the lowest priority means
    its priority is lower than that of its every overlapping phrases.
    For a list of overlapping-phrasal tuples,
    (1) If there is not any overlapping phrase, return ((-1,-1),[],-1), namely 'nilPhra';
    (2) From the first pair of overlapping phrases, select the lower-priority phrase by GeneBase, get the phrase's
-       related overlapping pairs from the remaining pairs. If there is no related pair, return the phrase; otherwise
-       go (1).
+       related overlapping pairs from all unChecked pairs. If there is no related pair, return the phrase; otherwise
+       recursively call this function on all unChecked Overlapping pairs and the low priority phrase-related overlapping pairs.
  -}
 
-findPhraWithLowestPrio :: [PhraCate] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO PhraCate
-findPhraWithLowestPrio trans ops overPairs = do
+findPhraWithLowestPrio :: [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO PhraCate
+findPhraWithLowestPrio unCheckedOps ops overPairs = do
     if ops == []
-      then return nilPhra
+      then return nilPhra      -- This is the border condition, usually not occurs.
       else do
         let x = head ops
-        let xs = tail ops
+        let xs = [op| op <-unCheckedOps, op /= x]
         let pc1 = fst x
         let pc2 = snd x
         pri <- getPrior overPairs pc1 pc2                              -- Find priority from a list of 'OverPair'
         let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1
         let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
         if pri == Lp && pcps2 /= []
-          then findPhraWithLowestPrio trans pcps2 overPairs
+          then findPhraWithLowestPrio xs pcps2 overPairs
           else if pri == Lp && pcps2 == []
                  then return pc2
                  else if pri == Rp && pcps1 /= []
-                        then findPhraWithLowestPrio trans pcps1 overPairs
+                        then findPhraWithLowestPrio xs pcps1 overPairs
                         else if pri == Rp && pcps1 == []
                                then return pc1
                                else error "findPhraWithLowestPrio: pri == Noth."

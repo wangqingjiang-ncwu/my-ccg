@@ -54,13 +54,14 @@ getSentFromDB sn = do
 -- Split a sentence into clauses.
 getSent :: String -> IO [String]
 getSent sent
-    | endswith " \12290:" sent' = return $ split " \65292: " $ replace " \12290:" "" sent'
-                                             -- \12290 is Chinese period, and \65292 is Chinese comma.
-          -- If Chinese comma has part-of-speech 'c', the colon (:) will be followed by "(X\*X)/*X" instead of "".
+    | endswith " \12290:" sent'' = return $ split " \65292: " $ replace " \12290:" "" sent''                  -- \12290 is Chinese perio.
+          -- If Chinese comma has part-of-speech 'c', the comma ',' will be followed by "(X\*X)/*X" instead of "".
           -- So Chinese commas without syntactic types are seperators of clauses.
-    | otherwise = return $ split " \65292: " sent'
+    | otherwise = return $ split " \65292: " sent''
     where
       sent' = lstrip $ rstrip sent           -- Strip whitespaces at left and right ends.
+      sent'' = replace "\65306" "\65292" $ replace "\65307" "\65292" sent'     -- Replace ';' or ':' with ','
+                     -- \65306 is Chinese colon, \65307 is Chinese semicolon, and \65292 is Chinese comma.
 
 {- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'.
  -}

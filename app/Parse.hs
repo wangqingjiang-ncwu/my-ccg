@@ -75,11 +75,10 @@ cateComb onOff pc1 pc2
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, the conversion
    from s\.np, (s\.np)/.np, ((s\.np)/.np)/.np, or np/.np to np is allowed, also is from np/.np to s\.np, noted as
-   S/v, O/v, A/v, Hn/v, D/v, S/a, O/a, Hn/a, P/a, D/a, Cv/a, Cn/a and A/n respectively. The conversion from np to np/.np
-   is allowed, noted as A/n. Besides, two adjacent categories can convert to their new categories respectively and simultaneously,
-   such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-category combination is
-   labelled as "S/v-"++<tag>, "O/v-"++<tag>, "S/a-"++<tag>, "O/a-"++<tag>, "P/a-"++<tag>, "Hn/a-"++<tag>, "D/n-"++<tag>,
-   "Cv/n-"++<tag>, "Cn/n-"++<tag>, "A/n-"++<tag>, and "A/n-Hn/a-"++<tag> . Now, category conversions only happen in
+   S/v, O/v, A/v, Hn/v, N/v, D/v, S/a, O/a, Hn/a, P/a, D/a, Cv/a, Cn/a and A/n respectively.
+   Besides, two adjacent syntactic types can convert to their new types respectively and simultaneously,
+   such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-typed combination is
+   labelled as "S/v-"++<tag>, "O/v-"++<tag>, "A/v-"++<tag>, and so on. Now, type conversions only happen in
    acting as particular syntactic constituents.
  -}
  -- The conversion from verb to noun happens when verbal phrase occupies subject or object position.
@@ -125,6 +124,19 @@ cateComb onOff pc1 pc2
 
       ctspaByvToHn = ctspaByvToHn_A ++ ctspaByvToHn_C
       catesByvToHn = [(fst5 cate, "Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToHn]
+
+-- The conversion from verb to noun happens when the verb occupies nominal position of Preposition-Object structure PO or of '的' structure U1P.
+      v_N_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+      ctspaByvToN_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp1, cate2 <- v_N_PO, elem (fst3 cate1) [prep2AdvCate, prep2CompCate], elem Nv onOff]
+
+      v_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+          where
+          vCate = [predCate, verbCate, verbCate2]
+      ctspaByvToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- v_N_U1P, cate2 <- csp2, fst3 cate2 == aux1Cate, elem Nv onOff]
+      ctspaByvToN = ctspaByvToN_PO ++ ctspaByvToN_U1P
+      catesByvToN = [(fst5 cate, "N/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToN]
 
 -- The conversion from verb to adverb happens when the verb occupies adverbial position.
       v_D = removeDup [(adverbalCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
@@ -219,7 +231,9 @@ cateComb onOff pc1 pc2
       catesBynToA_vToHn = [(fst5 cate, "A/n-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_vToHn]
 
 -- The categories gotten by all rules.
-      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToHn ++ catesByaToP ++ catesByaToD ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToA_aToHn ++ catesBynToA_vToHn
+      cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn
+        ++ catesByvToN ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToHn ++ catesByaToP ++ catesByaToD ++ catesByaToCv
+        ++ catesByaToCn ++ catesBynToA ++ catesBynToA_aToHn ++ catesBynToA_vToHn
 
     -- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
       rcs = removeDup [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]
@@ -235,7 +249,11 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
 {- One trip of transition without further pruning, but based on the result of transition with pruning before, so only
    when every pair of phrases have at least one phrase active, they can combine together. Meanwhile, phrases created
    in this trip of transition will be thrown away if they are phrases pruned in previous transitions.
-   Fix: Before every trip of transitivity, syntactic-typed transformations can be selected on demand. If all transformations are available during every trip of transitivity, some phrases are banned at ambiguity resolution, the other phrases remain, at this time, the combinations of two inactive phrases will create banned phrases again. But now, two inactive phrases may combine to form new phrase via type transformations which are not allowed in previous transitivities. The inactive attribue is still important in indicating its having existed in certain phrases.
+   Fix: Before every trip of transitivity, syntactic-typed transformations can be selected on demand. If all transformations
+   are available during every trip of transitivity, some phrases are banned at ambiguity resolution, the other phrases remain,
+   at this time, the combinations of two inactive phrases will create banned phrases again. But now, two inactive phrases may
+   combine to form new phrase via type transformations which are not allowed in previous transitivities. The inactive attribue
+   is still important in indicating its having existed in certain phrases.
  -}
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
@@ -245,7 +263,7 @@ trans onOff pcs banPCs = pcs2
       combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
 
       newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- The banned phrases might be created again, here they are filtered out.
-      pcs2 = updateAct $ removeDup $ pcs ++ newCbs                           -- The non-banned phrases also might be created again, here those reduplicates are removed out.
+      pcs2 = removeDup $ updateAct $ removeDup $ pcs ++ newCbs               -- The non-banned phrases also might be created again, here those reduplicates are removed out.
 
 {- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some
    new structural genes are added into the list of structural genes.
@@ -256,7 +274,7 @@ transWithPruning onOff pcs banPCs overPairs = do
 --  let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
     let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]    -- Not consider phrasal activity
-    let pcs1 = updateAct $ removeDup $ pcs ++ newCbs                  -- Before pruning
+    let pcs1 = removeDup $ updateAct $ removeDup $ pcs ++ newCbs             -- Before pruning
     pcs2 <- prune overPairs pcs1                          -- After pruning, Attr. activity is corrected.
     let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]     -- Update the list of banned phrasal categories.
     return (pcs2, banPCs2)

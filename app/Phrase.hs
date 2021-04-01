@@ -77,7 +77,7 @@ type PhraStru = String   -- The name of phrasal structure.
 type Act = Bool          -- The activity of a category, True for active, and False for inactive.
 type SecStart = Int      -- The position of spliting a phrase (category).
 
-{- When combining two phrase categories, there might be more than one rule available, 
+{- When combining two phrase categories, there might be more than one rule available,
    so the phrasal category type PhraCate allows more than one category.
 -}
 
@@ -87,7 +87,7 @@ type PhraCate = ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStar
 isPhrase :: PhraCate -> Bool
 isPhrase pc = length (ctspaOfCate pc) /= 0
 
--- The null phrasal category does not correspond to a real phrase, just for technical processing. 
+-- The null phrasal category does not correspond to a real phrase, just for technical processing.
 nilPhra :: PhraCate
 nilPhra = ((-1,-1),[],-1)
 
@@ -126,7 +126,7 @@ nPhraCateToString nPCs = listToString $ map phraCateToString nPCs
 createPhraCate :: Start -> Span -> [(Category,Tag,Seman,PhraStru,Act)] -> SecStart -> PhraCate
 createPhraCate start span ctspa secStart
     | ctspa == [] = ((start,span),[],secStart)
-    | fst5 (ctspa!!0) == nilCate = ((start,span),[],secStart) 
+    | fst5 (ctspa!!0) == nilCate = ((start,span),[],secStart)
     | otherwise = ((start,span),ctspa,secStart)
 
 -- Functions for extracting a member component of phrasal category.
@@ -229,12 +229,12 @@ ssOfCate (_, _, s) = s
 -- Without considering activities, decide two phrasal categories equal or not.
 equalPhra :: PhraCate -> PhraCate -> Bool
 equalPhra pc1 pc2 = (stOfCate pc1 == stOfCate pc2)
-                 && (spOfCate pc1 == spOfCate pc2) 
+                 && (spOfCate pc1 == spOfCate pc2)
                  && (ctspOfCate pc1 == ctspOfCate pc2)
                  && (ssOfCate pc1 == ssOfCate pc2)
 
-{- Define relation 'belong to' between two phrasal categories. They have same Start, Span, and SecStart, 
-   except that the component [(Category,Tag,Seman,PhraStru,Act)] of first phrasal category is subset of 
+{- Define relation 'belong to' between two phrasal categories. They have same Start, Span, and SecStart,
+   except that the component [(Category,Tag,Seman,PhraStru,Act)] of first phrasal category is subset of
    that of the second one.
  -}
 
@@ -287,7 +287,7 @@ getNuOfInputCates :: [PhraCate] -> Int
 getNuOfInputCates pcClo = length [pc | pc <- pcClo, spOfCate pc == 0]
 
 {- One phrasal category can have more than one tuple (<cate>,<tag>,<seman>,<phraStru>,<act>).
-   Function atomizePhraCate unpacks one phrasal category into multiple phrasal categories, 
+   Function atomizePhraCate unpacks one phrasal category into multiple phrasal categories,
    each of which has only one tuple (<cate>,<tag>,<seman>,<phraStru>,<act>).
  -}
 atomizePhraCate :: PhraCate -> [PhraCate]
@@ -298,7 +298,7 @@ atomizePhraCate pc = [((st,sp),[ctspa1],ss) | ctspa1 <- ctspa]
     ctspa = ctspaOfCate pc
     ss = ssOfCate pc
 
--- Function atomizePhraCateList is used to atomize a list of phrasal categories.                                                              
+-- Function atomizePhraCateList is used to atomize a list of phrasal categories.
 atomizePhraCateList :: [PhraCate] -> [PhraCate]
 atomizePhraCateList [] = []
 atomizePhraCateList (x:xs) = atomizePhraCate x ++ (atomizePhraCateList xs)
@@ -321,10 +321,10 @@ actOnePC ((_,_),(x:xs),_) = error "Failed to activate a non-atomized phrasal cat
 pclt :: PhraCate -> PhraCate -> Bool
 pclt x y
     | x == nilPhra || y == nilPhra = error "pclt: Null phrasal category"
-    | x == y = error "pclt: Two phrasal categires are same."
-    | otherwise = (stx < sty) 
-      || (stx == sty)&&(spx < spy) 
-      || (stx == sty)&&(spx == spy)&&(ssx < ssy) 
+    | x == y = error $ "pclt: Two phrasal categories are same, i.e. " ++ (show x)
+    | otherwise = (stx < sty)
+      || (stx == sty)&&(spx < spy)
+      || (stx == sty)&&(spx == spy)&&(ssx < ssy)
       || (stx == sty)&&(spx == spy)&&(ssx == ssy)&&(cax < cay)
       || (stx == sty)&&(spx == spy)&&(ssx == ssy)&&(cax == cay)&&(tax < tay)
       || (stx == sty)&&(spx == spy)&&(ssx == ssy)&&(cax == cay)&&(tax == tay)&&(sex < sey)
@@ -379,7 +379,7 @@ notElem' x (y:ys)
       spy = spOfCate y
       ssy = ssOfCate y
       ctspy = ctspOfCate y
-      
+
 -- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
 equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool
 equalSortedPhraList pc1 pc2
@@ -387,4 +387,3 @@ equalSortedPhraList pc1 pc2
     | (pc1 /= [] && pc2 == []) || (pc1 == [] && pc2 /= []) = False
     | head pc1 /= head pc2 = False
     | otherwise = equalSortedPhraList (tail pc1) (tail pc2)
-

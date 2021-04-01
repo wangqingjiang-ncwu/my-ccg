@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: be6573fd1066f92e25bf816afd863271699be9b92e492069dc5fe2f609d19d78
+-- hash: b72410acc9f0a48aa0bf2e40153c358ed22dd125d303997f72faff4638bcb065
 
 name:           my-ccg
 version:        0.2.4.0
@@ -79,9 +79,21 @@ test-suite my-ccg-test
       ParseSpec
       PhraseSpec
       RuleSpec
+      Category
+      Corpus
+      Database
+      Main
+      Output
+      OutputTest
+      Parse
+      Phrase
+      Rule
+      SentParse
+      Utils
       Paths_my_ccg
   hs-source-dirs:
       test
+      app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       MissingH

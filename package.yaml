@@ -45,7 +45,9 @@ executables:
 tests:
   my-ccg-test:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:
+    - test
+    - app
     ghc-options:
     - -threaded
     - -rtsopts

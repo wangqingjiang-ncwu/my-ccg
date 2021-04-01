@@ -244,15 +244,15 @@ quantityCate = getCateFromString "np/*np"
 
 -- Auxiliary word #1 is '的'
 aux1Cate :: Category
-aux1Cate = getCateFromString "(np/*np)\\*X"
+aux1Cate = getCateFromString "(np/*np)\\*np"
 
 -- Auxiliary word #2 is '地'
 aux2Cate :: Category
-aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*X"
+aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*(np/.np)"
 
 -- Auxiliary word #3 is '得'
 aux3Cate :: Category
-aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*X"
+aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*(np/.np)"
 
 -- Auxiliary word #4 is '着', '了', or '过'
 aux4Cate :: Category

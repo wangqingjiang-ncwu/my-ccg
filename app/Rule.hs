@@ -230,16 +230,16 @@ raiBc cate1 cate2
     isAvail = (rightCate lcate1 == ca2) && (head (midSlash lcate1) == '/') && (midSlash ca1 == "/x" || midSlash ca1 == "/.")
 
 {- All tags of context-sensitive category-converted rules:
-   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)D/v, (8)S/a, (9)O/a, (10)Hn/a, (11)P/a, (12)D/a, (13)Cv/a, (14)Cn/a, (15)A/n.
+   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)N/v, (8)D/v, (9)S/a, (10)O/a, (11)Hn/a, (12)P/a, (13)D/a, (14)Cv/a, (15)Cn/a, (16)A/n.
  -}
 
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","D/v","S/a","O/a","Hn/a","P/a","D/a","Cv/a","Cn/a","A/n"]
+ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","P/a","D/a","Cv/a","Cn/a","A/n"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Dv | Sa | Oa | Hna | Pa | Da | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Pa | Da | Cva | Cna | An deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -250,6 +250,7 @@ instance Show Rule where
     show Ov = "O/v"
     show Av = "A/v"
     show Hnv = "Hn/v"
+    show Nv = "N/v"
     show Dv = "D/v"
     show Sa = "S/a"
     show Oa = "O/a"
@@ -293,6 +294,8 @@ updateOnOff onOff rws
     | rw1 == "-A/v" = updateOnOff (ruleOff Av onOff) rwt
     | rw1 == "+Hn/v" = updateOnOff (ruleOn Hnv onOff) rwt
     | rw1 == "-Hn/v" = updateOnOff (ruleOff Hnv onOff) rwt
+    | rw1 == "+N/v" = updateOnOff (ruleOn Nv onOff) rwt
+    | rw1 == "-N/v" = updateOnOff (ruleOff Nv onOff) rwt
     | rw1 == "+D/v" = updateOnOff (ruleOn Dv onOff) rwt
     | rw1 == "-D/v" = updateOnOff (ruleOff Dv onOff) rwt
     | rw1 == "+S/a" = updateOnOff (ruleOn Sa onOff) rwt

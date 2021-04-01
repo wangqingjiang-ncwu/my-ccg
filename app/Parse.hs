@@ -235,7 +235,7 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
 {- One trip of transition without further pruning, but based on the result of transition with pruning before, so only
    when every pair of phrases have at least one phrase active, they can combine together. Meanwhile, phrases created
    in this trip of transition will be thrown away if they are phrases pruned in previous transitions.
-   Fix: Before every trip of transitivity, syntactic-typed transformations can be selected on demand. If all transformations are available during every trip of transitivity, some phrases are banned at ambiguity resolution, the other phrases remain, at this time, the combinations of two inactive phrases will create banned phrases again. But now, two inactive phrases may combine to form new phrase via type transformations which are not allowed in previous transitivities. In another words, the inactive attribue indicating having existed in certain phrases temporarily lose its role in syntactic parsing.
+   Fix: Before every trip of transitivity, syntactic-typed transformations can be selected on demand. If all transformations are available during every trip of transitivity, some phrases are banned at ambiguity resolution, the other phrases remain, at this time, the combinations of two inactive phrases will create banned phrases again. But now, two inactive phrases may combine to form new phrase via type transformations which are not allowed in previous transitivities. The inactive attribue is still important in indicating its having existed in certain phrases.
  -}
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
@@ -245,16 +245,18 @@ trans onOff pcs banPCs = pcs2
       combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
 
       newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- The banned phrases might be created again, here they are filtered out.
-      pcs2 = updateAct $ pcs ++ newCbs
+      pcs2 = updateAct $ removeDup $ pcs ++ newCbs                           -- The non-banned phrases also might be created again, here those reduplicates are removed out.
 
 {- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some
    new structural genes are added into the list of structural genes.
+   Fix: Allow two inactive phrases to combine.
  -}
 transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
 transWithPruning onOff pcs banPCs overPairs = do
-    let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+--  let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+    let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
     let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]    -- Not consider phrasal activity
-    let pcs1 = updateAct $ pcs ++ newCbs                  -- Before pruning
+    let pcs1 = updateAct $ removeDup $ pcs ++ newCbs                  -- Before pruning
     pcs2 <- prune overPairs pcs1                          -- After pruning, Attr. activity is corrected.
     let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]     -- Update the list of banned phrasal categories.
     return (pcs2, banPCs2)

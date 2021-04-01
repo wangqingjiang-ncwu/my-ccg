@@ -188,11 +188,13 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
       catesByaToCn = [(fst5 cate, "Cn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCn]
 
--- The conversion from noun to adjective is ONLY allowed when nouns act as attribute or are followed by auxiliary '的'.
+-- The conversion from noun to adjective is ONLY allowed when nouns act as attribute.
+-- Now auxiliary words preferably has only typical syntactic type, as for '的'， its typical syntactic type is (np/*np)\*np.
       n_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA = [rule cate1 cate2 | rule <- [appF, appB], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+--    ctspaBynToA = [rule cate1 cate2 | rule <- [appF, appB], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+      ctspaBynToA = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) [npCate, aux1Cate])]
+          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
       catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
 
 {- The two adjacent categories "np np/.np" convert to "np/.np np", forming structure AHn, here noun-to-adjective and
@@ -233,12 +235,16 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
 {- One trip of transition without further pruning, but based on the result of transition with pruning before, so only
    when every pair of phrases have at least one phrase active, they can combine together. Meanwhile, phrases created
    in this trip of transition will be thrown away if they are phrases pruned in previous transitions.
+   Fix: Before every trip of transitivity, syntactic-typed transformations can be selected on demand. If all transformations are available during every trip of transitivity, some phrases are banned at ambiguity resolution, the other phrases remain, at this time, the combinations of two inactive phrases will create banned phrases again. But now, two inactive phrases may combine to form new phrase via type transformations which are not allowed in previous transitivities. In another words, the inactive attribue indicating having existed in certain phrases temporarily lose its role in syntactic parsing.
  -}
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
     where
-      combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
-      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- Not consider phrasal activity
+--    combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+--    Allowing two inactive phrases to combine.
+      combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
+
+      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- The banned phrases might be created again, here they are filtered out.
       pcs2 = updateAct $ pcs ++ newCbs
 
 {- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some

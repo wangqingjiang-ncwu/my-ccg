@@ -39,12 +39,13 @@ import           System.IO
 import qualified System.IO.Streams as S
 import           Database.MySQL.Base
 import           Data.List.Utils
-import           Data.List as DL
+import           Data.List as DL hiding (words)
 import           Data.Tuple.Utils
 import           Data.Int
-import           Data.Text hiding (length)
+import           Data.Text as DT hiding (length, map, head, last, foldl, words)
 import           Data.Word
-import           Data.ByteString hiding (putStr,putStrLn,length,pack,unpack)
+import           Data.ByteString.Char8 as BC hiding (putStrLn,readFile,map,words,head,last)
+import           Utils
 
 fromMySQLInt8 :: MySQLValue -> Int
 fromMySQLInt8 (MySQLInt8 a) = read (show a) :: Int
@@ -63,7 +64,7 @@ fromMySQLText (MySQLText a)
     | str!!0 == '\"' = DL.init $ DL.tail str     -- Throw away char " at head and rear.
     | otherwise = str
     where
-      str = unpack a
+      str = DT.unpack a
 fromMySQLText _ = error "fromMySQLText: Parameter error."
 
 fromMySQLNullText :: MySQLValue -> String
@@ -84,7 +85,7 @@ toMySQLInt32 :: Int -> MySQLValue
 toMySQLInt32 v = MySQLInt32 (read (show v) :: Int32)
 
 toMySQLText :: String -> MySQLValue
-toMySQLText v = MySQLText (pack v)
+toMySQLText v = MySQLText (DT.pack v)
 
 toMySQLNullText :: MySQLValue
 toMySQLNullText = MySQLNull
@@ -134,20 +135,28 @@ getOkStatus (OK _ _ okStatus _) = okStatus
 getOkWarningCnt :: OK -> Word16
 getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 
--- Get a connection to database 'ccg4c' with given user.
+-- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
-getConn = connect defaultConnectInfo {
-    ciHost = "125.219.93.63",
---    ciHost = "127.0.0.1",
-    ciUser = "graduate",
-    ciPassword = "graduate",
-    ciDatabase = "ccg4c"
+getConn = do
+    confInfo <- readFile "mysql_config"      -- Read the local configuration file
+    let confTupleSeq = [(head keyValue, last keyValue)| keyValue <- map (splitAtDeli ':') (words confInfo)]
+    let host = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Host"]    -- Change [String] as String
+    let user = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "User"]
+    let password = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Password"]
+    let database = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Database"]
+--  putStrLn $ "host:" ++ host ++ ", user:" ++ user ++ ", password:" ++ password ++ ", database:" ++ database
+
+    connect defaultConnectInfo {
+      ciHost = host,
+      ciUser = BC.pack user,             -- Change String to ByteString
+      ciPassword = BC.pack password,
+      ciDatabase = BC.pack database
     }
 
 -- Get a connection to database 'ccg4c' with user 'wqj'.
 getConnByUserWqj :: IO MySQLConn
 getConnByUserWqj = connect defaultConnectInfo {
-    ciHost = "125.219.93.63",
+    ciHost = "125.219.93.49",
 --    ciHost = "127.0.0.1",
     ciUser = "wqj",
     ciPassword = "wqj",

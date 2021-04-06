@@ -489,15 +489,16 @@ readRule str
     | str == "O/v" = Ov        -- 5
     | str == "A/v" = Av        -- 6
     | str == "Hn/v" = Hnv      -- 7
-    | str == "D/v" = Dv        -- 8
-    | str == "S/a" = Sa        -- 9
-    | str == "O/a" = Oa        -- 10
-    | str == "Hn/a" = Hna      -- 11
-    | str == "P/a" = Pa        -- 12
-    | str == "D/a" = Da        -- 13
-    | str == "Cv/a" = Cva      -- 14
-    | str == "Cn/a" = Cna      -- 15
-    | str == "A/n" = An        -- 16
+    | str == "N/v" = Nv        -- 8
+    | str == "D/v" = Dv        -- 9
+    | str == "S/a" = Sa        -- 10
+    | str == "O/a" = Oa        -- 11
+    | str == "Hn/a" = Hna      -- 12
+    | str == "P/a" = Pa        -- 13
+    | str == "D/a" = Da        -- 14
+    | str == "Cv/a" = Cva      -- 15
+    | str == "Cn/a" = Cna      -- 16
+    | str == "A/n" = An        -- 17
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

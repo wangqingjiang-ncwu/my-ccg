@@ -75,7 +75,7 @@ cateComb onOff pc1 pc2
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, the conversion
    from s\.np, (s\.np)/.np, ((s\.np)/.np)/.np, or np/.np to np is allowed, also is from np/.np to s\.np, noted as
-   S/v, O/v, A/v, Hn/v, N/v, D/v, S/a, O/a, Hn/a, P/a, D/a, Cv/a, Cn/a and A/n respectively.
+   S/v, O/v, A/v, Hn/v, N/v, D/v, S/a, O/a, Hn/a, N/a, P/a, D/a, Cv/a, Cn/a and A/n respectively.
    Besides, two adjacent syntactic types can convert to their new types respectively and simultaneously,
    such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-typed combination is
    labelled as "S/v-"++<tag>, "O/v-"++<tag>, "A/v-"++<tag>, and so on. Now, type conversions only happen in
@@ -170,6 +170,12 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x<- csp1, fst3 x == adjCate]
       catesByaToHn = [(fst5 cate, "Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToHn]
 
+      a_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToN = [rule cate1 cate2 | rule <- [appB], cate1 <- a_N, cate2 <- csp_2, elem Na onOff]
+          where
+          csp_2 = removeDup [x| x<-csp2, fst3 x == aux1Cate]
+      catesByaToN = [(fst5 cate, "N/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToN]
+
 -- The conversion from adjective to predicate verb happens when the adjective occupies predicate position.
       a_P = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
       ctspaByaToP = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_P, elem Pa onOff]
@@ -232,8 +238,8 @@ cateComb onOff pc1 pc2
 
 -- The categories gotten by all rules.
       cates = catesBasic ++ catesBysToS ++ catesBysToO ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn
-        ++ catesByvToN ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToHn ++ catesByaToP ++ catesByaToD ++ catesByaToCv
-        ++ catesByaToCn ++ catesBynToA ++ catesBynToA_aToHn ++ catesBynToA_vToHn
+        ++ catesByvToN ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToHn ++ catesByaToN ++ catesByaToP ++ catesByaToD
+        ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToA_aToHn ++ catesBynToA_vToHn
 
     -- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
       rcs = removeDup [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]
@@ -283,10 +289,14 @@ transWithPruning onOff pcs banPCs overPairs = do
    Originally designed in every transition, every two phrases are tested whether they can be combined into a new
    phrase under the CCG for Chinese. In the later experiments, an explosive increase of phrase number is always
    observed, sometimes the transitive closure can not be obtained after limited time. So, a pruning process is
-   introduced in every trip of transition, and the pruned phrases are placed in list 'banPCs'. Apparently, the removed   phrases should be not generated again.
-   From the scratch, words are all active. In later every transition, two adjacent active phrases can be combined into   a new phrase, while one active phrase and one inactive phrase can also be combined. Once participating in phrase
-   building, no matter a word or a phrase will become inactive. As a result, only words or phrases without descendants   are active. By the way, if an inactive phrase take part in combination with one active phrase, the descendants of
-   the inactive phrase will be removed out and thrown into list 'banPCs'. Both an active and an inactive phrase can be   removed later, owing that they overlap some phrases with higher priorities. An inactive phrase can become active
+   introduced in every trip of transition, and the pruned phrases are placed in list 'banPCs'. Apparently, the removed
+   phrases should be not generated again.
+   From the scratch, words are all active. In later every transition, two adjacent active phrases can be combined into
+   a new phrase, while one active phrase and one inactive phrase can also be combined. Once participating in phrase
+   building, no matter a word or a phrase will become inactive. As a result, only words or phrases without descendants
+   are active. By the way, if an inactive phrase take part in combination with one active phrase, the descendants of
+   the inactive phrase will be removed out and thrown into list 'banPCs'. Both an active and an inactive phrase can be
+   removed later, owing that they overlap some phrases with higher priorities. An inactive phrase can become active
    again after its child phrase is removed. Only allowing two active phrases to combine implies all inactive phrases
    are in final parsing tree, but it is not true.
    Every transition consists of two steps, the first step is to generate new phrases, and the second step is to
@@ -464,7 +474,7 @@ updateAct trans = [deactOnePC x | x <- married] ++ [actOnePC x | x <- not_marrie
 findSplitCate :: PhraCate -> [PhraCate] -> [(PhraCate, PhraCate)]
 findSplitCate pc clo
     = [pct | pct <- pcTuples, pcBelong' pc (cateComb onOff (fst pct) (snd pct))]
-                                           -- Using pcBelong' not pcBelong is for neglecdting the active attribute.
+                                           -- Using pcBelong' instead of pcBelong is for neglecting the active attribute.
       where
         st1 = stOfCate pc
         st2 = ssOfCate pc
@@ -473,7 +483,7 @@ findSplitCate pc clo
         pcTuples = [(x, y) | x <- (getPhraBySS (st1, sp1) clo), y <- (getPhraBySS (st2, sp2) clo)]
                                            -- When pc is a leaf, pcTuples will be [] because span -1 does not exist.
         tags = splitAtDeli '-' ((taOfCate pc)!!0)    -- All tags used
-        cctags = [x| x <- tags, elem x ccTags]       -- Tags of category-converted rules, maybe empty.
+        cctags = [x| x <- tags, elem x ccTags]       -- Tags of syntax-typed tranformations, maybe empty.
         onOff = updateOnOff [] (map ("+" ++) cctags)
 
 -- Find descendants of a given phrasal category from the transitive closure of phrasal categories.

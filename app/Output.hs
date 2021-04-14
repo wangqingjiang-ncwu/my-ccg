@@ -335,10 +335,10 @@ showNSemanSymb curPos (x:xs) ospls = do
                               -- The inter-category space offsets position occupying of leading colon.
     showNSemanSymb newPos xs ospls
     where
-    catPos = findPhraStartPos x ospls
-    catWid = getCateWidth x ospls
-    newPos = catPos + catWid + 1
-    cs = csOfCate x         -- [(category, seman)]
+      catPos = findPhraStartPos x ospls
+      catWid = getCateWidth x ospls
+      newPos = catPos + catWid + 1
+      cs = csOfCate x         -- [(category, seman)]
 
 -- Show the structure of a tree with the purpose of human's reading easily.
 -- The input is categorial lines with span from 0 to (getNuOfInputCates - 1).

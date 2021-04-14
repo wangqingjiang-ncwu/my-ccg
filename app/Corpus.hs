@@ -127,7 +127,7 @@ posCate = [("n","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np|(s\\.np)/#(s\\.np)"),
            ("c","(X\\*X)/*X"),
-           ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|(s\\.np)\\x(s\\.np)|X\\*X"),
+           ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|X\\*X"),
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -494,11 +494,12 @@ readRule str
     | str == "S/a" = Sa        -- 10
     | str == "O/a" = Oa        -- 11
     | str == "Hn/a" = Hna      -- 12
-    | str == "P/a" = Pa        -- 13
-    | str == "D/a" = Da        -- 14
-    | str == "Cv/a" = Cva      -- 15
-    | str == "Cn/a" = Cna      -- 16
-    | str == "A/n" = An        -- 17
+    | str == "N/a" = Na        -- 13
+    | str == "P/a" = Pa        -- 14
+    | str == "D/a" = Da        -- 15
+    | str == "Cv/a" = Cva      -- 16
+    | str == "Cn/a" = Cna      -- 17
+    | str == "A/n" = An        -- 18
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

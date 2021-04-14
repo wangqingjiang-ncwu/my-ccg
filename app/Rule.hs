@@ -83,6 +83,7 @@ appB cate1 cate2
     | isAvail && cn2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
     | isAvail && (ca1 == quantityCate || ca1 == adjCate) = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
+    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolte!
     | isAvail && cateEqual ca2 (getCateFromString "s\\.np") = (leftCate ca2, "<", semComb se2 se1, "SP", True)
     | isAvail && ca1 == npCate && cateEqual ca2 (getCateFromString "np\\.np") = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
     | isAvail && cateEqual ca2 (getCateFromString "(s\\.np)\\x(s\\.np)") = (leftCate ca2, "<", semComb se2 se1, "HvC", True)
@@ -230,16 +231,16 @@ raiBc cate1 cate2
     isAvail = (rightCate lcate1 == ca2) && (head (midSlash lcate1) == '/') && (midSlash ca1 == "/x" || midSlash ca1 == "/.")
 
 {- All tags of context-sensitive category-converted rules:
-   (0)S/s, (1)O/s, (2)A/s, (3)S/v, (4)O/v, (5)A/v, (6)Hn/v, (7)N/v, (8)D/v, (9)S/a, (10)O/a, (11)Hn/a, (12)P/a, (13)D/a, (14)Cv/a, (15)Cn/a, (16)A/n.
+   (1)S/s, (2)O/s, (3)A/s, (4)S/v, (5)O/v, (6)A/v, (7)Hn/v, (8)N/v, (9)D/v, (10)S/a, (11)O/a, (12)Hn/a, (13)N/a, (14)P/a, (15)D/a, (16)Cv/a, (17)Cn/a, (18)A/n.
  -}
 
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","P/a","D/a","Cv/a","Cn/a","A/n"]
+ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","N/a","P/a","D/a","Cv/a","Cn/a","A/n"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Pa | Da | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -255,6 +256,7 @@ instance Show Rule where
     show Sa = "S/a"
     show Oa = "O/a"
     show Hna = "Hn/a"
+    show Na = "N/a"
     show Pa = "P/a"
     show Da = "D/a"
     show Cva = "Cv/a"
@@ -304,6 +306,8 @@ updateOnOff onOff rws
     | rw1 == "-O/a" = updateOnOff (ruleOff Oa onOff) rwt
     | rw1 == "+Hn/a" = updateOnOff (ruleOn Hna onOff) rwt
     | rw1 == "-Hn/a" = updateOnOff (ruleOff Hna onOff) rwt
+    | rw1 == "+N/a" = updateOnOff (ruleOn Na onOff) rwt
+    | rw1 == "-N/a" = updateOnOff (ruleOff Na onOff) rwt
     | rw1 == "+P/a" = updateOnOff (ruleOn Pa onOff) rwt
     | rw1 == "-P/a" = updateOnOff (ruleOff Pa onOff) rwt
     | rw1 == "+D/a" = updateOnOff (ruleOn Da onOff) rwt

@@ -31,17 +31,23 @@ module Category (
     predCate,      -- Category, "s\.np"
     verbCate,      -- Category, "(s\.np)/.np"
     verbCate2,     -- Category, "((s\.np)/.np)/.np"
+    vCate,         -- [predCate, verbCate, verbCate2]
     adverbalCate,  -- Category, "(s\.np)/#(s\.np)"
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
-    adj2VerbCompCate,   -- Category, "(s\.np)\x(s\.np)"
-    adj2NounCompCate,   -- Category, "np\*np"
-    quantityCate,       -- Category, "np/*np"
-    aux1Cate,           -- Category, "(np/*np)\*X"
-    aux2Cate,           -- Category, "((s\.np)/#(s\.np))\*X"
-    aux3Cate,           -- Category, "((s\.np)\x(s\.np))/*X"
-    aux4Cate,           -- Category, "(s\.np)\x(s\.np)"
-    aux5Cate            -- Category, "X\*X"
+    adj2VerbCompCate,     -- Category, "(s\.np)\x(s\.np)"
+    adj2NounCompCate,     -- Category, "np\*np"
+    quantityCate,         -- Category, "np/*np"
+    objectExtractionCate, -- Category, "s/.np"
+    aux1Cate,             -- Category, "(np/*np)\*np"
+    aux2Cate,             -- Category, "((s\.np)/#(s\.np))\*(np/.np)"
+    aux3Cate,             -- Category, "((s\.np)\x(s\.np))/*(np/.np)"
+    aux4Cate,             -- Category, "(s\.np)\x(s\.np)"
+    aux5Cate,             -- Category, "X\*X"
+    aux6Cate,             -- Caregory, "np/*((s\.np)/.np)"
+    conjCate1,            -- Category, "(X\*X)/*X"
+    conjCate2,            -- Category, "X\*X"
+    conjCate3             -- Category, "X/*X"
     ) where
 
 type Slash = String
@@ -224,6 +230,9 @@ verbCate = getCateFromString "(s\\.np)/.np"
 verbCate2 :: Category
 verbCate2 = getCateFromString "((s\\.np)/.np)/.np"
 
+vCate :: [Category]
+vCate = [predCate, verbCate, verbCate2]
+
 adverbalCate :: Category
 adverbalCate = getCateFromString "(s\\.np)/#(s\\.np)"
 
@@ -241,6 +250,9 @@ adj2NounCompCate = getCateFromString "np\\*np"
 
 quantityCate :: Category
 quantityCate = getCateFromString "np/*np"
+
+objectExtractionCate :: Category
+objectExtractionCate = getCateFromString "s/.np"
 
 -- Auxiliary word #1 is '的'
 aux1Cate :: Category
@@ -261,3 +273,19 @@ aux4Cate = getCateFromString "(s\\.np)\\x(s\\.np)"
 -- Auxiliary word #5 is '等', '似的', '一样', and so on.
 aux5Cate :: Category
 aux5Cate = getCateFromString "X\\*X"
+
+-- Auxiliary word #6 is '所', followed by transitive verb.
+aux6Cate :: Category
+aux6Cate = getCateFromString "np/*((s\\.np)/.np)"
+
+-- Conjunction 1
+conjCate1 :: Category
+conjCate1 = getCateFromString "(X\\*X)/*X"
+
+-- Conjunction 2
+conjCate2 :: Category
+conjCate2 = getCateFromString "X\\*X"
+
+-- Inter-clause conjunction
+conjCate3 :: Category
+conjCate3 = getCateFromString "X/*X"

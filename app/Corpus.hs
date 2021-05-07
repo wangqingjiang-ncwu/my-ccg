@@ -56,7 +56,9 @@ module Corpus (
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
     nForestToString,     -- [Forest] -> String
-    setIpcOfRows         -- Int -> Int -> String -> IO ()
+    setIpcOfRows,        -- Int -> Int -> String -> IO ()
+    removeLineFeed,      -- IO ()
+    removeLineFeedForOneRow      -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
     ) where
 
 import Control.Monad
@@ -126,8 +128,14 @@ posCate = [("n","np"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np|(s\\.np)/#(s\\.np)"),
-           ("c","(X\\*X)/*X"),
+           ("c","(X\\*X)/*X|X/*X"),
            ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|X\\*X"),
+           ("u1","(np/*np)\\*np"),                     -- 的
+           ("u2","((s\\.np)/#(s\\.np))\\*(np/.np)"),   -- 地
+           ("u3","((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"),   -- 得
+           ("u4","(s\\.np)\\x(s\\.np)"),               -- 着、了、过
+           ("u5","X\\*X"),                             -- 等、似的
+           ("u6","np/*((s\\.np)/.np)"),                 -- 所
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -154,7 +162,7 @@ posCate = [("n","np"),
 {- To now, the recognizable phrasal structures are as following.
    MQ: Quantity phrase
    XX: Conjunction phrase
-   CC: ??
+   CC: Clause Coordination
    DHv: Adverbial-verb (headword) phrase
    HvC: Verb (headword)-complement phrase
    DHa: Adverbial-adjective (headword) phrase
@@ -170,6 +178,7 @@ posCate = [("n","np"),
    U3P: 3-auxiliary word phrase, namely with '得' as end
    U4P: 4-auxiliary word phrase, namely with '着|了|过' as end, identical to HvC.
    U5P: 5-auxiliary word phrase, namely with '等|似的|一样' as end
+   U6P: 6-auxiliary word phrase, namely with '所' as head
    PO: Preposition object phrase
    SP: Subject-predicate phrase
    EM: Exclamation mood
@@ -179,7 +188,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","XX","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","PO","SP","EM","DE","NR"]
+phraStruList =  ["MQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","EM","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -483,23 +492,29 @@ readRuleSet str = map readRule (stringToList str)
 readRule :: String -> Rule
 readRule str
     | str == "S/s" = Ss        -- 1
-    | str == "O/s" = Os        -- 2
-    | str == "A/s" = As        -- 3
-    | str == "S/v" = Sv        -- 4
-    | str == "O/v" = Ov        -- 5
-    | str == "A/v" = Av        -- 6
-    | str == "Hn/v" = Hnv      -- 7
-    | str == "N/v" = Nv        -- 8
-    | str == "D/v" = Dv        -- 9
-    | str == "S/a" = Sa        -- 10
-    | str == "O/a" = Oa        -- 11
-    | str == "Hn/a" = Hna      -- 12
-    | str == "N/a" = Na        -- 13
-    | str == "P/a" = Pa        -- 14
-    | str == "D/a" = Da        -- 15
-    | str == "Cv/a" = Cva      -- 16
-    | str == "Cn/a" = Cna      -- 17
-    | str == "A/n" = An        -- 18
+    | str == "P/s" = Ps        -- 2
+    | str == "O/s" = Os        -- 3
+    | str == "N/s" = Ns        -- 4
+    | str == "A/s" = As        -- 5
+    | str == "S/v" = Sv        -- 6
+    | str == "O/v" = Ov        -- 7
+    | str == "A/v" = Av        -- 8
+    | str == "Hn/v" = Hnv      -- 9
+    | str == "N/v" = Nv        -- 10
+    | str == "D/v" = Dv        -- 11
+    | str == "S/a" = Sa        -- 12
+    | str == "O/a" = Oa        -- 13
+    | str == "Hn/a" = Hna      -- 14
+    | str == "N/a" = Na        -- 15
+    | str == "P/a" = Pa        -- 16
+    | str == "D/a" = Da        -- 17
+    | str == "Cv/a" = Cva      -- 18
+    | str == "Cn/a" = Cna      -- 19
+    | str == "A/n" = An        -- 20
+    | str == "P/n" = Pn        -- 21
+    | str == "V/n" = Vn        -- 22
+    | str == "D/p" = Dp        -- 23
+    | str == "N/oe" = Noe      -- 24
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String
@@ -577,3 +592,36 @@ setIpcOfRows startRow endRow username = do
         putStrLn $ show (getOkAffectedRows ok) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
         closeStmt conn stmt1
     close conn                       -- Close the connection.
+
+
+{- There might be line feed character '\r', '\n', or "\r\n" in field raw_sent and raw_sent2, which makes the csv file
+   exported from table corpus can't be used directly for importing. The function removeLineFeed removes these line-
+   terminated characters.
+   ONLY user 'wqj' can execute this function to designate a certain software user as IPC of certain rows,
+   but this access control has not implemented.
+  -}
+removeLineFeed :: IO ()
+removeLineFeed = do
+    conn <- getConnByUserWqj
+    stmt <- prepareStmt conn "select raw_sent, raw_sent2, serial_num from corpus"
+    (defs, is) <- queryStmt conn stmt []
+    rows <- S.toList is
+    let rows' = map removeLineFeedForOneRow rows
+    let stmt1 = "update corpus set raw_sent = ?, raw_sent2 = ? where serial_num = ?"
+    oks <- executeMany conn stmt1 rows'
+    putStrLn $ show (length oks) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
+    closeStmt conn stmt
+    close conn                       -- Close the connection.
+
+{- Remove line-terminated characters '\r', '\n', or "\r\n" from MySQL values.
+ - The input is raw_sent, raw_sent2, and serial_num for one row in Table corpus.
+ -}
+removeLineFeedForOneRow :: [MySQLValue] -> [MySQLValue]
+removeLineFeedForOneRow vs = [rs', rs2', vs!!2]
+    where
+    rsStr = fromMySQLText (vs!!0)                      -- The field raw_sent
+    rs2Str = fromMySQLText (vs!!1)                     -- The field raw_sent2
+    rsStrNoLF = replace "\n" "" $ replace "\r" "" rsStr
+    rs2StrNoLF = replace "\n" "" $ replace "\r" "" rs2Str
+    rs' = toMySQLText rsStrNoLF
+    rs2' = toMySQLText rs2StrNoLF

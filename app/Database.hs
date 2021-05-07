@@ -31,7 +31,8 @@ module Database (
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
   getConn,                     -- IO MySQLConn
-  getConnByUserWqj             -- IO MySQLConn
+  getConnByUserWqj,            -- IO MySQLConn
+  getConnByUserWqjAtLocal      -- IO MySQLConn
   ) where
 
 import           Control.Monad
@@ -158,6 +159,15 @@ getConnByUserWqj :: IO MySQLConn
 getConnByUserWqj = connect defaultConnectInfo {
     ciHost = "125.219.93.49",
 --    ciHost = "127.0.0.1",
+    ciUser = "wqj",
+    ciPassword = "wqj",
+    ciDatabase = "ccg4c"
+    }
+
+-- Get a connection to database 'ccg4c' with user 'wqj' at local host.
+getConnByUserWqjAtLocal :: IO MySQLConn
+getConnByUserWqjAtLocal = connect defaultConnectInfo {
+    ciHost = "127.0.0.1",
     ciUser = "wqj",
     ciPassword = "wqj",
     ciDatabase = "ccg4c"

@@ -55,14 +55,15 @@ semComb se1 se2
 appF :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 appF cate1 cate2
     | isPrimitive ca1 = (nilCate, ">", "", "", False)
-    | ca1 == getCateFromString "(X\\*X)/*X" = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "XX", True)
-    | ca1 == getCateFromString "X/*X" = (ca2, ">", semComb se1 se2, "CC", True)
+    | ca1 == aux6Cate = (lca, ">", semComb se1 se2, "U6P", True)
+    | ca1 == conjCate1 = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "XX", True)
+    | ca1 == conjCate3 = (ca2, ">", semComb se1 se2, "CC", True)
     | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)
-    | isAvail && cateEqual ca1 (getCateFromString "(s\\.np)/.np") = (leftCate ca1, ">", semComb se1 se2, "VO", True)
-    | isAvail && cateEqual ca1 (getCateFromString "((s\\.np)/.np)/.np") = (leftCate ca1, ">", semComb se1 se2, "VO", True)
-    | isAvail && cateEqual ca1 (getCateFromString "(s\\.np)/#(s\\.np)") = (leftCate ca1, ">", semComb se1 se2, "DHv", True)
+    | isAvail && cateEqual ca1 (getCateFromString "(s\\.np)/.np") = (lca, ">", semComb se1 se2, "VO", True)
+    | isAvail && cateEqual ca1 (getCateFromString "((s\\.np)/.np)/.np") = (lca, ">", semComb se1 se2, "VO", True)
+    | isAvail && cateEqual ca1 (getCateFromString "(s\\.np)/#(s\\.np)") = (lca, ">", semComb se1 se2, "DHv", True)
     | isAvail && (cateEqual ca1 (getCateFromString "((s\\.np)\\x(s\\.np))/*np") || cateEqual ca1 (getCateFromString "((s\\.np)/#(s\\.np))/*np") || cateEqual ca1 (getCateFromString "(s/*s)/*np")) = (leftCate ca1, ">", semComb se1 se2, "PO", True)
-    | isAvail && cateEqual ca1 (getCateFromString "(np/.np)/.(np/.np)") = (leftCate ca1, ">", semComb se1 se2, "DHa", True)
+    | isAvail && cateEqual ca1 (getCateFromString "(np/.np)/.(np/.np)") = (lca, ">", semComb se1 se2, "DHa", True)
     | isAvail && cateEqual ca1 aux3Cate = (leftCate ca1, ">", semComb se1 se2, "U3P", True)
     | isAvail && cateEqual ca1 (getCateFromString "s/*s") = (sCate, ">", semComb se1 se2, "DHs", True)
     | isAvail && cateEqual ca1 (getCateFromString "s/.np") = (npCate, ">", semComb se1 se2, "AHn", True)
@@ -73,6 +74,7 @@ appF cate1 cate2
     se1 = snd3 cate1
     ca2 = fst3 cate2
     se2 = snd3 cate2
+    lca = leftCate ca1
     isAvail = head (midSlash ca1) == '/' && (rightCate ca1 == ca2 || rightCate ca1 == xCate)
 
 -- CCG backward application, here using nonstrict equality.
@@ -83,7 +85,7 @@ appB cate1 cate2
     | isAvail && cn2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
     | isAvail && (ca1 == quantityCate || ca1 == adjCate) = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
-    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolte!
+    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolted!
     | isAvail && cateEqual ca2 (getCateFromString "s\\.np") = (leftCate ca2, "<", semComb se2 se1, "SP", True)
     | isAvail && ca1 == npCate && cateEqual ca2 (getCateFromString "np\\.np") = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
     | isAvail && cateEqual ca2 (getCateFromString "(s\\.np)\\x(s\\.np)") = (leftCate ca2, "<", semComb se2 se1, "HvC", True)
@@ -231,21 +233,25 @@ raiBc cate1 cate2
     isAvail = (rightCate lcate1 == ca2) && (head (midSlash lcate1) == '/') && (midSlash ca1 == "/x" || midSlash ca1 == "/.")
 
 {- All tags of context-sensitive category-converted rules:
-   (1)S/s, (2)O/s, (3)A/s, (4)S/v, (5)O/v, (6)A/v, (7)Hn/v, (8)N/v, (9)D/v, (10)S/a, (11)O/a, (12)Hn/a, (13)N/a, (14)P/a, (15)D/a, (16)Cv/a, (17)Cn/a, (18)A/n.
+   (1)S/s, (2)P/s, (3)O/s, (4)N/s, (5)A/s, (6)S/v, (7)O/v, (8)A/v, (9)Hn/v, (10)N/v, (11)D/v, (12)S/a,
+   (13)O/a, (14)Hn/a, (15)N/a, (16)P/a, (17)D/a, (18)Cv/a, (19)Cn/a, (20)A/n, (21)P/n, (22)V/n, (23)D/p,
+   (24)N/oe.
  -}
 
-ccTags = ["S/s","O/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","N/a","P/a","D/a","Cv/a","Cn/a","A/n"]
+ccTags = ["S/s","P/s","O/s","N/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","N/a","P/a","D/a","Cv/a","Cn/a","A/n","P/n","V/n","D/p","N/oe"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ss | Os | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An deriving (Eq)
+data Rule = Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An | Pn | Vn | Dp | Noe deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
     show Ss = "S/s"
+    show Ps = "P/s"
     show Os = "O/s"
+    show Ns = "N/s"
     show As = "A/s"
     show Sv = "S/v"
     show Ov = "O/v"
@@ -262,6 +268,10 @@ instance Show Rule where
     show Cva = "Cv/a"
     show Cna = "Cn/a"
     show An = "A/n"
+    show Pn = "P/n"
+    show Vn = "V/n"
+    show Dp = "D/p"
+    show Noe = "N/oe"
 
 -- OnOff is the list of Rule members
 type OnOff = [Rule]
@@ -284,8 +294,12 @@ updateOnOff onOff rws
     | rws == [] = onOff
     | rw1 == "+S/s" = updateOnOff (ruleOn Ss onOff) rwt
     | rw1 == "-S/s" = updateOnOff (ruleOff Ss onOff) rwt
+    | rw1 == "+P/s" = updateOnOff (ruleOn Ps onOff) rwt
+    | rw1 == "-P/s" = updateOnOff (ruleOff Ps onOff) rwt
     | rw1 == "+O/s" = updateOnOff (ruleOn Os onOff) rwt
     | rw1 == "-O/s" = updateOnOff (ruleOff Os onOff) rwt
+    | rw1 == "+N/s" = updateOnOff (ruleOn Ns onOff) rwt
+    | rw1 == "-N/s" = updateOnOff (ruleOff Ns onOff) rwt
     | rw1 == "+A/s" = updateOnOff (ruleOn As onOff) rwt
     | rw1 == "-A/s" = updateOnOff (ruleOff As onOff) rwt
     | rw1 == "+S/v" = updateOnOff (ruleOn Sv onOff) rwt
@@ -318,6 +332,14 @@ updateOnOff onOff rws
     | rw1 == "-Cn/a" = updateOnOff (ruleOff Cna onOff) rwt
     | rw1 == "+A/n" = updateOnOff (ruleOn An onOff) rwt
     | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
+    | rw1 == "+P/n" = updateOnOff (ruleOn Pn onOff) rwt
+    | rw1 == "-P/n" = updateOnOff (ruleOff Pn onOff) rwt
+    | rw1 == "+V/n" = updateOnOff (ruleOn Vn onOff) rwt
+    | rw1 == "-V/n" = updateOnOff (ruleOff Vn onOff) rwt
+    | rw1 == "+D/p" = updateOnOff (ruleOn Dp onOff) rwt
+    | rw1 == "-D/p" = updateOnOff (ruleOff Dp onOff) rwt
+    | rw1 == "+N/oe" = updateOnOff (ruleOn Noe onOff) rwt
+    | rw1 == "-N/oe" = updateOnOff (ruleOff Noe onOff) rwt
     | otherwise = error $ "updateOnOff: Rule switch " ++ rw1 ++ " is not cognizable."
       where
         rw1 = head rws

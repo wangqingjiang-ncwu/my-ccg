@@ -5,12 +5,14 @@
 
 module Database (
   fromMySQLInt8,               -- MySQLValue (MySQLInt8) -> Int
+  fromMySQLInt16U,             -- MySQLValue (MySQLInt16U) -> Int
   fromMySQLInt32U,             -- MySQLValue (MySQLInt32U) -> Int
   fromMySQLInt32,              -- MySQLValue (MySQLInt32) -> Int
   fromMySQLText,               -- MySQLValue (MySQLText) -> String
   fromMySQLNullText,           -- MySQLValue (MySQLNull)-> String
   fromMySQLNullVarchar,        -- MySQLValue (MySQLNull) -> String
   toMySQLInt8,                 -- Int -> MySQLValue (MySQLInt8)
+  toMySQLInt16U,               -- Int -> MySQLValue (MySQLInt16U)
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
   toMySQLInt32,                -- Int -> MySQLValue (MySQLInt32)
   toMySQLText,                 -- String -> MySQLValue (MySQLText)
@@ -52,6 +54,10 @@ fromMySQLInt8 :: MySQLValue -> Int
 fromMySQLInt8 (MySQLInt8 a) = read (show a) :: Int
 fromMySQLInt8 _ = error "fromMySQLInt8: Parameter error."
 
+fromMySQLInt16U :: MySQLValue -> Int
+fromMySQLInt16U (MySQLInt16U a) = read (show a) :: Int
+fromMySQLInt16U _ = error "fromMySQLInt16U: Parameter error."
+
 fromMySQLInt32U :: MySQLValue -> Int
 fromMySQLInt32U (MySQLInt32U a) = read (show a) :: Int
 fromMySQLInt32U _ = error "fromMySQLInt32U: Parameter error."
@@ -78,6 +84,9 @@ fromMySQLNullVarchar _ = error "fromMySQLNullVarchar: Parameter error."
 
 toMySQLInt8 :: Int -> MySQLValue
 toMySQLInt8 v = MySQLInt8 (read (show v) :: Int8)
+
+toMySQLInt16U :: Int -> MySQLValue
+toMySQLInt16U v = MySQLInt16U (read (show v) :: Word16)
 
 toMySQLInt32U :: Int -> MySQLValue
 toMySQLInt32U v = MySQLInt32U (read (show v) :: Word32)

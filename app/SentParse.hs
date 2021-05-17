@@ -284,7 +284,7 @@ updateStruGene' gene overPairs = do
                                        "rightExtend = '" ++ show re ++ "' && " ++
                                           "overType = "  ++ show ot
     conn <- getConn
-    let sqlstat = read (show ("select id, prior from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+    let sqlstat = read (show ("select id, prior, hitCount, priorExCount from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
 
@@ -296,30 +296,35 @@ updateStruGene' gene overPairs = do
           else do
             let id = fromMySQLInt32U ((rows!!0)!!0)
             let prior = fromMySQLText ((rows!!0)!!1)
-            putStrLn $ "updateStruGene': (" ++ show id ++ ")Prior: " ++ prior
+            let hitCount = fromMySQLInt32U ((rows!!0)!!2)
+            let priorExCount = fromMySQLInt16U ((rows!!0)!!3)
+            putStrLn $ "updateStruGene': (" ++ show id ++ ") prior: " ++ prior ++ ", hitCount: " ++ show hitCount ++ ", priorExCount: " ++ show priorExCount
             putStr "Is the priority right? [y/n]: (RETURN for 'y') "
             input <- getLine
             if input == "y" || input == ""     -- Press key 'y' or directly press RETURN.
-              then
+              then do
+                resetStmt conn stmt
+                let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                stmt <- prepareStmt conn sqlstat
+                executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
                 return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
               else do
                 putStr "please input new priority [Lp/Rp]: (RETURN for 'Lp') "
                 newPrior <- getLine
-                if newPrior == "Lp" || newPrior == "Rp"
+                if (newPrior == "Lp" || newPrior == "Rp") && newPrior /= prior                   -- Ask to modify column 'prior'.
                   then do
                     resetStmt conn stmt
-                    let sqlstat = read (show ("update stru_gene set prior = ? where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
+--                    let sqlstat = read (show ("update stru_gene set prior = ? where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
+                    let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
                     stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText newPrior]   -- Update column 'prior' of structural gene.
+                    executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
                     return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
-                  else if newPrior == ""
+                  else if ((newPrior == "Lp" || newPrior == "Rp") && newPrior == prior) || (newPrior == "" && prior == "Lp")            -- Actually, the priority is not asked to change.
                          then do
                            resetStmt conn stmt
-
-                           let sqlstat = read (show ("update stru_gene set prior = ? where " ++ "leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
+                           let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
                            stmt <- prepareStmt conn sqlstat
-                           executeStmt conn stmt [toMySQLText "Lp"]       -- Update column 'prior' of structural gene.
-
+                           executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
                            return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                          else do
                            putStrLn "updateStruGene': Illegal priority"

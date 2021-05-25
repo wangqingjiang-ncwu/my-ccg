@@ -78,11 +78,16 @@ cateComb onOff pc1 pc2
       ctspaBysToO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp1, cate2 <- s_O, elem Os onOff]
       catesBysToO = [(fst5 cate, "O/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToO]
 
--- Use N/s only when meeting "<conjunction> s".
-      s_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N, elem Ns onOff]
+-- Use N/s only when meeting "<conjunction> s" or "s 的".
+      s_N1 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToN1 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N1, elem Ns onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == conjCate1]
+      s_N2 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
+      ctspaBysToN2 = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N2, cate2 <- csp_2, elem Ns onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, fst3 x == aux1Cate]
+      ctspaBysToN = ctspaBysToN1 ++ ctspaBysToN2
       catesBysToN = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN]
 
       s_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
@@ -180,7 +185,7 @@ cateComb onOff pc1 pc2
       a_Hn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
       ctspaByaToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_Hn, elem Hna onOff]
           where
-          csp_1 = removeDup [x| x<- csp1, fst3 x == adjCate]
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
       catesByaToHn = [(fst5 cate, "Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToHn]
 
       a_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]

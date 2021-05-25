@@ -166,7 +166,7 @@ getConn = do
 -- Get a connection to database 'ccg4c' with user 'wqj'.
 getConnByUserWqj :: IO MySQLConn
 getConnByUserWqj = connect defaultConnectInfo {
-    ciHost = "125.219.93.49",
+    ciHost = "125.219.93.62",
 --    ciHost = "127.0.0.1",
     ciUser = "wqj",
     ciPassword = "wqj",

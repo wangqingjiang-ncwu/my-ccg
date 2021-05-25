@@ -6,7 +6,7 @@
 module SentParse (
     getSentFromDB,        -- Int -> IO String
     getSent,              -- String -> IO [String]
-    parseSent,            -- Int -> [String] -> IO ()
+    parseSent,            -- Int -> Int -> [String] -> IO Bool
     goBackTo,             -- Int -> Int -> IO ()
     parseSent',           -- Int -> [String] -> IO ()
     storeClauseParsing,   -- Int -> Int -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
@@ -74,13 +74,19 @@ parseSent sn cs = do
       then do
         let ci = read clauIdx :: Int
         if ci < 1 || ci > length cs
-          then error $ "Clause " ++ show ci ++ " does not exist!"
+          then putStrLn $ "Clause " ++ show ci ++ " does not exist!"
           else do
             goBackTo sn ci                             -- Drop trees and scripts of clause <ci> and its subsequents.
-            parseSent' sn (ci - 1) (drop (ci - 1) cs)  -- Skip some clauses
+            finFlag <- parseSent' sn (ci - 1) (drop (ci - 1) cs)                -- Skip some clauses
+            if finFlag
+              then putStrLn "parseSent: Finished parsing."
+              else putStrLn "parseSent: Not finished parsing."
       else do
         goBackTo sn 1
-        parseSent' sn 0 cs
+        finFlag <- parseSent' sn 0 cs
+        if finFlag
+          then putStrLn "parseSent: Finished parsing."
+          else putStrLn "parseSent: Not finished parsing."
 
 -- To be ready for parsing from clause <ci>, modify attribute <tree> and <script> of entry <sn> in Table corpus.
 goBackTo :: Int -> Int -> IO ()
@@ -113,20 +119,30 @@ goBackTo sn ci = do
                else error $ "goBackTo: skip failed!"
 
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', and parameter 'skn' is the number of skipped clauses.
+ - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
  -}
-parseSent' :: Int -> Int -> [String] -> IO ()
-parseSent' _ _ [] = putStrLn ""
+parseSent' :: Int -> Int -> [String] -> IO Bool
+parseSent' _ _ [] = return True
 parseSent' sn skn cs = do
-    parseSent' sn skn (take (length cs - 1) cs)
+    finFlag <- parseSent' sn skn (take (length cs - 1) cs)
     let clauIdx = skn + length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
-    let nPCs = initPhraCate $ getNCate $ words (last cs)
-    putStr "Before parsing: "
-    showNPhraCate nPCs
-    putStr "Word semantic sequence: "
-    showNSeman nPCs
-    rtbPCs' <- parseClause [] nPCs []           -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
-    storeClauseParsing sn clauIdx rtbPCs'       -- Add the parsing result of this clause into database.
+    if finFlag                                                                  -- True means sentential parsing has been finished.
+      then do
+        let nPCs = initPhraCate $ getNCate $ words (last cs)
+        putStr "Before parsing: "
+        showNPhraCate nPCs
+        putStr "Word semantic sequence: "
+        showNSeman nPCs
+        rtbPCs' <- parseClause [] nPCs []                                       -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        if rtbPCs' == ([],[],[])
+          then return False                                                     -- False means the current clause is terminated manually.
+          else do
+            storeClauseParsing sn clauIdx rtbPCs'
+            return True                                                         -- Add the parsing result of this clause into database.
+      else do
+        putStrLn "  Skip!"
+        return False
 
 --  Add the parsing result of a clause into database. Now, parameter <clauIdx> has not been used for checking.
 storeClauseParsing :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
@@ -171,18 +187,21 @@ parseClause rules nPCs banPCs = do
     rtbPCs <- doTrans [] nPCs banPCs           -- Every trip of transition begins with empty rule set.
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
-    if nPCs /= (snd3 rtbPCs)
-      then parseClause (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
+    if rtbPCs == ([],[],[])
+      then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
+      else if nPCs /= (snd3 rtbPCs)
+        then parseClause (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
-      else do                                -- Phrasal closure has been formed.
-        putStrLn $ "Num. of phrasal categories in closure is '" ++ (show $ length nPCs)
-        showNPhraCate (sortPhraCateBySpan nPCs)
-        let spls = divPhraCateBySpan (nPCs)
-        putStrLn "  ##### Parsing Tree #####"
-        showTreeStru spls spls
-        return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+        else do                                -- Phrasal closure has been formed.
+          putStrLn $ "Num. of phrasal categories in closure is '" ++ (show $ length nPCs)
+          showNPhraCate (sortPhraCateBySpan nPCs)
+          let spls = divPhraCateBySpan (nPCs)
+          putStrLn "  ##### Parsing Tree #####"
+          showTreeStru spls spls
+          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
 
 {- Do a trip of transition, insert or update related structural genes in Table stru_gene, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
+ - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
 doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
@@ -223,12 +242,12 @@ doTrans onOff nPCs banPCs = do
                  else if transOk == "n"
                         then doTrans onOff nPCs banPCs      -- Redo this trip of transition.
                         else if transOk == "e"
-                               then error "doTrans: Exit."
+                               then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
                                else do
                                  putStrLn "Please input 'y', 'n', or 'e'!"
                                  doTrans onOff nPCs banPCs
              else if ruleSwitchOk == "e"
-                    then error "doTrans: Exit."
+                    then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
                     else do
                       putStrLn "Please input 'y', 'n', or 'e'!"
                       doTrans onOff nPCs banPCs
@@ -319,16 +338,23 @@ updateStruGene' gene overPairs = do
                     stmt <- prepareStmt conn sqlstat
                     executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
                     return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
-                  else if ((newPrior == "Lp" || newPrior == "Rp") && newPrior == prior) || (newPrior == "" && prior == "Lp")            -- Actually, the priority is not asked to change.
+                  else if newPrior == prior || (newPrior == "" && prior == "Lp")            -- Actually, the priority is not asked to change.
                          then do
                            resetStmt conn stmt
                            let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
                            stmt <- prepareStmt conn sqlstat
                            executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
                            return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
-                         else do
-                           putStrLn "updateStruGene': Illegal priority"
-                           updateStruGene' gene overPairs        -- Calling the function itself again.
+                         else if newPrior == "" && prior /= "Lp"                      -- The priority changes from 'Rp' to 'Lp' when pressing Key RETURN.
+                                then do
+                                  resetStmt conn stmt
+                                  let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                  stmt <- prepareStmt conn sqlstat
+                                  executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update 'prior', 'hitCount', and 'priorExCount' of the gene.
+                                  return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
+                                else do
+                                  putStrLn "updateStruGene': Illegal priority"
+                                  updateStruGene' gene overPairs        -- Calling the function itself again.
       else do
         putStr "Inquire failed, skip? [y/n]: (RETURN for 'y') "
         input <- getLine
@@ -426,7 +452,7 @@ parseSentWithoutPruning sn rules cs = do
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
    of transition to be executed, the third parameter is [Rule] value, where Rule::= Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv
-   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An | Pn | Vn | D/p | Noe. The fourth parameter is word-category string of this clause.
+   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An | Pn | Vn | Dp | Noe. The fourth parameter is word-category string of this clause.
  -}
 
 parseClauseWithoutPruning :: Int -> Int -> [Rule] -> [PhraCate] -> IO ()

@@ -53,7 +53,7 @@ login n = do
     putStr " Password: "
     password <- getLine
 
-    conn <- getConnByUserWqj
+    conn <- getConn
     stmt <- prepareStmt conn "select * from user where name = ? && password = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLText username, toMySQLText password]   --([ColumnDef], InputStream [MySQLValue])
     row <- S.read is

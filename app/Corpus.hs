@@ -127,7 +127,7 @@ posCate = [("n","np"),
            ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
-           ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np|(s\\.np)/#(s\\.np)"),
+           ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
            ("c","(X\\*X)/*X|X/*X"),
            ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|X\\*X"),
            ("u1","(np/*np)\\*np"),                     -- 的

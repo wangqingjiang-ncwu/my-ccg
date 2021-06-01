@@ -350,7 +350,7 @@ updateStruGene' gene overPairs = do
                                   resetStmt conn stmt
                                   let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
                                   stmt <- prepareStmt conn sqlstat
-                                  executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update 'prior', 'hitCount', and 'priorExCount' of the gene.
+                                  executeStmt conn stmt [toMySQLText "Lp", toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update 'prior', 'hitCount', and 'priorExCount' of the gene.
                                   return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                                 else do
                                   putStrLn "updateStruGene': Illegal priority"

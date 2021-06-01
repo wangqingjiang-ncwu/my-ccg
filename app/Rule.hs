@@ -179,7 +179,8 @@ comBc cate1 cate2
 raiFh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiFh cate1 cate2
     | isPrimitive ca2 || isPrimitive lcate2 || isX lcate2 = (nilCate, ">T->B", "", "", False)
-    | isAvail && (ca2 == getCateFromString "(s\\.np)/.np" || ca2 == getCateFromString "((s\\.np)/.np)/.np") = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "OE", True)
+    | isAvail && (ca2 == verbCate || ca2 == verbCate2) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "OE", True)
+--  | isAvail && ca2 == adverbalCate = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "PE", True)
     | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">T->B", "", "", False)
     where

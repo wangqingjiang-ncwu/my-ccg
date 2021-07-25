@@ -35,8 +35,8 @@ module Category (
     adverbalCate,  -- Category, "(s\.np)/#(s\.np)"
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
-    adj2VerbCompCate,     -- Category, "(s\.np)\x(s\.np)"
-    adj2NounCompCate,     -- Category, "np\*np"
+    verbCompCate,         -- Category, "(s\.np)\x(s\.np)"
+    nounCompCate,         -- Category, "np\*np"
     quantityCate,         -- Category, "np/*np"
     objectExtractionCate, -- Category, "s/.np"
     aux1Cate,             -- Category, "(np/*np)\*np"
@@ -47,7 +47,9 @@ module Category (
     aux6Cate,             -- Caregory, "np/*((s\.np)/.np)"
     conjCate1,            -- Category, "(X\*X)/*X"
     conjCate2,            -- Category, "X\*X"
-    conjCate3             -- Category, "X/*X"
+    conjCate3,            -- Category, "X/*X"
+    prefixCate,           -- Category, "np/*np"
+    postfixCate           -- Category, "np\*np"
     ) where
 
 type Slash = String
@@ -242,11 +244,11 @@ prep2AdvCate = getCateFromString "((s\\.np)/#(s\\.np))/*np"
 prep2CompCate :: Category
 prep2CompCate = getCateFromString "((s\\.np)\\x(s\\.np))/*np"
 
-adj2VerbCompCate :: Category
-adj2VerbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
+verbCompCate :: Category
+verbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
 
-adj2NounCompCate :: Category
-adj2NounCompCate = getCateFromString "np\\*np"
+nounCompCate :: Category
+nounCompCate = getCateFromString "np\\*np"
 
 quantityCate :: Category
 quantityCate = getCateFromString "np/*np"
@@ -289,3 +291,11 @@ conjCate2 = getCateFromString "X\\*X"
 -- Inter-clause conjunction
 conjCate3 :: Category
 conjCate3 = getCateFromString "X/*X"
+
+-- Prefix words are '第'、'阿'、'初'
+prefixCate :: Category
+prefixCate = getCateFromString "np/*np"
+
+-- Postfix words are '者'、'们'、'性'、'儿'
+postfixCate :: Category
+postfixCate = getCateFromString "np\\*np"

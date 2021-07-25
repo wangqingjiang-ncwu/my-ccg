@@ -81,8 +81,9 @@ appF cate1 cate2
 appB :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 appB cate1 cate2
     | isPrimitive ca2 = (nilCate, "<", "", "", False)
-    | ca2 == getCateFromString "X\\*X" = (ca1, "<", semComb se2 se1, "U5P", True)
-    | isAvail && cn2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
+    | ca2 == getCateFromString "X\\*X" && ps1 == "XX" = (ca1, "<", semComb se2 se1, "U5P", True)
+    | ca2 == getCateFromString "X\\*X" =  (ca1, "<", semComb se2 se1, "TP", True)
+    | isAvail && ps2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
     | isAvail && (ca1 == quantityCate || ca1 == adjCate) = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolted!
@@ -90,15 +91,15 @@ appB cate1 cate2
     | isAvail && ca1 == npCate && cateEqual ca2 (getCateFromString "np\\.np") = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
     | isAvail && cateEqual ca2 (getCateFromString "(s\\.np)\\x(s\\.np)") = (leftCate ca2, "<", semComb se2 se1, "HvC", True)
     | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb se2 se1, "U2P", True)
-    | isAvail && cateEqual ca2 (getCateFromString "s\\*s") =  (leftCate ca2, "<", semComb se2 se1, "EM", True)
     | isAvail =  (leftCate ca2, "<", semComb se2 se1, "NR", True)
     | otherwise = (nilCate, "<", "", "", False)
     where
     ca1 = fst3 cate1
     se1 = snd3 cate1
+    ps1 = thd3 cate1
     ca2 = fst3 cate2
     se2 = snd3 cate2
-    cn2 = thd3 cate2
+    ps2 = thd3 cate2
     isAvail = head (midSlash ca2) == '\\' && (rightCate ca2 == ca1 || rightCate ca2 == xCate)
 
 -- CCG forward harmonic composition, like X/Y Y/Z -> X/Z.
@@ -175,12 +176,12 @@ comBc cate1 cate2
     isAvail = (midSlash ca1 == "/x" || midSlash ca1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && leftCate ca1 == rightCate ca2
 
 -- CCG Forward type raising and harmonic composition: X (Y\X)/Z -> Y/(Y\X) (Y\X)/Z -> Y/Z
--- To now, the rule is only used for objective extraction.
+-- To now, the rule is only used for objective extraction and predicate extraction.
 raiFh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiFh cate1 cate2
     | isPrimitive ca2 || isPrimitive lcate2 || isX lcate2 = (nilCate, ">T->B", "", "", False)
     | isAvail && (ca2 == verbCate || ca2 == verbCate2) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "OE", True)
---  | isAvail && ca2 == adverbalCate = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "PE", True)
+    | isAvail && ca2 == adverbalCate = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "PE", True)
     | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">T->B", "", "", False)
     where
@@ -235,17 +236,17 @@ raiBc cate1 cate2
 
 {- All tags of context-sensitive category-converted rules:
    (1)S/s, (2)P/s, (3)O/s, (4)N/s, (5)A/s, (6)S/v, (7)O/v, (8)A/v, (9)Hn/v, (10)N/v, (11)D/v, (12)S/a,
-   (13)O/a, (14)Hn/a, (15)N/a, (16)P/a, (17)D/a, (18)Cv/a, (19)Cn/a, (20)A/n, (21)P/n, (22)V/n, (23)D/p,
-   (24)N/oe.
+   (13)O/a, (14)Hn/a, (15)N/a, (16)P/a, (17)D/a, (18)Cv/a, (19)Cn/a, (20)A/n, (21)P/n, (22)V/n, (23)Cn/n,
+   (24)D/p, (25)N/oe.
  -}
 
-ccTags = ["S/s","P/s","O/s","N/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","N/a","P/a","D/a","Cv/a","Cn/a","A/n","P/n","V/n","D/p","N/oe"]
+ccTags = ["S/s","P/s","O/s","N/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","S/a","O/a","Hn/a","N/a","P/a","D/a","Cv/a","Cn/a","A/n","P/n","V/n","Cn/n","D/p","N/oe"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An | Pn | Vn | Dp | Noe deriving (Eq)
+data Rule = Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv | Nv | Dv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | An | Pn | Vn | Cnn | Dp | Noe deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -265,12 +266,14 @@ instance Show Rule where
     show Hna = "Hn/a"
     show Na = "N/a"
     show Pa = "P/a"
+    show Va = "V/a"
     show Da = "D/a"
     show Cva = "Cv/a"
     show Cna = "Cn/a"
     show An = "A/n"
     show Pn = "P/n"
     show Vn = "V/n"
+    show Cnn = "Cn/n"
     show Dp = "D/p"
     show Noe = "N/oe"
 
@@ -325,6 +328,8 @@ updateOnOff onOff rws
     | rw1 == "-N/a" = updateOnOff (ruleOff Na onOff) rwt
     | rw1 == "+P/a" = updateOnOff (ruleOn Pa onOff) rwt
     | rw1 == "-P/a" = updateOnOff (ruleOff Pa onOff) rwt
+    | rw1 == "+V/a" = updateOnOff (ruleOn Va onOff) rwt
+    | rw1 == "-V/a" = updateOnOff (ruleOff Va onOff) rwt
     | rw1 == "+D/a" = updateOnOff (ruleOn Da onOff) rwt
     | rw1 == "-D/a" = updateOnOff (ruleOff Da onOff) rwt
     | rw1 == "+Cv/a" = updateOnOff (ruleOn Cva onOff) rwt
@@ -337,6 +342,8 @@ updateOnOff onOff rws
     | rw1 == "-P/n" = updateOnOff (ruleOff Pn onOff) rwt
     | rw1 == "+V/n" = updateOnOff (ruleOn Vn onOff) rwt
     | rw1 == "-V/n" = updateOnOff (ruleOff Vn onOff) rwt
+    | rw1 == "+Cn/n" = updateOnOff (ruleOn Cnn onOff) rwt
+    | rw1 == "-Cn/n" = updateOnOff (ruleOff Cnn onOff) rwt
     | rw1 == "+D/p" = updateOnOff (ruleOn Dp onOff) rwt
     | rw1 == "-D/p" = updateOnOff (ruleOff Dp onOff) rwt
     | rw1 == "+N/oe" = updateOnOff (ruleOn Noe onOff) rwt

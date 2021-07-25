@@ -126,16 +126,17 @@ posCate = [("n","np"),
            ("m","np/*np"),
            ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
            ("r","np"),
-           ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
+           ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)|s/*s"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
            ("c","(X\\*X)/*X|X/*X"),
-           ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|X\\*X"),
+           ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|(np/.np)\\*(np/.np)|X\\*X"),
            ("u1","(np/*np)\\*np"),                     -- 的
            ("u2","((s\\.np)/#(s\\.np))\\*(np/.np)"),   -- 地
            ("u3","((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"),   -- 得
            ("u4","(s\\.np)\\x(s\\.np)"),               -- 着、了、过
            ("u5","X\\*X"),                             -- 等、似的
-           ("u6","np/*((s\\.np)/.np)"),                 -- 所
+           ("u6","np/*((s\\.np)/.np)"),                -- 所
+           ("y","X\\*X"),                              -- 语气词，吗、呢、了、...
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -173,6 +174,7 @@ posCate = [("n","np"),
    HmC: Numeral (headword)-complement phrase
    VO: Verb-object phrase
    OE: Object extraction phrase
+   PE: Predicate extraction phrase, such as "我在力所能及的范围内，做好自己的工作。"
    U1P: 1-auxiliary word phrase, namely with '的' as end
    U2P: 2-auxiliary word phrase, namely with '地' as end
    U3P: 3-auxiliary word phrase, namely with '得' as end
@@ -181,6 +183,7 @@ posCate = [("n","np"),
    U6P: 6-auxiliary word phrase, namely with '所' as head
    PO: Preposition object phrase
    SP: Subject-predicate phrase
+   TP: Tone Phrase
    EM: Exclamation mood
    DE: Word, also considered as primitive phrase. "DE" means artificial designation.
    NR: Not recognizable phrase
@@ -188,7 +191,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","EM","DE","NR"]
+phraStruList =  ["MQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -507,14 +510,16 @@ readRule str
     | str == "Hn/a" = Hna      -- 14
     | str == "N/a" = Na        -- 15
     | str == "P/a" = Pa        -- 16
-    | str == "D/a" = Da        -- 17
-    | str == "Cv/a" = Cva      -- 18
-    | str == "Cn/a" = Cna      -- 19
-    | str == "A/n" = An        -- 20
-    | str == "P/n" = Pn        -- 21
-    | str == "V/n" = Vn        -- 22
-    | str == "D/p" = Dp        -- 23
-    | str == "N/oe" = Noe      -- 24
+    | str == "V/a" = Va        -- 17
+    | str == "D/a" = Da        -- 18
+    | str == "Cv/a" = Cva      -- 19
+    | str == "Cn/a" = Cna      -- 20
+    | str == "A/n" = An        -- 21
+    | str == "P/n" = Pn        -- 22
+    | str == "V/n" = Vn        -- 23
+    | str == "Cn/n" = Cnn      -- 24
+    | str == "D/p" = Dp        -- 25
+    | str == "N/oe" = Noe      -- 26
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

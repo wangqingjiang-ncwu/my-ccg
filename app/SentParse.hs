@@ -54,14 +54,20 @@ getSentFromDB sn = do
 -- Split a sentence into clauses.
 getSent :: String -> IO [String]
 getSent sent
-    | endswith " \12290:" sent'' = return $ split " \65292: " $ replace " \12290:" "" sent''                  -- \12290 is Chinese perio.
+    | endswith " \12290:" sent'' = return $ split " \65292: " $ replace " \12290:" "" sent''
+          -- \12290 is Chinese period.
           -- If Chinese comma has part-of-speech 'c', the comma ',' will be followed by "(X\*X)/*X" instead of "".
           -- So Chinese commas without syntactic types are seperators of clauses.
+    | endswith " \65311:" sent'' = return $ split " \65292: " $ replace " \65311:" "" sent''
+          -- \65311 is Chinese question mark, which is not considered now.
     | otherwise = return $ split " \65292: " sent''
     where
-      sent' = lstrip $ rstrip sent           -- Strip whitespaces at left and right ends.
-      sent'' = replace "\65306" "\65292" $ replace "\65307" "\65292" sent'     -- Replace ';' or ':' with ','
+      sent' =  replace "\12299:" "" $ replace "\12298:" "" $ replace "\":" "" sent
+                     -- Remove Chinese book title mark '<<', '>>', and Chinese double quotation mark '"', then strip whitespaces at left and right ends.
+      sent'' = lstrip $ rstrip $ replace "\"" "" $ replace "\65306" "\65292" $ replace "\65307" "\65292" sent'
+                     -- Replace ';' or ':' with ',' then remove '"'.
                      -- \65306 is Chinese colon, \65307 is Chinese semicolon, and \65292 is Chinese comma.
+                     -- MySQL value "\"\"" stores one Chinese double quotation mark '"', which should be removed.
 
 {- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'.
  -}
@@ -76,20 +82,26 @@ parseSent sn cs = do
         if ci < 1 || ci > length cs
           then putStrLn $ "Clause " ++ show ci ++ " does not exist!"
           else do
-            goBackTo sn ci                             -- Drop trees and scripts of clause <ci> and its subsequents.
-            finFlag <- parseSent' sn (ci - 1) (drop (ci - 1) cs)                -- Skip some clauses
+            gbtFlag <- goBackTo sn ci                             -- Drop trees and scripts of clause <ci> and its subsequents.
+            if gbtFlag
+              then do
+                finFlag <- parseSent' sn (ci - 1) (drop (ci - 1) cs)            -- Skip some clauses
+                if finFlag
+                  then putStrLn "parseSent: Finished parsing."
+                  else putStrLn "parseSent: Not finished parsing."
+              else putStrLn "parseSent: Parsing was cancelled."                 -- goBackTo failed, return upper layer calling.
+      else do
+        gbtFlag <- goBackTo sn 1
+        if gbtFlag
+          then do
+            finFlag <- parseSent' sn 0 cs
             if finFlag
               then putStrLn "parseSent: Finished parsing."
               else putStrLn "parseSent: Not finished parsing."
-      else do
-        goBackTo sn 1
-        finFlag <- parseSent' sn 0 cs
-        if finFlag
-          then putStrLn "parseSent: Finished parsing."
-          else putStrLn "parseSent: Not finished parsing."
+          else putStrLn "parseSent: Parsing was cancelled."                     -- goBackTo failed, return upper layer calling.
 
 -- To be ready for parsing from clause <ci>, modify attribute <tree> and <script> of entry <sn> in Table corpus.
-goBackTo :: Int -> Int -> IO ()
+goBackTo :: Int -> Int -> IO Bool
 goBackTo sn ci = do
     conn <- getConn
     stmt <- prepareStmt conn "select tree, script from corpus where serial_num = ?"
@@ -106,17 +118,25 @@ goBackTo sn ci = do
     let scripts = readScripts $ fromMySQLText (last row')
 
     if length trees + 1 < ci
-      then error $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
+      then do
+        putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
+        return False
       else if length trees + 1 == ci
-             then putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+             then do
+               putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+               return True
              else do
                let trees' = take (ci - 1) trees
                let scripts' = take (ci - 1) scripts
                stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
                ok <- executeStmt conn stmt' [toMySQLText (show (nTreeToString trees')), toMySQLText (show (nScriptToString scripts')), toMySQLInt32 sn]
                if (getOkAffectedRows ok == 1)
-               then putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
-               else error $ "goBackTo: skip failed!"
+               then do
+                 putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+                 return True
+               else do
+                 putStrLn $ "goBackTo: skip failed!"
+                 return False
 
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', and parameter 'skn' is the number of skipped clauses.
  - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
@@ -210,10 +230,10 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"A/n\", \"P/n\", \"V/n\", \"D/p\", and \"N/oe\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/p\", and \"N/oe\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "D/a", "Cv/a", "Cn/a", "A/n", "P/n", "V/n", "D/p", "N/oe"]]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "A/n", "P/n", "V/n", "Cn/n", "D/p", "N/oe"]]
            then do
              let newOnOff = updateOnOff onOff rws
              doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
@@ -452,7 +472,7 @@ parseSentWithoutPruning sn rules cs = do
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
    of transition to be executed, the third parameter is [Rule] value, where Rule::= Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv
-   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Da | Cva | Cna | An | Pn | Vn | Dp | Noe. The fourth parameter is word-category string of this clause.
+   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | An | Pn | Vn | Cnn | Dp | Noe. The fourth parameter is word-category string of this clause.
  -}
 
 parseClauseWithoutPruning :: Int -> Int -> [Rule] -> [PhraCate] -> IO ()

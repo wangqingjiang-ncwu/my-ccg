@@ -37,7 +37,9 @@ module Category (
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
     verbCompCate,         -- Category, "(s\.np)\x(s\.np)"
     nounCompCate,         -- Category, "np\*np"
-    quantityCate,         -- Category, "np/*np"
+    adjCompCate,          -- Category, "(np/.np)\*(np/.np)"
+    numeralCate,          -- Category, "np/*np"
+    quantifierCate,       -- Category, "(np/*np)\*(np/*np)"
     objectExtractionCate, -- Category, "s/.np"
     aux1Cate,             -- Category, "(np/*np)\*np"
     aux2Cate,             -- Category, "((s\.np)/#(s\.np))\*(np/.np)"
@@ -250,8 +252,14 @@ verbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
 nounCompCate :: Category
 nounCompCate = getCateFromString "np\\*np"
 
-quantityCate :: Category
-quantityCate = getCateFromString "np/*np"
+adjCompCate :: Category
+adjCompCate = getCateFromString "(np/.np)\\*(np/.np)"
+
+numeralCate :: Category
+numeralCate = getCateFromString "np/*np"
+
+quantifierCate :: Category
+quantifierCate = getCateFromString "(np/*np)\\*(np/*np)"
 
 objectExtractionCate :: Category
 objectExtractionCate = getCateFromString "s/.np"

@@ -62,8 +62,9 @@ getSent sent
           -- \65311 is Chinese question mark, which is not considered now.
     | otherwise = return $ split " \65292: " sent''
     where
-      sent' =  replace "\12299:" "" $ replace "\12298:" "" $ replace "\":" "" sent
-                     -- Remove Chinese book title mark '<<', '>>', and Chinese double quotation mark '"', then strip whitespaces at left and right ends.
+      sent' =  replace " \12298:" "" $ replace " \12299:" "" $ replace " \":" "" $ replace " \8220:" "" $ replace " \8221:" "" sent
+                     -- Remove Chinese book title mark '<<' and '>>', English double quotation mark '"', and Chinese double quotation mark '“' and '”',
+                     -- then strip whitespaces at left and right ends.
       sent'' = lstrip $ rstrip $ replace "\"" "" $ replace "\65306" "\65292" $ replace "\65307" "\65292" sent'
                      -- Replace ';' or ':' with ',' then remove '"'.
                      -- \65306 is Chinese colon, \65307 is Chinese semicolon, and \65292 is Chinese comma.
@@ -129,7 +130,7 @@ goBackTo sn ci = do
                let trees' = take (ci - 1) trees
                let scripts' = take (ci - 1) scripts
                stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
-               ok <- executeStmt conn stmt' [toMySQLText (show (nTreeToString trees')), toMySQLText (show (nScriptToString scripts')), toMySQLInt32 sn]
+               ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
                if (getOkAffectedRows ok == 1)
                then do
                  putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
@@ -191,6 +192,7 @@ storeClauseParsing sn clauIdx rtbPCs = do
     stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
     ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
     let rn = getOkAffectedRows ok
+    close conn
     if (rn /= 0)
       then putStrLn $ "storeClauseParsing: " ++ show rn ++ " row(s) were modified."
       else error "storeClauseParsing: update failed!"
@@ -213,7 +215,7 @@ parseClause rules nPCs banPCs = do
         then parseClause (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
-          putStrLn $ "Num. of phrasal categories in closure is '" ++ (show $ length nPCs)
+          putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
           showNPhraCate (sortPhraCateBySpan nPCs)
           let spls = divPhraCateBySpan (nPCs)
           putStrLn "  ##### Parsing Tree #####"
@@ -230,10 +232,10 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/p\", and \"N/oe\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/p\", \"N/oe\", \"A/q\", and \"N/d\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "A/n", "P/n", "V/n", "Cn/n", "D/p", "N/oe"]]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/p", "N/oe", "A/q", "N/d"]]
            then do
              let newOnOff = updateOnOff onOff rws
              doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
@@ -331,7 +333,9 @@ updateStruGene' gene overPairs = do
     if rows /= []
       then
         if length rows > 1
-          then error "updateStruGene': Find duplicate structural genes."
+          then do
+            close conn                           -- Close MySQL connection.
+            error "updateStruGene': Find duplicate structural genes."
           else do
             let id = fromMySQLInt32U ((rows!!0)!!0)
             let prior = fromMySQLText ((rows!!0)!!1)
@@ -340,12 +344,13 @@ updateStruGene' gene overPairs = do
             putStrLn $ "updateStruGene': (" ++ show id ++ ") prior: " ++ prior ++ ", hitCount: " ++ show hitCount ++ ", priorExCount: " ++ show priorExCount
             putStr "Is the priority right? [y/n]: (RETURN for 'y') "
             input <- getLine
-            if input == "y" || input == ""     -- Press key 'y' or directly press RETURN.
+            if input == "y" || input == ""       -- Press key 'y' or directly press RETURN.
               then do
                 resetStmt conn stmt
                 let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
                 stmt <- prepareStmt conn sqlstat
                 executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
+                close conn                       -- Close MySQL connection.
                 return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
               else do
                 putStr "please input new priority [Lp/Rp]: (RETURN for 'Lp') "
@@ -356,7 +361,9 @@ updateStruGene' gene overPairs = do
 --                    let sqlstat = read (show ("update stru_gene set prior = ? where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = "  ++ otv)) :: Query
                     let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
                     stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
+                    executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
+                                                                                -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
+                    close conn                                                  -- Close MySQL connection.
                     return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
                   else if newPrior == prior || (newPrior == "" && prior == "Lp")            -- Actually, the priority is not asked to change.
                          then do
@@ -364,13 +371,16 @@ updateStruGene' gene overPairs = do
                            let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
                            stmt <- prepareStmt conn sqlstat
                            executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
+                           close conn                                                 -- Close MySQL connection.
                            return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                          else if newPrior == "" && prior /= "Lp"                      -- The priority changes from 'Rp' to 'Lp' when pressing Key RETURN.
                                 then do
                                   resetStmt conn stmt
                                   let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
                                   stmt <- prepareStmt conn sqlstat
-                                  executeStmt conn stmt [toMySQLText "Lp", toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]     -- Update 'prior', 'hitCount', and 'priorExCount' of the gene.
+                                  executeStmt conn stmt [toMySQLText "Lp", toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
+                                                                                -- Update 'prior', 'hitCount', and 'priorExCount' of the gene.
+                                  close conn                                    -- Close MySQL connection.
                                   return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                                 else do
                                   putStrLn "updateStruGene': Illegal priority"
@@ -390,6 +400,7 @@ updateStruGene' gene overPairs = do
                 stmt1 <- prepareStmt conn sqlstat
                 oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
                 putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+                close conn                                   -- Close MySQL connection.
                 return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
               else if newPrior == ""
                 then do
@@ -397,6 +408,7 @@ updateStruGene' gene overPairs = do
                   stmt2 <- prepareStmt conn sqlstat
                   oks <- executeStmt conn stmt2 []           -- Insert the described structural gene.
                   putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+                  close conn                                                    -- Close MySQL connection.
                   return ((snd5 gene, thd5 gene, read "Lp"::Prior):overPairs)
                 else do
                   putStrLn "updateStruGene': Illegal priority"
@@ -412,9 +424,10 @@ storeTree sn treeStr = do
     conn <- getConn
     stmt <- prepareStmt conn "update corpus set tree = ? where serial_num = ?"
     ok <- executeStmt conn stmt [toMySQLText newTree, toMySQLInt32 sn]
+    close conn
     if (getOkAffectedRows ok == 1)
-    then putStrLn "storeTree: succeeded."
-    else error "storeTree: failed!"
+      then putStrLn "storeTree: succeeded."
+      else error "storeTree: failed!"
 
 -- Read the tree String of designated sentence in Table corpus.
 readTree_String :: Int -> IO String
@@ -472,7 +485,7 @@ parseSentWithoutPruning sn rules cs = do
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
    of transition to be executed, the third parameter is [Rule] value, where Rule::= Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv
-   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | An | Pn | Vn | Cnn | Dp | Noe. The fourth parameter is word-category string of this clause.
+   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dp | Noe | Aq | Nd. The fourth parameter is word-category string of this clause.
  -}
 
 parseClauseWithoutPruning :: Int -> Int -> [Rule] -> [PhraCate] -> IO ()
@@ -526,8 +539,12 @@ storeClauseParsingWithoutPruning sn (nPCs, forest) = do
     ok <- executeStmt conn stmt' [toMySQLText (nClosureToString nClosure'), toMySQLText (nForestToString nForest'), toMySQLInt32 sn]
     let rn = getOkAffectedRows ok
     if (rn == 1)
-      then putStrLn $ "storeClauseParsingWithoutPruning: " ++ show rn ++ " row(s) were modified."
-      else error "storeClauseParsingWithoutPruning: update failed!"
+      then do
+        putStrLn $ "storeClauseParsingWithoutPruning: " ++ show rn ++ " row(s) were modified."
+        close conn
+      else do
+        close conn
+        error "storeClauseParsingWithoutPruning: update failed!"
 
 {- Get statistics on a phrasal set, including
    (1) Total number of atomized phrasal categories;

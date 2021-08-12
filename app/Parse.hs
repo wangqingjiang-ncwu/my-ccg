@@ -100,7 +100,7 @@ cateComb onOff pc1 pc2
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, and non-inflectionship
    of Chinese words, the following syntax-typed conversions exist,
-   S/s, P/s, O/s, N/s, A/s, S/v, O/v, A/v, Hn/v, N/v, D/v, S/a, O/a, Hn/a, N/a, P/a, V/a, D/a, Cv/a, Cn/a, A/n, P/n, V/n, Cn/n, D/p and N/oe.
+   S/s, P/s, O/s, N/s, A/s, S/v, O/v, A/v, Hn/v, N/v, D/v, S/a, O/a, Hn/a, N/a, P/a, V/a, D/a, Cv/a, Cn/a, A/n, P/n, V/n, Cn/n, D/p, N/oe, A/q, N/d.
    Besides, two adjacent syntactic types can convert to their new types respectively and simultaneously,
    such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-typed combination is
    labelled as "S/v-"++<tag>, "O/v-"++<tag>, "A/v-"++<tag>, and so on. Now, type conversions only happen in
@@ -122,7 +122,7 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate2)]
       catesByvToO = [(fst5 cate, "O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToO]
 
-{- The conversion from verb to adjective happens when the verb occupies attribute position or be next to
+{- The conversion from verbal types to np/.np happens when the verb occupies attribute position or be next to
    No.1 auxiliary word of the right.
  -}
       v_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
@@ -266,12 +266,24 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
       catesByaToCn = [(fst5 cate, "Cn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCn]
 
--- The conversion from noun to adjective is ONLY allowed when nouns act as attribute.
--- Now auxiliary words preferably has only typical syntactic type, as for '的'， its typical syntactic type is (np/*np)\*np.
+{- The category conversion from np/.np to (np/.np)\*(np/.np) happens when np/.np (adjective classic type) complemently modify np/.np (adjective or numeral).
+ - For examples, "好a 多a 了", and "二十m 多a 元q 钱n".
+ -}
+      a_Ca = removeDup [(adjCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToCa = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Ca, elem Caa onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
+      catesByaToCa = [(fst5 cate, "Ca/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCa]
+
+-- The conversion from 'np' to 'np/.np' is ONLY allowed when nouns act as attribute or pronouns are followed by quantifiers.
       n_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+      ctspaBynToA1 = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      ctspaBynToA2 = [rule cate1 cate2 | rule <- [appB], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == quantifierCate]
+      ctspaBynToA = ctspaBynToA1 ++ ctspaBynToA2
       catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
 
 -- The conversion from noun to predicate is ONLY allowed when the noun acts as predicate.
@@ -302,13 +314,32 @@ cateComb onOff pc1 pc2
           csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
       catesBypToD = [(fst5 cate, "D/p-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBypToD]
 
-{- The conversion from object-extractioned type (s/.np) to nominal constituent is ONLY allowed when '的' follows，whose typical syntactic type is (np/*np)\*np.
+{- The conversion from object-extractioned type (s/.np) to nominal constituent is ONLY allowed when '的' follows，whose typical syntactic type is (np/*np)\*np,
+ - or noun completment follows, whose typical syntactic type is np\*np.
  -}
       oe_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == objectExtractionCate]
       ctspaByoeToN = [rule cate1 cate2 | rule <- [appB], cate1 <- oe_N, cate2 <- csp_2, elem Noe onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate || fst3 x == nounCompCate]
       catesByoeToN = [(fst5 cate, "N/oe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByoeToN]
+
+{- The conversion from quantifier type (np/*np)\*(np/*np) to adjective type np/*np is ONLY allowed when a noun follows.
+ - Actually, the conversion is used only when there is no numeral to the left.
+ - If the context detection is implemented, the stntactic ambiguity can be restricted further.
+ -}
+      q_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == quantifierCate]
+      ctspaByqToA = [rule cate1 cate2 | rule <- [appF], cate1 <- q_A, cate2 <- csp_2, elem Aq onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      catesByqToA = [(fst5 cate, "A/q-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByqToA]
+
+{- The conversion from adverbal type (s\.np)/#(s\.np) to noun type np is ONLY allowed when an auxiliary word '的' follows.
+ -}
+      d_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == adverbalCate]
+      ctspaBydToN = [rule cate1 cate2 | rule <- [appB], cate1 <- d_N, cate2 <- csp_2, elem Nd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
+      catesBydToN = [(fst5 cate, "N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToN]
 
 {- The two adjacent types "np np/.np" convert to "np/.np np", forming structure AHn, here noun-to-adjective and
    adjective-to-noun conversions happen simultaneously.
@@ -355,11 +386,11 @@ cateComb onOff pc1 pc2
 -- The categories gotten by all rules.
       cates = catesBasic ++ catesBysToS ++ catesBysToP ++ catesBysToO ++ catesBysToN ++ catesBysToA ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn
         ++ catesByvToN ++ catesByvToD ++ catesByaToS ++ catesByaToO ++ catesByaToHn ++ catesByaToN ++ catesByaToP ++ catesByaToV++ catesByaToD
-        ++ catesByaToCv ++ catesByaToCn ++ catesBynToA ++ catesBynToP ++ catesBynToV ++ catesBynToCn ++ catesBypToD ++ catesByoeToN ++ catesBynToA_aToHn
-        ++ catesBynToA_vToHn ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesBynToV_vToO
+        ++ catesByaToCv ++ catesByaToCn ++ catesByaToCa ++ catesBynToA ++ catesBynToP ++ catesBynToV ++ catesBynToCn ++ catesBypToD ++ catesByoeToN ++ catesByqToA
+        ++ catesBydToN ++ catesBynToA_aToHn ++ catesBynToA_vToHn ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesBynToV_vToO
 
     -- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
-      rcs = removeDup [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]
+      rcs = [rc | rc <- cates, fst5 rc /= nilCate, fth5 rc /= "NR"]
 
 {- Words are considered as phrases with span 0. Word category and semantics are designated by manual input, so word
    tag is "Desig". Besides, words all have phrasal structure "DE", and are all active.
@@ -383,10 +414,11 @@ trans onOff pcs banPCs = pcs2
     where
 --    combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
 --    Allowing two inactive phrases to combine.
-      combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
-
-      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]   -- The banned phrases might be created again, here they are filtered out.
-      pcs2 = removeDup $ updateAct $ removeDup $ pcs ++ newCbs               -- The non-banned phrases also might be created again, here those reduplicates are removed out.
+      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
+      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs, notElem' cb pcs]
+                 -- The banned phrases might be created again, here they are filtered out.
+                 -- The non-banned phrases also might be created again, here those reduplicates are removed out.
+      pcs2 = pcs ++ newCbs
 
 {- One trip of transition with pruning. Some new phrases removed timely are placed into banned phrasal list, and some
    new structural genes are added into the list of structural genes.
@@ -395,12 +427,17 @@ trans onOff pcs banPCs = pcs2
 transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
 transWithPruning onOff pcs banPCs overPairs = do
 --  let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
-    let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs]    -- Not consider phrasal activity
-    let pcs1 = removeDup $ updateAct $ removeDup $ pcs ++ newCbs             -- Before pruning
-    pcs2 <- prune overPairs pcs1                          -- After pruning, Attr. activity is corrected.
-    let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]     -- Update the list of banned phrasal categories.
-    return (pcs2, banPCs2)
+    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
+                                                                  -- Not consider phrasal activity
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs, notElem' cb pcs]
+    if newCbs /= []
+      then do
+        let pcs1 = pcs ++ newCbs                                      -- Before pruning
+        pcs1' <- prune overPairs pcs1                                 -- After pruning
+        let pcs2 = updateAct pcs1'                                    -- Attr. activity is corrected.
+        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]    -- Update the list of banned phrasal categories.
+        return (pcs2, banPCs2)
+      else return (pcs, banPCs)
 
 {- Parsing a sequence of categories is actually to generate the category closure from the initial phrase categories.
    Originally designed in every transition, every two phrases are tested whether they can be combined into a new
@@ -450,6 +487,8 @@ parse onOff trans banPCs = do
    Like pruning in game search, any phrasal category not appearing in the final parsing tree is removed out after
    just generated, and any phrasal category having taken part in category combination should be set inactive, which
    can still combine with active categories. When removing a category, its parent categories should be set active.
+   After one trip of transitive computing among an unambiguous partial tree, the ambiguous overlaps only exist between new generated phrases,
+   or between a new generated phrase and an old generated phrase.
  -}
 prune :: [OverPair] -> [PhraCate] -> IO [PhraCate]
 prune overPairs pcs = do
@@ -553,9 +592,9 @@ getOverType :: [PhraCate] -> PhraCate -> PhraCate -> Int
 getOverType pcs pc1 pc2
     | st1 == st2 && sp1 == sp2 = 1                                                     -- Equal overlap
     | st1 < st2  && st2 <= (st1 + sp1) && (st1 + sp1) < (st2 + sp2) = 2                -- Cross overlap
-    | st1 == st2 && st1 + sp1 < st2 + sp2 && notElem pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
-    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElem pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
-    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElem pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
+    | st1 == st2 && st1 + sp1 < st2 + sp2 && notElem' pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
+    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElem' pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
+    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElem' pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
     | otherwise = 0                        -- Non-overlap or blood relation
     where
     st1 = stOfCate pc1
@@ -563,10 +602,12 @@ getOverType pcs pc1 pc2
     st2 = stOfCate pc2
     sp2 = spOfCate pc2
 
--- Remove a phrasal category together with its descendants, then update activity of all phrasal categories.
-
+{- Remove a phrasal category together with its descendants.
+ - Do not update activities of phrasal categories, because there might be ambiguities among the remaining phrases.
+ - Original definition: removeOnePC pc clo = updateAct [x| x <- clo, notElem x (pc:descens)]
+ -}
 removeOnePC :: PhraCate -> [PhraCate] -> [PhraCate]
-removeOnePC pc clo = updateAct [x| x <- clo, notElem x (pc:descens)]
+removeOnePC pc clo = [x| x <- clo, notElem x (pc:descens)]
     where
       descens = findDescen pc clo                    -- Descendants of 'pc'
 
@@ -575,6 +616,7 @@ removeOnePC pc clo = updateAct [x| x <- clo, notElem x (pc:descens)]
    their activities. For those phrases taking part in other phrases, they are set inactive, and the others are set
    active.
    Here, every phrasal category is atomic, namely has ONLY ONE element in its CTSPA component.
+   To be fixed: If phrases A and B overlap each other with Type 1 (Equal overlap), and have same syntactic type, then they would be constituents of same phrase, which could not be distincted by 'findSplitCate'.
  -}
 
 updateAct :: [PhraCate] -> [PhraCate]

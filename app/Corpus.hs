@@ -161,7 +161,8 @@ posCate = [("n","np"),
            ("wu","")]
 
 {- To now, the recognizable phrasal structures are as following.
-   MQ: Quantity phrase
+   MQ: Numeral Quantifier phrase
+   PQ: Pronoun Quantifier phrase, such as "这r 个q", "这r 些q"
    XX: Conjunction phrase
    CC: Clause Coordination
    DHv: Adverbial-verb (headword) phrase
@@ -191,7 +192,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","DE","NR"]
+phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -514,12 +515,15 @@ readRule str
     | str == "D/a" = Da        -- 18
     | str == "Cv/a" = Cva      -- 19
     | str == "Cn/a" = Cna      -- 20
-    | str == "A/n" = An        -- 21
-    | str == "P/n" = Pn        -- 22
-    | str == "V/n" = Vn        -- 23
-    | str == "Cn/n" = Cnn      -- 24
-    | str == "D/p" = Dp        -- 25
-    | str == "N/oe" = Noe      -- 26
+    | str == "Ca/a" = Caa      -- 21
+    | str == "A/n" = An        -- 22
+    | str == "P/n" = Pn        -- 23
+    | str == "V/n" = Vn        -- 24
+    | str == "Cn/n" = Cnn      -- 25
+    | str == "D/p" = Dp        -- 26
+    | str == "N/oe" = Noe      -- 27
+    | str == "A/q" = Aq        -- 28
+    | str == "N/d" = Nd        -- 29
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

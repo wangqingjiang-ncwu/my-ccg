@@ -62,12 +62,13 @@ getSent sent
           -- \65311 is Chinese question mark, which is not considered now.
     | otherwise = return $ split " \65292: " sent''
     where
-      sent' =  replace " \12298:" "" $ replace " \12299:" "" $ replace " \":" "" $ replace " \8220:" "" $ replace " \8221:" "" sent
+      sent' =  replace "\12298:" "" $ replace " \12298:" "" $ replace " \12299:" "" $ replace " \":" "" $ replace "\8220:" "" $ replace " \8220:" "" $ replace " \8221:" "" sent
                      -- Remove Chinese book title mark '<<' and '>>', English double quotation mark '"', and Chinese double quotation mark '“' and '”',
+                     -- If title mark '<<' or double quotation '"' is the initial symbol of a clause, probably no blank space is before the title mark.
                      -- then strip whitespaces at left and right ends.
-      sent'' = lstrip $ rstrip $ replace "\"" "" $ replace "\65306" "\65292" $ replace "\65307" "\65292" sent'
-                     -- Replace ';' or ':' with ',' then remove '"'.
-                     -- \65306 is Chinese colon, \65307 is Chinese semicolon, and \65292 is Chinese comma.
+      sent'' = lstrip $ rstrip $ replace "\8230:" "" $ replace "\"\":" "" $ replace "\9472\9472" "\65292" $ replace "\65306" "\65292" $ replace "\65307" "\65292" sent'
+                     -- Replace ';', ':' and "--" with ',' then remove "...:", and '":'.
+                     -- \8230 is ellipsis dots "...", "\9472\9472" is Chinese dash, \65306 is Chinese colon, \65307 is Chinese semicolon, and \65292 is Chinese comma.
                      -- MySQL value "\"\"" stores one Chinese double quotation mark '"', which should be removed.
 
 {- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'.
@@ -232,10 +233,10 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/p\", \"N/oe\", \"A/q\", and \"N/d\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"Cn/v\", \"Cv/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/n\", \"D/p\", \"N/oe\", \"N/pe\", \"A/q\", \"N/d\", \"A/d\", and \"Ds/d\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/p", "N/oe", "A/q", "N/d"]]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "Cn/v", "Cv/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/n", "D/p", "N/oe", "N/pe", "A/q", "N/d", "A/d", "Ds/d"]]
            then do
              let newOnOff = updateOnOff onOff rws
              doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
@@ -485,7 +486,8 @@ parseSentWithoutPruning sn rules cs = do
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
    of transition to be executed, the third parameter is [Rule] value, where Rule::= Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv
-   | Nv | Dv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dp | Noe | Aq | Nd. The fourth parameter is word-category string of this clause.
+   | Nv | Dv | Cnv | Cvv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Dp | Noe | Npe | Aq | Nd | Ad | Dsd.
+   The fourth parameter is word-category string of this clause.
  -}
 
 parseClauseWithoutPruning :: Int -> Int -> [Rule] -> [PhraCate] -> IO ()

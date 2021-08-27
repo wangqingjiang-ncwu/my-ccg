@@ -59,7 +59,7 @@ module Phrase (
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
     notElem',                     -- PhraCate -> [PhraCate] -> Bool
-    equalSortedPhraList           -- [PhraCate] -> [PhraCate] -> Bool
+    equalSortedPhraList,          -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
 import Data.Tuple

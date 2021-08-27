@@ -81,7 +81,7 @@ type CateSymb = String
 -- Parts of speech (word classes) according to GBT20532-2006.
 pos :: [POS]
 pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
-       "v","vt","vi","vl","vu","vd",
+       "v","vt","vt2","vi","vl","vu","vd",                                      -- vt2 is for double objects.
        "a","aq","as",
        "f",
        "m",
@@ -90,7 +90,9 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
        "d",
        "p",
        "c",
-       "u",   -- Auxiliary word #1, #2, #3, and #4 are '的', '地', '得', and '着|了|过' respectively.
+       "u",       -- Auxiliary word #1, #2, #3, #4, #5, and #6 are '的', '地', '得', '着|了|过', '等|似的', and '所' respectively.
+       "u1","u2","u3","u4","u5","u6",
+       "y",                                                                     -- 语气词，吗、呢、了、...
        "e",
        "o",
        "i","in","iv","ia","ic",
@@ -105,7 +107,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
 posCate :: [(POS, CateSymb)]
 posCate = [("n","np"),
            ("ng","np"),
-           ("nt","np|(s\\.np)/#(s\\.np)|s/*s|(np/.np)/*(np/.np)"),
+           ("nt","np|(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("nd","np\\*np"),
            ("nl","np"),
            ("nh","np"),
@@ -114,7 +116,8 @@ posCate = [("n","np"),
            ("ni","np"),
            ("nz","np"),
            ("v","s\\.np|(s\\.np)/.np|((s\\.np)/.np)/.np"),
-           ("vt","(s\\.np)/.np|((s\\.np)/.np)/.np"),
+           ("vt","(s\\.np)/.np"),                                               -- For only one object.
+           ("vt2","((s\\.np)/.np)/.np"),                                        -- For indirected object and directed object.
            ("vi","s\\.np"),
            ("vl","(s\\.np)/.np"),
            ("vu","(s\\.np)/#(s\\.np)"),
@@ -126,17 +129,22 @@ posCate = [("n","np"),
            ("m","np/*np"),
            ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
            ("r","np"),
-           ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)|s/*s"),
+           ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
            ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
-           ("c","(X\\*X)/*X|X/*X"),
+           ("p1","((s\\.np)/#(s\\.np))/*np"),          -- 介宾短语做状语
+           ("p2","((s\\.np)\\x(s\\.np))/*np"),         -- 介宾短语做补语
+           ("c","(X\\*X)/*X|X/*X|X\\*X"),              -- 句内连词和句间连词
+           ("c1","(X\\*X)/*X"),
+           ("c2","X\\*X"),
+           ("c3","X/*X"),
            ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|(np/.np)\\*(np/.np)|X\\*X"),
            ("u1","(np/*np)\\*np"),                     -- 的
            ("u2","((s\\.np)/#(s\\.np))\\*(np/.np)"),   -- 地
            ("u3","((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"),   -- 得
            ("u4","(s\\.np)\\x(s\\.np)"),               -- 着、了、过
-           ("u5","X\\*X"),                             -- 等、似的
+           ("u5","X\\#X"),                             -- 等、似的
            ("u6","np/*((s\\.np)/.np)"),                -- 所
-           ("y","X\\*X"),                              -- 语气词，吗、呢、了、...
+           ("y","X\\.X"),                              -- 语气词，吗、呢、了、...
            ("e","np|(s\\.np)/#(s\\.np)"),
            ("o","np|(s\\.np)/#(s\\.np)"),
            ("i","np|s\\.np|np/.np|s/*s"),
@@ -148,8 +156,8 @@ posCate = [("n","np"),
            ("jn","np"),
            ("jv","s\\.np|(s\\.np)/.np"),
            ("ja","np/.np"),
-           ("h","np/*np"),
-           ("k","np\\*np"),
+           ("h","np/*np"),                            -- 阿、老、初、第
+           ("k","np\\*X"),                            -- 子、儿、（工作）者、（我）们、（新）式、（四年）制、
            ("g","np|s\\.np|(s\\.np)/.np|np/.np"),
            ("gn","np"),
            ("gv","s\\.np|(s\\.np)/.np"),
@@ -186,13 +194,14 @@ posCate = [("n","np"),
    SP: Subject-predicate phrase
    TP: Tone Phrase
    EM: Exclamation mood
+   KP: Postfix phrase, such as "工作 者", "我 们", and "中 式".
    DE: Word, also considered as primitive phrase. "DE" means artificial designation.
    NR: Not recognizable phrase
    For future, there might be more kinds of phrases to be handled.
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","DE","NR"]
+phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","KP","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -506,24 +515,30 @@ readRule str
     | str == "Hn/v" = Hnv      -- 9
     | str == "N/v" = Nv        -- 10
     | str == "D/v" = Dv        -- 11
-    | str == "S/a" = Sa        -- 12
-    | str == "O/a" = Oa        -- 13
-    | str == "Hn/a" = Hna      -- 14
-    | str == "N/a" = Na        -- 15
-    | str == "P/a" = Pa        -- 16
-    | str == "V/a" = Va        -- 17
-    | str == "D/a" = Da        -- 18
-    | str == "Cv/a" = Cva      -- 19
-    | str == "Cn/a" = Cna      -- 20
-    | str == "Ca/a" = Caa      -- 21
-    | str == "A/n" = An        -- 22
-    | str == "P/n" = Pn        -- 23
-    | str == "V/n" = Vn        -- 24
-    | str == "Cn/n" = Cnn      -- 25
-    | str == "D/p" = Dp        -- 26
-    | str == "N/oe" = Noe      -- 27
-    | str == "A/q" = Aq        -- 28
-    | str == "N/d" = Nd        -- 29
+    | str == "Cn/v" = Cnv      -- 12
+    | str == "Cv/v" = Cvv      -- 13
+    | str == "S/a" = Sa        -- 14
+    | str == "O/a" = Oa        -- 15
+    | str == "Hn/a" = Hna      -- 16
+    | str == "N/a" = Na        -- 17
+    | str == "P/a" = Pa        -- 18
+    | str == "V/a" = Va        -- 19
+    | str == "D/a" = Da        -- 20
+    | str == "Cv/a" = Cva      -- 21
+    | str == "Cn/a" = Cna      -- 22
+    | str == "Ca/a" = Caa      -- 23
+    | str == "A/n" = An        -- 24
+    | str == "P/n" = Pn        -- 25
+    | str == "V/n" = Vn        -- 26
+    | str == "Cn/n" = Cnn      -- 27
+    | str == "D/n" = Dn        -- 28
+    | str == "D/p" = Dp        -- 29
+    | str == "N/oe" = Noe      -- 30
+    | str == "N/pe" = Npe      -- 31
+    | str == "A/q" = Aq        -- 32
+    | str == "N/d" = Nd        -- 33
+    | str == "A/d" = Ad        -- 34
+    | str == "Ds/d" = Dsd      -- 35
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

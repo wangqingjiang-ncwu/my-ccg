@@ -88,6 +88,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
        "q",
        "r",
        "d",
+       "dv","da",                                                               -- dv is verb's adverb, while da is adjective's adverb.
        "p",
        "c",
        "u",       -- Auxiliary word #1, #2, #3, #4, #5, and #6 are '的', '地', '得', '着|了|过', '等|似的', and '所' respectively.
@@ -130,7 +131,9 @@ posCate = [("n","np"),
            ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
            ("r","np"),
            ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
-           ("p","((s\\.np)/#(s\\.np))/*np|((s\\.np)\\x(s\\.np))/*np|(s/*s)/*np"),
+           ("dv","(s\\.np)/#(s\\.np)"),                -- 动词的状语
+           ("da","(np/.np)/*(np.np)"),                 -- 形容词的状语
+           ("p","((s\\.np)/#(s\\.np))/*np"),           -- 通过Cv/d、Ds/d，去掉了类型((s\\.np)\\x(s\\.np))/*np、(s/*s)/*np"
            ("p1","((s\\.np)/#(s\\.np))/*np"),          -- 介宾短语做状语
            ("p2","((s\\.np)\\x(s\\.np))/*np"),         -- 介宾短语做补语
            ("c","(X\\*X)/*X|X/*X|X\\*X"),              -- 句内连词和句间连词
@@ -164,13 +167,13 @@ posCate = [("n","np"),
            ("ga","np/.np"),
            ("x",""),
            ("w",""),
-           ("wp","(X\\*X)/*X"),
-           ("ws","np"),
+           ("wc","(X\\*X)/*X"),                       -- 顿号（、），有时的逗号（，）
+           ("wn","np"),
            ("wu","")]
 
 {- To now, the recognizable phrasal structures are as following.
    MQ: Numeral Quantifier phrase
-   PQ: Pronoun Quantifier phrase, such as "这r 个q", "这r 些q"
+   PQ: Pronoun Quantifier phrase, such as "这r 个q", "这r 筐q"
    XX: Conjunction phrase
    CC: Clause Coordination
    DHv: Adverbial-verb (headword) phrase
@@ -539,6 +542,7 @@ readRule str
     | str == "N/d" = Nd        -- 33
     | str == "A/d" = Ad        -- 34
     | str == "Ds/d" = Dsd      -- 35
+    | str == "Cv/d" = Cvd      -- 36
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

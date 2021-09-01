@@ -88,7 +88,7 @@ appB cate1 cate2
     | isAvail && ps2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
     | isAvail && ca1 == numeralCate && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail' && (ca1 == numeralCate && ca2 == adjCompCate) = (ca1, "<", semComb se2 se1, "HmC", True)
-    | isAvail' && (ca1 == adjCate && ca2 == quantifierCate) = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
+    | isAvail' && (ca1 == pronCate4Quantifier && ca2 == quantifierCate) = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
     | isAvail && ca1 == adjCate = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolted!
@@ -257,7 +257,7 @@ ccTags = ["S/s","P/s","O/s","N/s","A/s","S/v","O/v","A/v","Hn/v","N/v","D/v","Cn
    value can't include '/'.
  -}
 
-data Rule = Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv | Nv | Dv | Cnv | Cvv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Dp | Noe | Npe | Aq | Nd | Ad | Dsd deriving (Eq)
+data Rule = Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv | Nv | Dv | Cnv | Cvv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Dp | Noe | Npe | Aq | Nd | Ad | Dsd | Cvd deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
@@ -296,6 +296,7 @@ instance Show Rule where
     show Nd = "N/d"
     show Ad = "A/d"
     show Dsd = "Ds/d"
+    show Cvd = "Cv/d"
 
 -- OnOff is the list of Rule members
 type OnOff = [Rule]
@@ -386,6 +387,8 @@ updateOnOff onOff rws
     | rw1 == "-A/d" = updateOnOff (ruleOff Ad onOff) rwt
     | rw1 == "+Ds/d" = updateOnOff (ruleOn Dsd onOff) rwt
     | rw1 == "-Ds/d" = updateOnOff (ruleOff Dsd onOff) rwt
+    | rw1 == "+Cv/d" = updateOnOff (ruleOn Cvd onOff) rwt
+    | rw1 == "-Cv/d" = updateOnOff (ruleOff Cvd onOff) rwt
     | otherwise = error $ "updateOnOff: Rule switch " ++ rw1 ++ " is not cognizable."
       where
         rw1 = head rws

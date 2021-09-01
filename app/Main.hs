@@ -120,6 +120,7 @@ interpreter username = do
              "7" -> doGetCateSent2ForASent username
              "8" -> doParseSent username
              "9" -> doDisplayTreesForASent username
+             "A" -> doStatisticalAnalysis username
              "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
@@ -307,6 +308,21 @@ doDisplayTreesForASent username = do
     line <- getLine
     let sn = read line :: Int
     readTree_String sn >>= sentToClauses >>= dispTree
+    interpreter username
+
+-- A. Do statistical analysis about Table corpus and stru_gene, and display results.
+doStatisticalAnalysis :: String -> IO ()
+doStatisticalAnalysis username = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select count(*) from corpus where tree_check = 1"
+    (defs, is) <- queryStmt conn stmt []            --([ColumnDef], InputStream [MySQLValue])
+    sent_count <- S.read is
+    let sent_count' = case sent_count of
+                         Just x -> x
+                         Nothing -> error "doStatisticalAnalysis: No sent_count was read."
+    skipToEof is                                                   -- Go to the end of the stream.
+    let sentCount = fromMySQLInt16U (sent_count'!!0)
+    putStrLn $ "Number of analyzed sentences: " ++ show sentCount
     interpreter username
 
 -- 10. Quit from this program.

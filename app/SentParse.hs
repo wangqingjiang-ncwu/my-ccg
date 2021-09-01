@@ -233,10 +233,10 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"Cn/v\", \"Cv/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/n\", \"D/p\", \"N/oe\", \"N/pe\", \"A/q\", \"N/d\", \"A/d\", and \"Ds/d\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStr "Enable or disable rules among \"S/s\", \"P/s\", \"O/s\", \"N/s\", \"A/s\", \"S/v\", \"O/v\", \"A/v\", \"Hn/v\", \"N/v\", \"D/v\", \"Cn/v\", \"Cv/v\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/n\", \"D/p\", \"N/oe\", \"N/pe\", \"A/q\", \"N/d\", \"A/d\", \"Ds/d\", and \"Cv/d\" for instance, \"+O/s, -A/v\": (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "Cn/v", "Cv/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/n", "D/p", "N/oe", "N/pe", "A/q", "N/d", "A/d", "Ds/d"]]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["S/s", "P/s", "O/s", "N/s", "A/s", "S/v", "O/v", "A/v", "Hn/v", "N/v", "D/v", "Cn/v", "Cv/v", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/n", "D/p", "N/oe", "N/pe", "A/q", "N/d", "A/d", "Ds/d", "Cv/d"]]
            then do
              let newOnOff = updateOnOff onOff rws
              doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
@@ -486,7 +486,7 @@ parseSentWithoutPruning sn rules cs = do
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
    of transition to be executed, the third parameter is [Rule] value, where Rule::= Ss | Ps | Os | Ns | As | Sv | Ov | Av | Hnv
-   | Nv | Dv | Cnv | Cvv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Dp | Noe | Npe | Aq | Nd | Ad | Dsd.
+   | Nv | Dv | Cnv | Cvv | Sa | Oa | Hna | Na | Pa | Va | Da | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Dp | Noe | Npe | Aq | Nd | Ad | Dsd | Cvd.
    The fourth parameter is word-category string of this clause.
  -}
 

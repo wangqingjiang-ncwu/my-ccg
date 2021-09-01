@@ -26,6 +26,8 @@ module Category (
     rightCate,     -- Category -> Category
     midSlash,      -- Category -> a
     derivate,      -- Category -> Slash -> Category -> Category
+    pronCate,      -- Category, "np"
+    pronCate4Quantifier,     -- Category, "np/#np"
     ndCate,        -- Category, "np\*np"
     adjCate,       -- Category, "np/.np"
     predCate,      -- Category, "s\.np"
@@ -223,6 +225,12 @@ midSlash (Derivative _ s _) = s
 
 derivate :: Category -> Slash -> Category -> Category
 derivate  cate1 slash cate2 = Derivative cate1 slash cate2
+
+pronCate :: Category
+pronCate = getCateFromString "np"
+
+pronCate4Quantifier :: Category
+pronCate4Quantifier = getCateFromString "np/#np"
 
 ndCate :: Category
 ndCate = getCateFromString "np\\*np"

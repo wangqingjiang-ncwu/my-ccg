@@ -252,7 +252,6 @@ pcBelong x y = (stx == sty) && (spx == spy) && (ssx == ssy) && belong
       belong = foldr (&&) True (map (\x -> elem x ctspay) ctspax)
 
 -- Another version of Function pcBelong which does not consider Act attribute.
-
 pcBelong' :: PhraCate -> PhraCate -> Bool
 pcBelong' x y = (stx == sty) && (spx == spy) && (ssx == ssy) && belong
     where

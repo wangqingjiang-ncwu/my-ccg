@@ -25,7 +25,8 @@ import Database
     7   Get the CCG mark-revised sentence (namely column cate_sent2) given by value of column 'serial_num'.
     8   Parse the sentence given by value of column 'serial_num'.
     9   Display parsing result of the sentence given by value of column 'serial_num'.
-    10  Quit from this program.
+    A   Statistically analyze the database table 'corpus' and 'stru_gene'.
+    0   Quit from this program.
  -}
 main :: IO ()
 main = do
@@ -34,7 +35,7 @@ main = do
     hSetEncoding stdout utf8                       -- Set encoding for stdout as UTF8
     hFlush stdout                                  -- Flush buffered data to assure changing the encoding.
 
-    putStrLn " Chinese CCG parser (build 0.2.4.0)"
+    putStrLn " Chinese CCG parser (build 0.2.5.0)"
     putStrLn " Copyright (c) 2019-2021 China University of Water Resources and Electric Power, All rights reserved."
 
     (username, ok) <- login 1
@@ -102,10 +103,11 @@ interpreter username = do
     putStrLn " 7 -> Get revised CCG-marked sentence indicated by serial_num."
     putStrLn " 8 -> Parse the sentence indicated by serial_num."
     putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num."
+    putStrLn " A -> Statistically analyze the database table corpus and stru_gene"
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","0"]
       then do
              putStrLn "Invalid input."
              interpreter username

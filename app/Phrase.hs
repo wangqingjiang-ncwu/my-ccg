@@ -226,7 +226,7 @@ csOfActCate pc = zip (caOfActCate pc) (seOfActCate pc)
 ssOfCate :: PhraCate -> SecStart
 ssOfCate (_, _, s) = s
 
--- Without considering activities, decide two phrasal categories equal or not.
+-- Without considering activities, decide two phrasal categories equal or not. Actually, the function is just operator '=='.
 equalPhra :: PhraCate -> PhraCate -> Bool
 equalPhra pc1 pc2 = (stOfCate pc1 == stOfCate pc2)
                  && (spOfCate pc1 == spOfCate pc2)

@@ -88,19 +88,21 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
        "q",
        "r",
        "d",
-       "dv","da",                                                               -- dv is verb's adverb, while da is adjective's adverb.
+       "dv","da","ds",                 -- dv, da and ds are adverbs respectively modify verbs, adjectives and sentences.
        "p",
-       "c",
-       "u",       -- Auxiliary word #1, #2, #3, #4, #5, and #6 are '的', '地', '得', '着|了|过', '等|似的', and '所' respectively.
+       "pa","pb",                      -- '把' and '被'
+       "c",                            -- Bidirectional conjunctions
+       "cb","cf",                      -- Backward and forward conjunctions
+       "u",                            -- Auxiliary word #1, #2, #3, #4, #5, and #6 are '的', '地', '得', '着|了|过', '等|似的', and '所' respectively.
        "u1","u2","u3","u4","u5","u6",
        "y",                                                                     -- 语气词，吗、呢、了、...
        "e",
        "o",
        "i","in","iv","ia","ic",
-       "j","jn","jv","ja",
+       "j","jn","jv","jvi","jvt","ja",
        "h",
        "k",
-       "g","gn","gv","ga",
+       "g","gn","gv","gvi","gvt","ga",
        "x",
        "w","wp","ws","wu"]
 
@@ -108,7 +110,7 @@ pos = ["n","ng","nt","nd","nl","nh","ns","nn","ni","nz",
 posCate :: [(POS, CateSymb)]
 posCate = [("n","np"),
            ("ng","np"),
-           ("nt","np|(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
+           ("nt","(s\\.np)/#(s\\.np)"),                                         -- Using N/d and Ds/d to get np and s/*s.
            ("nd","np\\*np"),
            ("nl","np"),
            ("nh","np"),
@@ -128,22 +130,23 @@ posCate = [("n","np"),
            ("as","np/.np"),
            ("f","np/*np"),
            ("m","np/*np"),
-           ("q","(np/*np)\\*(np/*np)|((s\\.np)/#(s\\.np))\\*(np/*np)"),
+           ("q","(np/*np)\\*(np/*np)"),                -- 数量短语做定语的频次最高
            ("r","np"),
-           ("d","(s\\.np)/#(s\\.np)|(np/.np)/*(np/.np)"),
-           ("dv","(s\\.np)/#(s\\.np)"),                -- 动词的状语
+           ("d","(s\\.np)/#(s\\.np)"),                 -- 副词做动词状语的频次最高，去掉(np/.np)/*(np/.np)
+           ("dv","(s\\.np)/#(s\\.np)"),                -- 动词的状语，未用
            ("da","(np/.np)/*(np.np)"),                 -- 形容词的状语
+           ("dx","(s\\.np)/x(s\\.np)"),                -- 趋向动词的转喻
+           ("ds","s/*s"),                              -- 句子的状语
            ("p","((s\\.np)/#(s\\.np))/*np"),           -- 通过Cv/d、Ds/d，去掉了类型((s\\.np)\\x(s\\.np))/*np、(s/*s)/*np"
-           ("p1","((s\\.np)/#(s\\.np))/*np"),          -- 介宾短语做状语
-           ("p2","((s\\.np)\\x(s\\.np))/*np"),         -- 介宾短语做补语
-           ("c","(X\\*X)/*X|X/*X|X\\*X"),              -- 句内连词和句间连词
-           ("c1","(X\\*X)/*X"),
-           ("c2","X\\*X"),
-           ("c3","X/*X"),
+           ("pa","((s/.np)\\#np)/#((s\\.np)/.np)"),    -- 介词'把'的类型，宾语提前到动语前
+           ("pb","(s/#(s/.np))\\#np"),                 -- 介宾'被'的类型，宾语提取到主语前
+           ("c","(X\\*X)/*X"),                         -- 连词的典型类型，双向连词，分别通过Cb/c、Cf/c得到后向、前向连词。
+           ("cb","X\\*X"),
+           ("cf","X/*X"),
            ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|(np/.np)\\*(np/.np)|X\\*X"),
            ("u1","(np/*np)\\*np"),                     -- 的
            ("u2","((s\\.np)/#(s\\.np))\\*(np/.np)"),   -- 地
-           ("u3","((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"),   -- 得
+           ("u3","((s\\.np)\\x(s\\.np))/*(np/.np)"),   -- 得，通过U3d/u3，去掉了类型((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))
            ("u4","(s\\.np)\\x(s\\.np)"),               -- 着、了、过
            ("u5","X\\#X"),                             -- 等、似的
            ("u6","np/*((s\\.np)/.np)"),                -- 所
@@ -158,12 +161,16 @@ posCate = [("n","np"),
            ("j","np|s\\.np|(s\\.np)/.np|np/.np"),
            ("jn","np"),
            ("jv","s\\.np|(s\\.np)/.np"),
+           ("jvi","s\\.np"),
+           ("jvt","(s\\.np)/.np"),
            ("ja","np/.np"),
            ("h","np/*np"),                            -- 阿、老、初、第
            ("k","np\\*X"),                            -- 子、儿、（工作）者、（我）们、（新）式、（四年）制、
            ("g","np|s\\.np|(s\\.np)/.np|np/.np"),
            ("gn","np"),
            ("gv","s\\.np|(s\\.np)/.np"),
+           ("gvi","s\\.np"),
+           ("gvt","(s\\.np)/.np"),
            ("ga","np/.np"),
            ("x",""),
            ("w",""),
@@ -180,6 +187,8 @@ posCate = [("n","np"),
    HvC: Verb (headword)-complement phrase
    DHa: Adverbial-adjective (headword) phrase
    DHs: Adervbial-sentence phrase
+   DHd: Adverbial-adverb (headword) phrase
+   DHx: Adverbial-directioanl verb phrase
    HaC: Adjective (headword)-complement phrase
    AHn: Attribute-noun (headword) phrase
    HnC: Noun (headword)-complement phrase
@@ -194,6 +203,8 @@ posCate = [("n","np"),
    U5P: 5-auxiliary word phrase, namely with '等|似的|一样' as end
    U6P: 6-auxiliary word phrase, namely with '所' as head
    PO: Preposition object phrase
+   MOv: Move object before verb, namely '把'字结构
+   MOs: Move object before subject, namely '被'字结构 which is not same as traditional '被'字结构
    SP: Subject-predicate phrase
    TP: Tone Phrase
    EM: Exclamation mood
@@ -204,7 +215,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","SP","TP","EM","KP","DE","NR"]
+phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","KP","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -507,26 +518,26 @@ readRuleSet str = map readRule (stringToList str)
 -- Read a rule from a string.
 readRule :: String -> Rule
 readRule str
-    | str == "S/s" = Ss        -- 1
-    | str == "P/s" = Ps        -- 2
-    | str == "O/s" = Os        -- 3
-    | str == "N/s" = Ns        -- 4
-    | str == "A/s" = As        -- 5
-    | str == "S/v" = Sv        -- 6
-    | str == "O/v" = Ov        -- 7
-    | str == "A/v" = Av        -- 8
-    | str == "Hn/v" = Hnv      -- 9
-    | str == "N/v" = Nv        -- 10
-    | str == "D/v" = Dv        -- 11
-    | str == "Cn/v" = Cnv      -- 12
-    | str == "Cv/v" = Cvv      -- 13
-    | str == "S/a" = Sa        -- 14
-    | str == "O/a" = Oa        -- 15
-    | str == "Hn/a" = Hna      -- 16
-    | str == "N/a" = Na        -- 17
-    | str == "P/a" = Pa        -- 18
-    | str == "V/a" = Va        -- 19
-    | str == "D/a" = Da        -- 20
+    | str == "P/s" = Ps        -- 1
+    | str == "N/s" = Ns        -- 2
+    | str == "A/s" = As        -- 3
+    | str == "A/v" = Av        -- 4
+    | str == "N/v" = Nv        -- 5
+    | str == "D/v" = Dv        -- 6
+    | str == "Cn/v" = Cnv      -- 7
+    | str == "Cv/v" = Cvv      -- 8
+    | str == "P/vt" = Pvt      -- 9
+    | str == "OE/vt" = OEvt    -- 10
+    | str == "Vt/vi" = Vtvi    -- 11
+    | str == "A/vd" = Avd      -- 12
+    | str == "S/a" = Sa        -- 13
+    | str == "O/a" = Oa        -- 14
+    | str == "Hn/a" = Hna      -- 15
+    | str == "N/a" = Na        -- 16
+    | str == "P/a" = Pa        -- 17
+    | str == "V/a" = Va        -- 18
+    | str == "D/a" = Da        -- 19
+    | str == "Da/a" = Daa      -- 20
     | str == "Cv/a" = Cva      -- 21
     | str == "Cn/a" = Cna      -- 22
     | str == "Ca/a" = Caa      -- 23
@@ -535,14 +546,21 @@ readRule str
     | str == "V/n" = Vn        -- 26
     | str == "Cn/n" = Cnn      -- 27
     | str == "D/n" = Dn        -- 28
-    | str == "D/p" = Dp        -- 29
-    | str == "N/oe" = Noe      -- 30
-    | str == "N/pe" = Npe      -- 31
-    | str == "A/q" = Aq        -- 32
-    | str == "N/d" = Nd        -- 33
-    | str == "A/d" = Ad        -- 34
-    | str == "Ds/d" = Dsd      -- 35
-    | str == "Cv/d" = Cvd      -- 36
+    | str == "N/nd" = Nnd      -- 29
+    | str == "D/p" = Dp        -- 30
+    | str == "N/oe" = Noe      -- 31
+    | str == "N/pe" = Npe      -- 32
+    | str == "A/q" = Aq        -- 33
+    | str == "N/d" = Nd        -- 34
+    | str == "A/d" = Ad        -- 35
+    | str == "Da/d" = Dad      -- 36
+    | str == "Ds/d" = Dsd      -- 37
+    | str == "Dx/d" = Dxd      -- 38
+    | str == "Doe/d" = Doed    -- 39
+    | str == "Cv/d" = Cvd      -- 40
+    | str == "Jf/c" = Jfc      -- 41
+    | str == "Jb/c" = Jbc      -- 42
+    | str == "U3d/u3" = U3du3  -- 43
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String
@@ -620,7 +638,6 @@ setIpcOfRows startRow endRow username = do
         putStrLn $ show (getOkAffectedRows ok) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
         closeStmt conn stmt1
     close conn                       -- Close the connection.
-
 
 {- There might be line feed character '\r', '\n', or "\r\n" in field raw_sent and raw_sent2, which makes the csv file
    exported from table corpus can't be used directly for importing. The function removeLineFeed removes these line-

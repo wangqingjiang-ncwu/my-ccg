@@ -37,26 +37,23 @@ spec = do
     it "The result of backward crossing composition ((s\\.np)/.np, \"do'\",\"DE\") with ((s\\.np)\\x(s\\.np), \"well'\",\"DE\") is ((s\\.np)/.np, \"<Bx\", \"well' do'\", \"HvC\", True)" $ do
       comBc (getCateFromString "(s\\.np)/.np", "do'","DE") (getCateFromString "(s\\.np)\\x(s\\.np)", "well'","DE") `shouldBe` (getCateFromString "(s\\.np)/.np", "<Bx", "well' do'", "HvC", True)
 
-    it "The result of forward raising and harmonic composition (np, \"I'\",\"DE\") with ((s\\.np)/.np, \"eat'\",\"DE\") is (s/.np, \">T->B\", \"I' eat'\", \"OE\", True)" $ do
-      raiFh (npCate, "I'","DE") (getCateFromString "(s\\.np)/.np", "eat'","DE") `shouldBe` (getCateFromString "s/.np", ">T->B", "I' eat'", "OE", True)
+    it "The result of forward raising and harmonic composition (np, \"I'\",\"DE\") with ((s\\.np)/.np, \"eat'\",\"DE\") is (s/.np, \">T->B\", \"eat' I'\", \"OE\", True)" $ do
+      raiFh (npCate, "I'","DE") (getCateFromString "(s\\.np)/.np", "eat'","DE") `shouldBe` (getCateFromString "s/.np", ">T->B", "eat' I'", "OE", True)
 
     it "The result of forward raising and harmonic composition (np, \"I'\",\"DE\") with (s\\.np, \"watch' TV'\",\"DE\") is (Nil, \">T->B\", \"\", \"\", False)" $ do
       raiFh (npCate, "I'","DE") (getCateFromString "s\\.np", "watch' TV'","DE") `shouldBe` (nilCate, ">T->B", "", "", False)
 
-    it "The result of forward raising and harmonic composition (np, \"Frank'\",\"DE\") with ((s\\.np)/.np, \"give'\",\"DE\") is ((s/.np, \">T->B\", \"Frank' give'\", \"OE\", True)" $ do
-      raiFh (npCate, "Frank'","DE") (getCateFromString "(s\\.np)/.np", "give'","DE") `shouldBe` (getCateFromString "s/.np", ">T->B", "Frank' give'","OE",True)
+    it "The result of forward raising and harmonic composition (np, \"Frank'\",\"DE\") with ((s\\.np)/.np, \"give'\",\"DE\") is ((s/.np, \">T->B\", \"give' Frank'\", \"OE\", True)" $ do
+      raiFh (npCate, "Frank'","DE") (getCateFromString "(s\\.np)/.np", "give'","DE") `shouldBe` (getCateFromString "s/.np", ">T->B", "give' Frank'","OE",True)
 
-    it "The result of fordward raising and crossing composition (np, \"Frank'\",\"DE\") with ((s\\.np)\\xnp, \"doony'\",\"DE\") is (s\\xnp, \">T->Bx\", \"Frank' doony'\", \"NR\", True)" $ do
-      raiFc (npCate, "Frank'","DE") (getCateFromString "(s\\.np)\\xnp", "doony'","DE") `shouldBe` (getCateFromString "s\\xnp", ">T->Bx", "Frank' doony'","NR",True)
+    it "The result of fordward raising and crossing composition (np, \"Frank'\",\"DE\") with ((s\\.np)\\xnp, \"doony'\",\"DE\") is (s\\xnp, \">T->Bx\", \"doony' Frank'\", \"NR\", True)" $ do
+      raiFc (npCate, "Frank'","DE") (getCateFromString "(s\\.np)\\xnp", "doony'","DE") `shouldBe` (getCateFromString "s\\xnp", ">T->Bx", "doony' Frank'","NR",True)
 
-    it "The result of backward raising and harmonic composition ((s/.np)\\#np, \"give'\",\"DE\") with (np, \"Frank'\",\"DE\") is (s\\#np, \"<T-<B\", \"Frank' give'\", \"NR\", True)" $ do
-      raiBh (getCateFromString "(s/.np)\\#np", "give'","DE") (npCate, "Frank'","DE") `shouldBe` (getCateFromString "s\\#np", "<T-<B", "Frank' give'","NR",True)
+    it "The result of backward raising and harmonic composition ((s/.np)\\#np, \"give'\",\"DE\") with (np, \"Frank'\",\"DE\") is (s\\#np, \"<T-<B\", \"give' Frank'\", \"NR\", True)" $ do
+      raiBh (getCateFromString "(s/.np)\\#np", "give'","DE") (npCate, "Frank'","DE") `shouldBe` (getCateFromString "s\\#np", "<T-<B", "give' Frank'","NR",True)
 
-    it "The result of backward raising and crossing composition ((s/.np)/.s, \"let'\",\"DE\") with (np, \"him'\",\"DE\") is (s/.s, \"<T-<Bx\", \"him' let'\", \"NR\",True)" $ do
-      raiBc (getCateFromString "(s/.np)/.s", "let'","DE") (npCate, "him'","DE") `shouldBe` (getCateFromString "s/.s", "<T-<Bx", "him' let'", "NR", True)
+    it "The result of backward raising and crossing composition ((s/.np)/.s, \"let'\",\"DE\") with (np, \"him'\",\"DE\") is (s/.s, \"<T-<Bx\", \"let' him'\", \"NR\",True)" $ do
+      raiBc (getCateFromString "(s/.np)/.s", "let'","DE") (npCate, "him'","DE") `shouldBe` (getCateFromString "s/.s", "<T-<Bx", "let' him'", "NR", True)
 
     it "The result of backward raising and crossing composition ((s/.np)/#s, \"let'\",\"DE\") with (np, \"him'\",\"DE\") is (Nil, \"<T-<Bx\",\"\", \"\", False)" $ do
       raiBc (getCateFromString "(s/.np)/#s", "let'","DE") (npCate, "him'","DE") `shouldBe` (nilCate, "<T-<Bx", "", "", False)
-
-
-

@@ -8,6 +8,7 @@ module Category (
     Prim,          -- String
     primitives,    -- [Prim]
     cateEqual,     -- Category -> Category -> Bool
+    cateMatch,     -- Category -> Category -> Bool
     nilCate,       -- Category
     xCate,         -- Category
     sCate,         -- Category
@@ -34,11 +35,17 @@ module Category (
     verbCate,      -- Category, "(s\.np)/.np"
     verbCate2,     -- Category, "((s\.np)/.np)/.np"
     vCate,         -- [predCate, verbCate, verbCate2]
-    adverbalCate,  -- Category, "(s\.np)/#(s\.np)"
+    vpCate,        -- [verbCate, verbCate2]
+    advCate,       -- Category, "(s\.np)/#(s\.np)"
+    advCate4Verb,  -- Category, "(s\.np)/#(s\.np)"
     advCate4Adj,   -- Category, "(np/.np)/*(np/.np)"
     advCate4Sent,  -- Category, "s/*s"
+    advCate4DirecVerb, -- Category, "(s\.np)/x(s\.np)"
+    advCate4OE,    -- Category, "(s/.np)/*(s/.np)"
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
+    prep4BaCate,          -- Category, "((s/.np)\#np)/#((s\.np)/.np)"
+    prep4BeiCate,         -- Category, "(s/#(s\.np))\#np"
     verbCompCate,         -- Category, "(s\.np)\x(s\.np)"
     nounCompCate,         -- Category, "np\*np"
     adjCompCate,          -- Category, "(np/.np)\*(np/.np)"
@@ -49,16 +56,17 @@ module Category (
     aux1Cate,             -- Category, "(np/*np)\*np"
     aux2Cate,             -- Category, "((s\.np)/#(s\.np))\*(np/.np)"
     aux3Cate,             -- Category, "((s\.np)\x(s\.np))/*(np/.np)"
-    aux31Cate,            -- Category, "((np/.np)\*(np/.np))/*((np/.np)/*(np/.np))"
+    aux3dCate,            -- Category, "((np/.np)\*(np/.np))/*((np/.np)/*(np/.np))"
     aux4Cate,             -- Category, "(s\.np)\x(s\.np)"
     aux5Cate,             -- Category, "X\#X"
     aux6Cate,             -- Category, "np/*((s\.np)/.np)"
     toneCate,             -- Category, "X\.X"
-    conjCate1,            -- Category, "(X\*X)/*X"
-    conjCate2,            -- Category, "X\*X"
-    conjCate3,            -- Category, "X/*X"
+    conjCate,            -- Category, "(X\*X)/*X"
+    conjCate4Backward,            -- Category, "X\*X"
+    conjCate4Forward,            -- Category, "X/*X"
     prefixCate,           -- Category, "np/*np"
-    postfixCate           -- Category, "np\*X"
+    postfixCate,          -- Category, "np\*X"
+    baPhraseCate          -- Category, "(s\#np)/#((s\.np)/.np)"
     ) where
 
 type Slash = String
@@ -118,6 +126,27 @@ cateEqual cate1 cate2
     | isPrimitive cate1 && not (isPrimitive cate2) = False
     | not (isPrimitive cate1) && isPrimitive cate2 = False
     | otherwise = ((midSlash cate1)!!0 == (midSlash cate2)!!0) && (cateEqual (leftCate cate1) (leftCate cate2)) && (cateEqual (rightCate cate1) (rightCate cate2))
+
+{- Decide whether a category matches a pattern.
+ - Such as, category s\.np matches pattern s\#np, while s\#np doesn't match s\.np.
+ -}
+cateMatch :: Category -> Category -> Bool
+cateMatch cate patt
+    | isX cate && isX patt = True
+    | isX cate && not (isX patt) = False
+    | not (isX cate) && isX patt = False
+    | isPrimitive cate && isPrimitive patt = cate == patt
+    | isPrimitive cate && not (isPrimitive patt) = False
+    | not (isPrimitive cate) && isPrimitive patt = False
+    | otherwise = (ms1!!0 == ms2!!0)
+               && (ms1!!1 == '.' || (ms1!!1 == '#' && (ms2!!1 == '#' || ms2!!1 == '*'))
+                                 || (ms1!!1 == 'x' && (ms2!!1 == 'x' || ms2!!1 == '*'))
+                                 || (ms1!!1 == '*' && ms2!!1 == '*')
+                  )
+               && (cateMatch (leftCate cate) (leftCate patt)) && (cateMatch (rightCate cate) (rightCate patt))
+    where
+      ms1 = midSlash cate
+      ms2 = midSlash patt
 
 -- Besides interior functions, data constructors are not seen from outside of modules. To have access to these constructors, related functions are defined.
 nilCate :: Category
@@ -250,8 +279,14 @@ verbCate2 = getCateFromString "((s\\.np)/.np)/.np"
 vCate :: [Category]
 vCate = [predCate, verbCate, verbCate2]
 
-adverbalCate :: Category
-adverbalCate = getCateFromString "(s\\.np)/#(s\\.np)"
+vpCate :: [Category]
+vpCate = [verbCate, verbCate2]
+
+advCate :: Category
+advCate = getCateFromString "(s\\.np)/#(s\\.np)"
+
+advCate4Verb :: Category
+advCate4Verb = getCateFromString "(s\\.np)/#(s\\.np)"
 
 advCate4Adj :: Category
 advCate4Adj = getCateFromString "(np/.np)/*(np/.np)"
@@ -259,11 +294,23 @@ advCate4Adj = getCateFromString "(np/.np)/*(np/.np)"
 advCate4Sent :: Category
 advCate4Sent = getCateFromString "s/*s"
 
+advCate4DirecVerb :: Category
+advCate4DirecVerb = getCateFromString "(s\\.np)/x(s\\.np)"
+
+advCate4OE :: Category
+advCate4OE = getCateFromString "(s/.np)/*(s/.np)"
+
 prep2AdvCate :: Category
 prep2AdvCate = getCateFromString "((s\\.np)/#(s\\.np))/*np"
 
 prep2CompCate :: Category
 prep2CompCate = getCateFromString "((s\\.np)\\x(s\\.np))/*np"
+
+prep4BaCate :: Category
+prep4BaCate = getCateFromString "((s/.np)\\#np)/#((s\\.np)/.np)"
+
+prep4BeiCate :: Category
+prep4BeiCate = getCateFromString "(s/#(s/.np))\\#np"
 
 verbCompCate :: Category
 verbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
@@ -298,9 +345,9 @@ aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*(np/.np)"
 aux3Cate :: Category
 aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*(np/.np)"
 
--- Auxiliary word #31 is also '得'
-aux31Cate :: Category
-aux31Cate = getCateFromString "((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"
+-- Auxiliary word #3d is also '得', here 'd' means an adverb follows.
+aux3dCate :: Category
+aux3dCate = getCateFromString "((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"
 
 -- Auxiliary word #4 is '着', '了', or '过'
 aux4Cate :: Category
@@ -319,16 +366,16 @@ toneCate :: Category
 toneCate = getCateFromString "X\\.X"
 
 -- Conjunction the left and the right.
-conjCate1 :: Category
-conjCate1 = getCateFromString "(X\\*X)/*X"
+conjCate :: Category
+conjCate = getCateFromString "(X\\*X)/*X"
 
 -- Conjunction the left.
-conjCate2 :: Category
-conjCate2 = getCateFromString "X\\*X"
+conjCate4Backward :: Category
+conjCate4Backward = getCateFromString "X\\*X"
 
 -- Conjunction the right.
-conjCate3 :: Category
-conjCate3 = getCateFromString "X/*X"
+conjCate4Forward :: Category
+conjCate4Forward = getCateFromString "X/*X"
 
 -- Prefix words are '第'、'阿'、'初'
 prefixCate :: Category
@@ -337,3 +384,7 @@ prefixCate = getCateFromString "np/*np"
 -- Postfix words are '者'、'们'、'性'、'儿'
 postfixCate :: Category
 postfixCate = getCateFromString "np\\*X"
+
+-- '把' phrase
+baPhraseCate :: Category
+baPhraseCate = getCateFromString "(s\\#np)/#((s\\.np)/.np)"

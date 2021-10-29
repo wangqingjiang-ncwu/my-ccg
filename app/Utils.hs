@@ -45,7 +45,10 @@ module Utils (
     listToString,      -- [String] -> String
     stringToTriple,    -- String -> (String,String,String)
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
-    rewriteBackSlash   -- String -> String
+    rewriteBackSlash,  -- String -> string
+    quickSortForInt,   -- [Int] -> [Int]
+    toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
+    toAscListOfMapByValue   -- [(String,Int)] -> [(String,Int)]
     ) where
 
 import Data.Tuple
@@ -356,3 +359,20 @@ rewriteBackSlash :: String -> String
 rewriteBackSlash ('\\':xs) = '\\' : ('\\' : rewriteBackSlash xs)
 rewriteBackSlash (x:xs) = x : rewriteBackSlash xs
 rewriteBackSlash ""           = ""
+
+-- Quick sort for Integers.
+quickSortForInt :: [Int] -> [Int]
+quickSortForInt [] = []
+quickSortForInt (i:is) = (quickSortForInt [x|x<-is, x<i]) ++ [i] ++ (quickSortForInt [x|x<-is, x>=i])
+
+-- Get ascending list of a Map by its values.
+toAscListOfMapByValue :: Eq k => [(k, Int)] -> [(k, Int)]
+toAscListOfMapByValue [] = []
+toAscListOfMapByValue [x] = [x]
+toAscListOfMapByValue (t:ts) = (toAscListOfMapByValue [x | x <- ts, snd x < snd t]) ++ [t] ++ (toAscListOfMapByValue [x | x <- ts, snd x >= snd t])
+
+-- Get descending list of a Map by its values, where 'k' can be String, Int, or any type only if it is equality-decidable.
+toDescListOfMapByValue :: Eq k => [(k, Int)] -> [(k, Int)]
+toDescListOfMapByValue [] = []
+toDescListOfMapByValue [x] = [x]
+toDescListOfMapByValue (t:ts) = (toDescListOfMapByValue [x | x <- ts, snd x > snd t]) ++ [t] ++ (toDescListOfMapByValue [x | x <- ts, snd x <= snd t])

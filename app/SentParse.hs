@@ -233,10 +233,33 @@ doTrans onOff nPCs banPCs = do
     ruleSwitchOk <- getLine
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
-        putStr "Enable or disable rules among \"P/s\", \"N/s\", \"A/s\", \"A/v\", \"N/v\", \"D/v\", \"Cn/v\", \"Cv/v\", \"P/vt\", \"OE/vt\", \"Vt/vi\", \"A/vd\", \"S/a\", \"O/a\", \"Hn/a\", \"N/a\", \"P/a\", \"V/a\", \"D/a\", \"Da/a\", \"Cv/a\", \"Cn/a\", \"Ca/a\", \"A/n\", \"P/n\", \"V/n\", \"Cn/n\", \"D/n\", \"N/nd\", \"D/p\", \"N/oe\", \"N/pe\", \"A/q\", \"N/d\", \"A/d\", \"Da/d\", \"Ds/d\", \"Dx/d\", \"Doe/d\", \"Cv/d\", \"Jf/c\", \"Jb/c\" and \"U3d/u3\", for instance, \"+O/s, -A/v\": (RETURN for skip) "
+        putStrLn "Enable or disable rules among"
+        putStrLn "  S/s, P/s, O/s, A/s, Hn/s, N/s,"
+        putStrLn "  S/v, O/v, A/v, Hn/v, D/v, Cn/v, Cv/v, N/v, P/vt, OE/vt, Vt/vi, A/vd,"
+        putStrLn "  S/a, P/a, V/a, O/a, D/a, Da/a, Cn/a, Cv/a, Ca/a, Hn/a, N/a,"
+        putStrLn "  P/n, V/n, A/n, Cn/n, Cv/n, D/n, Da/n, ADJ/n, S/nd, O/nd, Hn/nd,"
+        putStrLn "  S/d, O/d, A/d, Hn/d, Cv/d, N/d, ADJ/d, Da/d, Ds/d, Dx/d, Doe/d,"
+        putStrLn "  D/p,"
+        putStrLn "  O/oe, Hn/oe, N/oe,"
+        putStrLn "  N/pe,"
+        putStrLn "  A/q,"
+        putStrLn "  Jf/c, Jb/c"
+        putStrLn "  and U3d/u3,"
+        putStr "  for instance, +O/s, -A/v: (RETURN for skip) "
         ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
         let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) ["P/s", "N/s", "A/s", "A/v", "N/v", "D/v", "Cn/v", "Cv/v", "P/vt", "OE/vt", "Vt/vi", "A/vd", "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Da/a", "Cv/a", "Cn/a", "Ca/a", "A/n", "P/n", "V/n", "Cn/n", "D/n", "N/nd", "D/p", "N/oe", "N/pe", "A/q", "N/d", "A/d", "Da/d", "Ds/d", "Dx/d", "Doe/d", "Cv/d", "Jf/c", "Jb/c", "U3d/u3"]]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) [
+          "S/s", "P/s", "O/s", "A/s", "Hn/s", "N/s",
+          "S/v", "O/v", "A/v", "Hn/v", "D/v", "Cn/v", "Cv/v", "N/v", "P/vt", "OE/vt", "Vt/vi", "A/vd",
+          "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Da/a", "Cv/a", "Cn/a", "Ca/a",
+          "P/n", "V/n", "A/n", "Cn/n", "Cv/n", "D/n", "Da/n", "ADJ/n", "S/nd", "O/nd", "Hn/nd",
+          "S/d", "O/d", "A/d", "Hn/d", "Cv/d", "N/d", "ADJ/d", "Da/d", "Ds/d", "Dx/d", "Doe/d",
+          "D/p",
+          "O/oe", "Hn/oe", "N/oe",
+          "N/pe",
+          "A/q",
+          "Jf/c", "Jb/c",
+          "U3d/u3"]]
            then do
              let newOnOff = updateOnOff onOff rws
              doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
@@ -281,7 +304,8 @@ doTrans onOff nPCs banPCs = do
  -}
 updateStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
 updateStruGene _ overPairs [] = do
-    putStrLn "updateStruGene: End"
+--    putStrLn "updateStruGene: End"
+    putStrLn ""                        -- To make output easy to read.
     return overPairs
 updateStruGene nPCs overPairs (pcp:pcps) = do
     newOverPairs <- updateStruGene' struGene overPairs       -- Update structural gene in Table stru_gene
@@ -485,9 +509,18 @@ parseSentWithoutPruning sn rules cs = do
 
 {- Parse a clause. This is a recursive process, and terminates when no new phrasal category is created. The first
    parameter is the serial number of sentence which the clause is affiliated with, the second parameter is which trip
-   of transition to be executed, the third parameter is [Rule] value, where Rule::= Ps | Ns | As | Av
-   | Nv | Dv | Cnv | Cvv | Pvt | OEvt | Vtvi | Avd | Sa | Oa | Hna | Na | Pa | Va | Da | Daa | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Nnd | Dp
-   | Noe | Npe | Aq | Nd | Ad | Dad | Dsd | Dxd | Doed | Cvd | Jfc | Jbc | U3du3.
+   of transition to be executed, the third parameter is [Rule] value, where
+   Rule::= Ss | Ps | Os | As | Hns | Ns
+        | Sv | Ov | Av | Hnv | Dv | Cnv | Cvv | Nv | Pvt | OEvt | Vtvi | Avd
+        | Sa | Pa | Va | Oa | Da | Daa | Cna | Cva | Caa | Hna | Na
+        | Pn | Vn | An | Cnn | Cvn | Dn | Dan | ADJn | Snd | Ond | Hnnd
+        | Sd | Od | Ad | Hnd | Cvd | Nd | ADJd | Dad | Dsd | Dxd | Doed
+        | Dp
+        | Ooe | Hnoe | Noe
+        | Npe
+        | Aq
+        | Jfc | Jbc
+        | U3du3.
    The fourth parameter is word-category string of this clause.
  -}
 

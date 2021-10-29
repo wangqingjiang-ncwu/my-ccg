@@ -246,7 +246,7 @@ spec = do
       let pcClo = [pc01,pc02,pc03,pc11,pc12]
       trans [] pcs [] `shouldBe` pcClo
 
-    it "The result of trans [] [((0,0),[((s\\.np)/.np,\"Desig\",\"贪污'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"现金'\",\"DE\",True)],1), ((2,0),[(np/*np,\"Desig\",\"一百六十'\",\"DE\",True)],2),((3,0),[(np/.np,\"Desig\",\"多'\",DE,True)],3),((4,0),[((np/*np)\\*(np/*np),\"Desig\",\"元'\",DE,True)],4)] [] is [((0,0),[((s\\.np)/.np,\"Desig\",\"贪污'\",\"DE\",False)],0), ((1,0),[(np,\"Desig\",\"现金'\",\"DE\",False)],1), ((2,0),[(np/*np,\"Desig\",\"一百六十'\",\"DE\",False)],2),((3,0),[(np/.np,\"Desig\",\"多'\",DE,False)],3),((4,0),[((np/*np)\\*(np/*np),\"Desig\",\"元'\",DE,True),((0,1),[(s\\.np,\">\",\"贪污' 现金'\",\"VO\",True)],1),((2,1),[(np/*np,\"Ca/a-<\",\"多' 一百六十'\",\"HmC\",True)],3)],4)]" $ do
+    it "The result of trans [] [((0,0),[((s\\.np)/.np,\"Desig\",\"贪污'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"现金'\",\"DE\",True)],1), ((2,0),[(np/*np,\"Desig\",\"一百六十'\",\"DE\",True)],2),((3,0),[(np/.np,\"Desig\",\"多'\",DE,True)],3),((4,0),[((np/*np)\\*(np/*np),\"Desig\",\"元'\",DE,True)],4)] [] is [((0,0),[((s\\.np)/.np,\"Desig\",\"贪污'\",\"DE\",False)],0), ((1,0),[(np,\"Desig\",\"现金'\",\"DE\",False)],1), ((2,0),[(np/*np,\"Desig\",\"一百六十'\",\"DE\",False)],2),((3,0),[(np/.np,\"Desig\",\"多'\",DE,False)],3),((4,0),[((np/*np)\\*(np/*np),\"Desig\",\"元'\",DE,True),((0,1),[(s\\.np,\">\",\"贪污' 现金'\",\"VO\",True)],1),((2,1),[(np/*np,\"Ca/a-<\",\"多' 一百六十'\",\"HmC\",True)],3)],4),((3,1),[(np,\"<\",\"多' 元'\",\"MQ\",True)],4)]" $ do
       let c01 = getCateFromString "(s\\.np)/.np"
       let c02 = npCate
       let c03 = getCateFromString "np/*np"
@@ -254,6 +254,7 @@ spec = do
       let c05 = getCateFromString "(np/*np)\\*(np/*np)"
       let c11 = getCateFromString "s\\.np"
       let c12 = getCateFromString "np/*np"
+      let c22 = getCateFromString "np/*np"
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "贪污'", "DE", True)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "现金'", "DE", True)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "一百六十'", "DE", True)] 2
@@ -261,8 +262,9 @@ spec = do
       let pc05 = createPhraCate 4 0 [(c05, "Desig", "元'", "DE", True)] 4
       let pc11 = createPhraCate 0 1 [(c11,">","贪污' 现金'","VO",True)] 1
       let pc12 = createPhraCate 2 1 [(c12,"Ca/a-<","多' 一百六十'","HmC",True)] 3
+      let pc21 = createPhraCate 3 1 [(c22,"<","元' 多'","MQ",True)] 4
       let pcs = [pc01,pc02,pc03,pc04,pc05]
-      let pcClo = [pc01,pc02,pc03,pc04,pc05,pc11,pc12]
+      let pcClo = [pc01,pc02,pc03,pc04,pc05,pc11,pc12,pc21]
       trans [Caa] pcs [] `shouldBe` pcClo
 
     it "The result of findSplitCate ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1) [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True))],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True))],1), ((2,0),[(s\\*np,\"Desig\",\"wins'\",\"DE\",True)],2), ((0,1),[(np,\">\",\"Brave' Frank'\",\"AHn\",True))],1), ((1,1),[(s,\"<\",\"wins' Frank'\",\"SP\",True))],2), ((0,2),[np,\"N/s->\",\"Brave' (wins' Frank')\",\"AHn\",True)],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\",\"SP\",True))],2)] is []" $ do

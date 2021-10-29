@@ -8,6 +8,7 @@ module Database (
   fromMySQLInt16U,             -- MySQLValue (MySQLInt16U) -> Int
   fromMySQLInt32U,             -- MySQLValue (MySQLInt32U) -> Int
   fromMySQLInt32,              -- MySQLValue (MySQLInt32) -> Int
+  fromMySQLInt64,              -- MySQLValue (MySQLInt64) -> Int
   fromMySQLText,               -- MySQLValue (MySQLText) -> String
   fromMySQLNullText,           -- MySQLValue (MySQLNull)-> String
   fromMySQLNullVarchar,        -- MySQLValue (MySQLNull) -> String
@@ -15,6 +16,7 @@ module Database (
   toMySQLInt16U,               -- Int -> MySQLValue (MySQLInt16U)
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
   toMySQLInt32,                -- Int -> MySQLValue (MySQLInt32)
+  toMySQLInt64,                -- Int -> MySQLValue (MySQLInt64)
   toMySQLText,                 -- String -> MySQLValue (MySQLText)
   toMySQLNullText,             -- MySQLValue (MySQLNull)
   toMySQLNullVarchar,          -- MySQLValue (MySQLNull)
@@ -66,6 +68,10 @@ fromMySQLInt32 :: MySQLValue -> Int
 fromMySQLInt32 (MySQLInt32 a) = read (show a) :: Int
 fromMySQLInt32 _ = error "fromMySQLInt32: Parameter error."
 
+fromMySQLInt64 :: MySQLValue -> Int
+fromMySQLInt64 (MySQLInt64 a) = read (show a) :: Int
+fromMySQLInt64 _ = error "fromMySQLInt64: Parameter error."
+
 fromMySQLText :: MySQLValue -> String
 fromMySQLText (MySQLText a)
     | str!!0 == '\"' = DL.init $ DL.tail str     -- Throw away char " at head and rear.
@@ -93,6 +99,9 @@ toMySQLInt32U v = MySQLInt32U (read (show v) :: Word32)
 
 toMySQLInt32 :: Int -> MySQLValue
 toMySQLInt32 v = MySQLInt32 (read (show v) :: Int32)
+
+toMySQLInt64 :: Int -> MySQLValue
+toMySQLInt64 v = MySQLInt64 (read (show v) :: Int64)
 
 toMySQLText :: String -> MySQLValue
 toMySQLText v = MySQLText (DT.pack v)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b9b1be603574722b7dac472fdf69e612360382c054d68a601909bc945f677613
+-- hash: ca4027a3138714ea95ef74480d1ebcaae44b9c6ef1a076616aef942b00e9a0ea
 
 name:           my-ccg
 version:        0.2.5.1
@@ -36,6 +36,7 @@ library
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , containers
     , hspec
     , io-streams
     , mysql-haskell
@@ -54,6 +55,7 @@ executable my-ccg-exe
       Phrase
       Rule
       SentParse
+      Statistics
       Utils
       Paths_my_ccg
   hs-source-dirs:
@@ -63,6 +65,7 @@ executable my-ccg-exe
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , containers
     , hspec
     , io-streams
     , my-ccg
@@ -75,6 +78,7 @@ test-suite my-ccg-test
   main-is: Spec.hs
   other-modules:
       CategorySpec
+      CorpusSpec
       OutputSpec
       ParseSpec
       PhraseSpec
@@ -89,6 +93,7 @@ test-suite my-ccg-test
       Phrase
       Rule
       SentParse
+      Statistics
       Utils
       Paths_my_ccg
   hs-source-dirs:
@@ -99,6 +104,7 @@ test-suite my-ccg-test
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , containers
     , hspec
     , io-streams
     , my-ccg

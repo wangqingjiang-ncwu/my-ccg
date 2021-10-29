@@ -65,11 +65,14 @@ appF cate1 cate2
     | isAvail && cateEqual ca1 verbCate = (lca, ">", semComb se1 se2, "VO", True)
     | isAvail && cateEqual ca1 verbCate2 = (lca, ">", semComb se1 se2, "VO", True)
     | isAvail && (ca1 == advCate || ca1 == baPhraseCate) = (lca, ">", semComb se1 se2, "DHv", True)
+    | isAvail && ca1 == baPhraseCate = (lca, ">", semComb se1 se2, "DHv", True)
     | isAvail && ca1 == prep2AdvCate = (leftCate ca1, ">", semComb se1 se2, "PO", True)
     | isAvail' && ca1 == advCate4Adj = (lca, ">", semComb se1 se2, "DHa", True)
     | isAvail && (ca1 == aux3Cate || ca1 == aux3dCate) = (leftCate ca1, ">", semComb se1 se2, "U3P", True)
     | isAvail && ca1 == advCate4Sent = (sCate, ">", semComb se1 se2, "DHs", True)
     | isAvail && ca1 == advCate4OE = (ca2, ">", semComb se1 se2, "DHv", True)
+    | isAvail && ca1 == prefixCate = (lca, ">", semComb se1 se2, "HP", True)
+    | isAvail && ca1 == advCate4OE = (lca, ">", semComb se1 se2, "DHoe", True)
     | isAvail && cateEqual ca1 (getCateFromString "s/.np") = (sCate, ">", semComb se1 se2, "NR", True)
     | isAvail =  (leftCate ca1, ">", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">", "", "", False)
@@ -92,13 +95,13 @@ appB cate1 cate2
     | isAvail && ca1 == numeralCate && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail' && ca1 == adjCate && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail' && (ca1 == numeralCate && ca2 == adjCompCate) && ps2 /= "XX" = (ca1, "<", semComb se2 se1, "HmC", True)
-    | isAvail' && (ca1 == pronCate4Quantifier && ca2 == quantifierCate) = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
+    | isAvail' && (ca1 == pronCate4Numeral && ca2 == quantifierCate) = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
     | isAvail && ca1 == adjCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolted!
     | isAvail && cateEqual ca2 predCate = (leftCate ca2, "<", semComb se2 se1, "SP", True)
     | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
-    | isAvail && ca2 == verbCompCate = (leftCate ca2, "<", semComb se2 se1, "HvC", True)
+    | isAvail' && ca2 == verbCompCate = (leftCate ca2, "<", semComb se2 se1, "HvC", True)                             -- For '把' phrase, isAvail' is used.
     | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb se2 se1, "U2P", True)
     | isAvail && ca2 == postfixCate = (npCate, "<", semComb se2 se1, "KP", True)
     | isAvail && ca2 == prep4BeiCate = (leftCate ca2, "<", semComb se2 se1, "MOs", True)
@@ -248,6 +251,7 @@ raiBh cate1 cate2
 {- CCG backward type raising and backward harmonic composition^2:  ((Y/X)\Z)/W X-> ((Y/X)\Z)/W Y\(Y/X)-> (Y\Z)/W
  - Here, backward harmonic composition^2 is not pure, because the two parameters are not all backward.
  - To now, the rule is only used for '把' phrase.
+ - For examples, ((s/.np)\#np)/#((s\.np)/.np) np => ((s/.np)\#np)/#((s\.np)/.np) s\.(s/.np) => (s\#np)/#((s\.np)/.np)
  -}
 raiBh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBh2 cate1 cate2
@@ -279,61 +283,106 @@ raiBc cate1 cate2
     isAvail = (rightCate lcate1 == ca2) && (head (midSlash lcate1) == '/') && (midSlash ca1 == "/x" || midSlash ca1 == "/.")
 
 {- All tags of context-sensitive category-converted rules:
-   (1)P/s, (2)N/s, (3)A/s, (4)A/v, (5)Hn/v, (6)N/v, (7)D/v, (8)Cn/v, (9)Cv/v, (10)P/vt, (11)OE/vt, (12)Vt/vi, (13)A/vd, (14)S/a,
-   (15)O/a, (16)Hn/a, (17)N/a, (18)P/a, (19)V/a, (20)D/a, (21)Da/a, (22)Cv/a, (23)Cn/a, (24)Ca/a, (25)A/n, (26)P/n, (27)V/n, (28)Cn/n, (29)D/n, (30)N/nd,
-   (31)D/p, (32)N/oe, (33)N/pe, (34)A/q, (35)N/d, (36)A/d, (37)Da/d, (38)Ds/d, (39)Dx/d, (40)Doe/d, (41)Cv/d, (42)Jf/c, (43)Jb/c, (44)U3d/u3
+   (s1)S/s, (s2)P/s, (s3)O/s, (s4)A/s, (s5)Hn/s, (s6)N/s,
+   (v1)S/v, (v2)O/v, (v3)A/v, (v4)Hn/v, (v5)D/v, (v6)Cn/v, (v7)Cv/v, (v8)N/v, (v9)P/vt, (v10)OE/vt, (v11)Vt/vi, (v12)A/vd,
+   (a1)S/a, (a2)P/a, (a3)V/a, (a4)O/a, (a5)D/a, (a6)Da/a, (a7)Cn/a, (a8)Cv/a, (a9)Ca/a, (a10)Hn/a, (a11)N/a,
+   (n1)P/n, (n2)V/n, (n3)A/n, (n4)Cn/n, (n4)Cv/n, (n6)D/n, (n7)Da/n, (n8)ADJ/n, (n9)S/nd, (n10)O/nd, (n11)Hn/nd,
+   (d1)S/d, (d2)O/d, (d3)A/d, (d4)Hn/d, (d5)Cv/d, (d6)N/d, (d7)ADJ/d, (d8)Da/d, (d9)Ds/d, (d10)Dx/d, (d11)Doe/d,
+   (p1)D/p,
+   (oe1)O/oe, (oe2)Hn/oe, (oe3)N/oe,
+   (pe1)N/pe,
+   (q1)A/q,
+   (c1)Jf/c, (c2)Jb/c,
+   (au1)U3d/u3
  -}
 
-ccTags = ["P/s","N/s","A/s","A/v","N/v","D/v","Cn/v","Cv/v","P/vt","OE/vt","Vt/vi","A/vd","S/a","O/a","Hn/a","N/a","P/a","V/a","D/a","Da/a","Cv/a","Cn/a","Ca/a","A/n","P/n","V/n","Cn/n","D/n","N/nd","D/p","N/oe","N/pe","A/q","N/d","A/d","Da/d","Ds/d","Dx/d","Doe/d","Cv/d","Jf/c","Jb/c","U3d/u3"]
+ccTags = ["S/s","P/s","O/s","A/s","Hn/s","N/s",
+          "S/v","O/v","A/v","Hn/v","D/v","Cn/v","Cv/v","N/v","P/vt","OE/vt","Vt/vi","A/vd",
+          "S/a","P/a","V/a","O/a","D/a","Da/a","Cn/a","Cv/a","Ca/a","Hn/a","N/a",
+          "P/n","V/n","A/n","Cn/n","Cv/n","D/n","Da/n","ADJ/n","S/nd","O/nd","Hn/nd",
+          "S/d","O/d","A/d","Hn/d","Cv/d","N/d","ADJ/d","Da/d","Ds/d","Dx/d","Doe/d",
+          "D/p",
+          "O/oe","Hn/oe","N/oe",
+          "N/pe",
+          "A/q",
+          "Jf/c","Jb/c",
+          "U3d/u3"]
 
 {- The enumerated type Rule is for the tags of category-converted rules. Rule value throws away '/' because enumerated
    value can't include '/'.
  -}
 
-data Rule = Ps | Ns | As | Av | Nv | Dv | Cnv | Cvv | Pvt | OEvt | Vtvi | Avd | Sa | Oa | Hna | Na | Pa | Va | Da | Daa | Cva | Cna | Caa | An | Pn | Vn | Cnn | Dn | Nnd | Dp | Noe | Npe | Aq | Nd | Ad | Dad | Dsd | Dxd | Doed | Cvd | Jfc | Jbc | U3du3 deriving (Eq)
+data Rule = Ss | Ps | Os | As | Hns | Ns
+          | Sv | Ov | Av | Hnv | Dv | Cnv | Cvv | Nv | Pvt | OEvt | Vtvi | Avd
+          | Sa | Pa | Va | Oa | Da | Daa | Cna | Cva | Caa | Hna | Na
+          | Pn | Vn | An | Cnn | Cvn | Dn | Dan | ADJn | Snd | Ond | Hnnd
+          | Sd | Od | Ad | Hnd | Cvd | Nd | ADJd | Dad | Dsd | Dxd | Doed
+          | Dp
+          | Ooe | Hnoe | Noe
+          | Npe
+          | Aq
+          | Jfc | Jbc
+          | U3du3 deriving (Eq)
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where
+    show Ss = "S/s"
     show Ps = "P/s"
-    show Ns = "N/s"
+    show Os = "O/s"
     show As = "A/s"
+    show Hns = "Hn/s"
+    show Ns = "N/s"
+    show Sv = "S/v"
+    show Ov = "O/v"
     show Av = "A/v"
-    show Nv = "N/v"
+    show Hnv = "Hn/v"
     show Dv = "D/v"
     show Cnv = "Cn/v"
     show Cvv = "Cv/v"
+    show Nv = "N/v"
     show Pvt = "P/vt"
     show OEvt = "OE/vt"
     show Vtvi = "Vt/vi"
     show Avd = "A/vd"
     show Sa = "S/a"
     show Oa = "O/a"
-    show Hna = "Hn/a"
-    show Na = "N/a"
     show Pa = "P/a"
     show Va = "V/a"
     show Da = "D/a"
     show Daa = "Da/a"
-    show Cva = "Cv/a"
     show Cna = "Cn/a"
+    show Cva = "Cv/a"
     show Caa = "Ca/a"
-    show An = "A/n"
+    show Hna = "Hn/a"
+    show Na = "N/a"
     show Pn = "P/n"
     show Vn = "V/n"
+    show An = "A/n"
     show Cnn = "Cn/n"
+    show Cvn = "Cv/n"
     show Dn = "D/n"
-    show Nnd = "N/nd"
-    show Dp = "D/p"
-    show Noe = "N/oe"
-    show Npe = "N/pe"
-    show Aq = "A/q"
-    show Nd = "N/d"
+    show Dan = "Da/n"
+    show ADJn = "ADJ/n"
+    show Snd = "S/nd"
+    show Ond = "O/nd"
+    show Hnnd = "Hn/nd"
+    show Sd = "S/d"
+    show Od = "O/d"
     show Ad = "A/d"
+    show Hnd = "Hn/d"
+    show Cvd = "Cv/d"
+    show Nd = "N/d"
+    show ADJd = "ADJ/d"
     show Dad = "Da/d"
     show Dsd = "Ds/d"
     show Dxd = "Dx/d"
     show Doed = "Doe/d"
-    show Cvd = "Cv/d"
+    show Dp = "D/p"
+    show Ooe = "O/oe"
+    show Hnoe = "Hn/oe"
+    show Noe = "N/oe"
+    show Npe = "N/pe"
+    show Aq = "A/q"
     show Jfc = "Jf/c"
     show Jbc = "Jb/c"
     show U3du3 = "U3d/u3"
@@ -357,22 +406,34 @@ ruleOff ru onOff
 updateOnOff :: [Rule] -> [String] -> [Rule]
 updateOnOff onOff rws
     | rws == [] = onOff
+    | rw1 == "+S/s" = updateOnOff (ruleOn Ss onOff) rwt
+    | rw1 == "-S/s" = updateOnOff (ruleOff Ss onOff) rwt
     | rw1 == "+P/s" = updateOnOff (ruleOn Ps onOff) rwt
     | rw1 == "-P/s" = updateOnOff (ruleOff Ps onOff) rwt
-    | rw1 == "+N/s" = updateOnOff (ruleOn Ns onOff) rwt
-    | rw1 == "-N/s" = updateOnOff (ruleOff Ns onOff) rwt
+    | rw1 == "+O/s" = updateOnOff (ruleOn Os onOff) rwt
+    | rw1 == "-O/s" = updateOnOff (ruleOff Os onOff) rwt
     | rw1 == "+A/s" = updateOnOff (ruleOn As onOff) rwt
     | rw1 == "-A/s" = updateOnOff (ruleOff As onOff) rwt
+    | rw1 == "+Hn/s" = updateOnOff (ruleOn Hns onOff) rwt
+    | rw1 == "-Hn/s" = updateOnOff (ruleOff Hns onOff) rwt
+    | rw1 == "+N/s" = updateOnOff (ruleOn Ns onOff) rwt
+    | rw1 == "-N/s" = updateOnOff (ruleOff Ns onOff) rwt
+    | rw1 == "+S/v" = updateOnOff (ruleOn Sv onOff) rwt
+    | rw1 == "-S/v" = updateOnOff (ruleOff Sv onOff) rwt
+    | rw1 == "+O/v" = updateOnOff (ruleOn Ov onOff) rwt
+    | rw1 == "-O/v" = updateOnOff (ruleOff Ov onOff) rwt
     | rw1 == "+A/v" = updateOnOff (ruleOn Av onOff) rwt
     | rw1 == "-A/v" = updateOnOff (ruleOff Av onOff) rwt
-    | rw1 == "+N/v" = updateOnOff (ruleOn Nv onOff) rwt
-    | rw1 == "-N/v" = updateOnOff (ruleOff Nv onOff) rwt
+    | rw1 == "+Hn/v" = updateOnOff (ruleOn Hnv onOff) rwt
+    | rw1 == "-Hn/v" = updateOnOff (ruleOff Hnv onOff) rwt
     | rw1 == "+D/v" = updateOnOff (ruleOn Dv onOff) rwt
     | rw1 == "-D/v" = updateOnOff (ruleOff Dv onOff) rwt
     | rw1 == "+Cn/v" = updateOnOff (ruleOn Cnv onOff) rwt
     | rw1 == "-Cn/v" = updateOnOff (ruleOff Cnv onOff) rwt
     | rw1 == "+Cv/v" = updateOnOff (ruleOn Cvv onOff) rwt
     | rw1 == "-Cv/v" = updateOnOff (ruleOff Cvv onOff) rwt
+    | rw1 == "+N/v" = updateOnOff (ruleOn Nv onOff) rwt
+    | rw1 == "-N/v" = updateOnOff (ruleOff Nv onOff) rwt
     | rw1 == "+P/vt" = updateOnOff (ruleOn Pvt onOff) rwt
     | rw1 == "-P/vt" = updateOnOff (ruleOff Pvt onOff) rwt
     | rw1 == "+OE/vt" = updateOnOff (ruleOn OEvt onOff) rwt
@@ -383,50 +444,74 @@ updateOnOff onOff rws
     | rw1 == "-A/vd" = updateOnOff (ruleOff Avd onOff) rwt
     | rw1 == "+S/a" = updateOnOff (ruleOn Sa onOff) rwt
     | rw1 == "-S/a" = updateOnOff (ruleOff Sa onOff) rwt
-    | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
-    | rw1 == "-O/a" = updateOnOff (ruleOff Oa onOff) rwt
-    | rw1 == "+Hn/a" = updateOnOff (ruleOn Hna onOff) rwt
-    | rw1 == "-Hn/a" = updateOnOff (ruleOff Hna onOff) rwt
-    | rw1 == "+N/a" = updateOnOff (ruleOn Na onOff) rwt
-    | rw1 == "-N/a" = updateOnOff (ruleOff Na onOff) rwt
     | rw1 == "+P/a" = updateOnOff (ruleOn Pa onOff) rwt
     | rw1 == "-P/a" = updateOnOff (ruleOff Pa onOff) rwt
     | rw1 == "+V/a" = updateOnOff (ruleOn Va onOff) rwt
     | rw1 == "-V/a" = updateOnOff (ruleOff Va onOff) rwt
+    | rw1 == "+O/a" = updateOnOff (ruleOn Oa onOff) rwt
+    | rw1 == "-O/a" = updateOnOff (ruleOff Oa onOff) rwt
     | rw1 == "+D/a" = updateOnOff (ruleOn Da onOff) rwt
     | rw1 == "-D/a" = updateOnOff (ruleOff Da onOff) rwt
     | rw1 == "+Da/a" = updateOnOff (ruleOn Daa onOff) rwt
     | rw1 == "-Da/a" = updateOnOff (ruleOff Daa onOff) rwt
-    | rw1 == "+Cv/a" = updateOnOff (ruleOn Cva onOff) rwt
-    | rw1 == "-Cv/a" = updateOnOff (ruleOff Cva onOff) rwt
     | rw1 == "+Cn/a" = updateOnOff (ruleOn Cna onOff) rwt
     | rw1 == "-Cn/a" = updateOnOff (ruleOff Cna onOff) rwt
+    | rw1 == "+Cv/a" = updateOnOff (ruleOn Cva onOff) rwt
+    | rw1 == "-Cv/a" = updateOnOff (ruleOff Cva onOff) rwt
     | rw1 == "+Ca/a" = updateOnOff (ruleOn Caa onOff) rwt
     | rw1 == "-Ca/a" = updateOnOff (ruleOff Caa onOff) rwt
-    | rw1 == "+A/n" = updateOnOff (ruleOn An onOff) rwt
-    | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
+    | rw1 == "+Hn/a" = updateOnOff (ruleOn Hna onOff) rwt
+    | rw1 == "-Hn/a" = updateOnOff (ruleOff Hna onOff) rwt
+    | rw1 == "+N/a" = updateOnOff (ruleOn Na onOff) rwt
+    | rw1 == "-N/a" = updateOnOff (ruleOff Na onOff) rwt
     | rw1 == "+P/n" = updateOnOff (ruleOn Pn onOff) rwt
     | rw1 == "-P/n" = updateOnOff (ruleOff Pn onOff) rwt
     | rw1 == "+V/n" = updateOnOff (ruleOn Vn onOff) rwt
     | rw1 == "-V/n" = updateOnOff (ruleOff Vn onOff) rwt
+    | rw1 == "+A/n" = updateOnOff (ruleOn An onOff) rwt
+    | rw1 == "-A/n" = updateOnOff (ruleOff An onOff) rwt
     | rw1 == "+Cn/n" = updateOnOff (ruleOn Cnn onOff) rwt
     | rw1 == "-Cn/n" = updateOnOff (ruleOff Cnn onOff) rwt
+    | rw1 == "+Cv/n" = updateOnOff (ruleOn Cvn onOff) rwt
+    | rw1 == "-Cv/n" = updateOnOff (ruleOff Cvn onOff) rwt
     | rw1 == "+D/n" = updateOnOff (ruleOn Dn onOff) rwt
     | rw1 == "-D/n" = updateOnOff (ruleOff Dn onOff) rwt
-    | rw1 == "+N/nd" = updateOnOff (ruleOn Nnd onOff) rwt
-    | rw1 == "-N/nd" = updateOnOff (ruleOff Nnd onOff) rwt
+    | rw1 == "+Da/n" = updateOnOff (ruleOn Dan onOff) rwt
+    | rw1 == "-Da/n" = updateOnOff (ruleOff Dan onOff) rwt
+    | rw1 == "+ADJ/n" = updateOnOff (ruleOn ADJn onOff) rwt
+    | rw1 == "-ADJ/n" = updateOnOff (ruleOff ADJn onOff) rwt
+    | rw1 == "+S/nd" = updateOnOff (ruleOn Snd onOff) rwt
+    | rw1 == "-S/nd" = updateOnOff (ruleOff Snd onOff) rwt
+    | rw1 == "+O/nd" = updateOnOff (ruleOn Ond onOff) rwt
+    | rw1 == "-O/nd" = updateOnOff (ruleOff Ond onOff) rwt
+    | rw1 == "+Hn/nd" = updateOnOff (ruleOn Hnnd onOff) rwt
+    | rw1 == "-Hn/nd" = updateOnOff (ruleOff Hnnd onOff) rwt
     | rw1 == "+D/p" = updateOnOff (ruleOn Dp onOff) rwt
     | rw1 == "-D/p" = updateOnOff (ruleOff Dp onOff) rwt
+    | rw1 == "+O/oe" = updateOnOff (ruleOn Ooe onOff) rwt
+    | rw1 == "-O/oe" = updateOnOff (ruleOff Ooe onOff) rwt
+    | rw1 == "+Hn/oe" = updateOnOff (ruleOn Hnoe onOff) rwt
+    | rw1 == "-Hn/oe" = updateOnOff (ruleOff Hnoe onOff) rwt
     | rw1 == "+N/oe" = updateOnOff (ruleOn Noe onOff) rwt
     | rw1 == "-N/oe" = updateOnOff (ruleOff Noe onOff) rwt
     | rw1 == "+N/pe" = updateOnOff (ruleOn Npe onOff) rwt
     | rw1 == "-N/pe" = updateOnOff (ruleOff Npe onOff) rwt
     | rw1 == "+A/q" = updateOnOff (ruleOn Aq onOff) rwt
     | rw1 == "-A/q" = updateOnOff (ruleOff Aq onOff) rwt
-    | rw1 == "+N/d" = updateOnOff (ruleOn Nd onOff) rwt
-    | rw1 == "-N/d" = updateOnOff (ruleOff Nd onOff) rwt
+    | rw1 == "+S/d" = updateOnOff (ruleOn Sd onOff) rwt
+    | rw1 == "-S/d" = updateOnOff (ruleOff Sd onOff) rwt
+    | rw1 == "+O/d" = updateOnOff (ruleOn Od onOff) rwt
+    | rw1 == "-O/d" = updateOnOff (ruleOff Od onOff) rwt
     | rw1 == "+A/d" = updateOnOff (ruleOn Ad onOff) rwt
     | rw1 == "-A/d" = updateOnOff (ruleOff Ad onOff) rwt
+    | rw1 == "+Hn/d" = updateOnOff (ruleOn Hnd onOff) rwt
+    | rw1 == "-Hn/d" = updateOnOff (ruleOff Hnd onOff) rwt
+    | rw1 == "+Cv/d" = updateOnOff (ruleOn Cvd onOff) rwt
+    | rw1 == "-Cv/d" = updateOnOff (ruleOff Cvd onOff) rwt
+    | rw1 == "+N/d" = updateOnOff (ruleOn Nd onOff) rwt
+    | rw1 == "-N/d" = updateOnOff (ruleOff Nd onOff) rwt
+    | rw1 == "+ADJ/d" = updateOnOff (ruleOn ADJd onOff) rwt
+    | rw1 == "-ADJ/d" = updateOnOff (ruleOff ADJd onOff) rwt
     | rw1 == "+Da/d" = updateOnOff (ruleOn Dad onOff) rwt
     | rw1 == "-Da/d" = updateOnOff (ruleOff Dad onOff) rwt
     | rw1 == "+Ds/d" = updateOnOff (ruleOn Dsd onOff) rwt
@@ -435,8 +520,6 @@ updateOnOff onOff rws
     | rw1 == "-Dx/d" = updateOnOff (ruleOff Dxd onOff) rwt
     | rw1 == "+Doe/d" = updateOnOff (ruleOn Doed onOff) rwt
     | rw1 == "-Doe/d" = updateOnOff (ruleOff Doed onOff) rwt
-    | rw1 == "+Cv/d" = updateOnOff (ruleOn Cvd onOff) rwt
-    | rw1 == "-Cv/d" = updateOnOff (ruleOff Cvd onOff) rwt
     | rw1 == "+Jf/c" = updateOnOff (ruleOn Jfc onOff) rwt
     | rw1 == "-Jf/c" = updateOnOff (ruleOff Jfc onOff) rwt
     | rw1 == "+Jb/c" = updateOnOff (ruleOn Jbc onOff) rwt

@@ -66,6 +66,15 @@ cateComb onOff pc1 pc2
    Conversion S/s, P/s, O/s, or A/s is always used together with a certain standard rule to implement two-type combination.
  -}
 
+{- Use S/s only when subject-predicate structure appears at subject's position.
+ -}
+      s_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
+      ctspaBysToS_SP = [rule cate1 cate2 | rule <- [appB,raiFh], cate1 <- s_S_SP, cate2 <- csp_2, elem Ss onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaBysToS = ctspaBysToS_SP
+      catesBysToS = [(fst5 cate, "S/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToS]
+
 {- Use P/s only when
  - (1) subject-predicate structure appears at predicate position,
  - (2) subject-predicate structure occupies the head-word position of DHv,
@@ -91,109 +100,158 @@ cateComb onOff pc1 pc2
       catesBysToP = [(fst5 cate, "P/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToP]
 
 {- Use O/s only when subject-predicate structure appears at object's position.
- - Use S/s only when subject-predicate structure appears at subject's position.
- - The two conversion are obsoleted, which are replaced by conversion N/s.
  -}
-
-{- Use N/s only when
- - (1) "<conjunction> s",
- - (2) "s 的",
- - (3) "s <nounCompCate>",
- - (4) "<prep2AdvCate> s",
- - (5) "<adjective> s",
- - (6) A subject-predicate structure appears at object's position,
- - (7) A subject-predicate structure appears at subject's position.
- -}
-      s_N1 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN1 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N1, elem Ns onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, fst3 x == conjCate]
-      s_N2 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
-      ctspaBysToN2 = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N2, cate2 <- csp_2, elem Ns onOff]
-          where
-          csp_2 = removeDup [x| x <- csp2, fst3 x == aux1Cate]
-      s_N3 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
-      ctspaBysToN3 = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N3, cate2 <- csp_2, elem Ns onOff]
-          where
-          csp_2 = removeDup [x| x <- csp2, fst3 x == nounCompCate]
-      s_N4 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN4 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N4, elem Ns onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, fst3 x == prep2AdvCate]
-      s_N5 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN5 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N5, elem Ns onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, cateEqual (fst3 x) adjCate]
-      s_N_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_VO, elem Ns onOff]
+      s_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_O_VO, elem Os onOff]
           where
           vCate2 = [verbCate, verbCate2]
           csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate2)]
-      catesBysToO_VO = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN_VO]
-
-      s_N_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
-      ctspaBysToN_SP = [rule cate1 cate2 | rule <- [appB,raiFh], cate1 <- s_N_SP, cate2 <- csp_2, elem Ns onOff]
+      s_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_O_PO, elem Os onOff]         -- Prepositional object
           where
-          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      catesBysToN_SP = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN_SP]
+          csp_1 = removeDup [x| x <- csp1, fst3 x == prep2AdvCate]
+      ctspaBysToO = ctspaBysToO_VO ++ ctspaBysToO_PO
+      catesBysToO = [(fst5 cate, "O/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToO]
 
-      ctspaBysToN = ctspaBysToN1 ++ ctspaBysToN2 ++ ctspaBysToN3 ++ ctspaBysToN4 ++ ctspaBysToN5 ++ catesBysToO_VO ++ catesBysToN_SP
-      catesBysToN = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN]
-
+{- Use A/s only when subject-predicate structure appears at attribue's position.
+ -}
       s_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
       ctspaBysToA = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A_AHn, cate2 <- csp2, fst3 cate2 == npCate, elem As onOff]
       catesBysToA = [(fst5 cate, "A/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA]
 
+{- Use Hn/s only when subject-predicate structure appears at
+ - headword of AHn,
+ - headword of HnC.
+ -}
+      s_Hn_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToHn_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_Hn_AHn, elem Hns onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, cateEqual (fst3 x) adjCate]
+      s_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
+      ctspaBysToHn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- s_Hn_HnC, cate2 <- csp_2, elem Hns onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, fst3 x == nounCompCate]
+      ctspaBysToHn = ctspaBysToHn_AHn ++ ctspaBysToHn_HnC
+      catesBysToHn = [(fst5 cate, "Hn/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToHn]
+
+{- Use N/s only when
+ - (1) "<conjunction> s",
+ - (2) "s 的",
+ - (3) "'把' s"
+ -}
+      s_N_Conj = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToN_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_Conj, elem Ns onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == conjCate]
+      s_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
+      ctspaBysToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_U1P, cate2 <- csp_2, elem Ns onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, fst3 x == aux1Cate]
+      s_N_Ba = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToN_Ba = [rule cate1 cate2 | rule <- [raiBh2], cate1 <- csp_1, cate2 <- s_N_Ba, elem Ns onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == prep4BaCate]
+      ctspaBysToN = ctspaBysToN_Conj ++ ctspaBysToN_U1P ++ ctspaBysToN_Ba
+      catesBysToN = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN]
+
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, and non-inflectionship
    of Chinese words, the following syntax-typed conversions exist,
-   P/s, N/s, A/s, A/v, Hn/v, N/v, D/v, Cn/v, Cv/v, P/vt, OE/vt, Vt/vi, A/vd, S/a, O/a, Hn/a, N/a, P/a, V/a,
-   D/a, Da/a, Cv/a, Cn/a, Ca/a, A/n, P/n, V/n, Cn/n, D/n, N/nd, D/p, N/oe, N/pe, A/q, N/d, A/d, Da/d, Ds/d, Dx/d, Doe/d, Cv/d, Jfc, Jb/c, U3d/u3.
+   S/s, P/s, O/s, A/s, Hn/s, N/s,
+   S/v, O/v, A/v, Hn/v, D/v, Cn/v, Cv/v, N/v,
+   P/vt, OE/vt, Vt/vi, A/vd,
+   S/a, P/a, V/a, O/a, D/a, Da/a, Cn/a, Cv/a, Ca/a, Hn/a, N/a,
+   P/n, V/n, A/n, Cn/n, Cv/n, D/n, Da/n, ADJ/n,
+   S/nd, O/nd, Hn/nd,
+   S/d, O/d, A/d, Hn/d, Cv/d, N/d, Da/d, Ds/d, Dx/d, Doe/d,
+   D/p,
+   O/oe, Hn/oe, N/oe,
+   N/pe, A/q, Jfc, Jb/c, U3d/u3.
    Besides, two adjacent syntactic types can convert to their new types respectively and simultaneously,
    such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-typed combination is
    labelled as "N/v-"++<tag>, "A/v-"++<tag>, and so on. Now, type conversions only happen in
    acting as particular syntactic constituents.
  -}
 
- {- The conversion from verb to noun happens when verbal phrase occupies subject or object position.
-  - S/v and O/v are obsoleted.
+ {- The conversion "S/v" from verb's types to "np" happens when verbal phrase occupies subject position.
   -}
+      v_S_SP = removeDup [(npCate, snd3 csp, thd3 csp)|csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToS_SP = [rule cate1 cate2 | rule <- [appB,raiFh], cate1 <- v_S_SP, cate2 <- csp_2, elem Sv onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaByvToS = ctspaByvToS_SP
+      catesByvToS = [(fst5 cate, "S/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToS]
+
+{- The conversion "O/v" from verb's types to "np" happens when verbal phrase occupies object position
+ - (1) verb's object,
+ - (2) object of prepositions except of preposition '把',
+ - (3) object of preposition '把'.
+ -}
+      v_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_O_VO, elem Ov onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate)]
+      v_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]        -- Prepositional object
+      ctspaByvToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_O_PO, elem Ov onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == prep2AdvCate]
+      v_O_MOv = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]        -- object of '把'
+      ctspaByvToO_MOv = [rule cate1 cate2 | rule <- [raiBh2], cate1 <- csp_1, cate2 <- v_O_MOv, elem Ov onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == prep4BaCate]
+      ctspaByvToO = ctspaByvToO_VO ++ ctspaByvToO_PO ++ ctspaByvToO_MOv
+      catesByvToO = [(fst5 cate, "O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToO]
 
 {- The conversion from verbal types to np/.np happens when the verb occupies attribute position.
  -}
-      v_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToA = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff]
+      v_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff]
+      ctspaByvToA = ctspaByvToA_AHn
       catesByvToA = [(fst5 cate, "A/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA]
 
 {- The conversion from verb to noun happens when the verb occupies nominal head word position of structure AHn and HnC.
- - The conversion Hn/v is obsoleted.
+ - If ctspaByvToN_XX3 exists, then ctspaByvToN_HnC exists also, which will create two same phrase categories.
  -}
+      v_Hn_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToHn_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_Hn_AHn, elem Hnv onOff]
+          where
+          csp_1 =  removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      v_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToHn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- v_Hn_HnC, cate2 <- csp2, fst3 cate2 == nounCompCate, elem Hnv onOff]
+      ctspaByvToHn = ctspaByvToHn_AHn ++ ctspaByvToHn_HnC
+      catesByvToHn = [(fst5 cate, "Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToHn]
 
-{- The conversion from verb to noun happens when
- - (1) The verb occupies the subject position,
- - (2) The verb occupies the object position of a verb,
- - (3) The verb occupies the object position of a preposition.
- - (4) the verb occupies nominal position of Preposition-Object structure PO,
- - (5) '的' structure U1P,
- - (6) Coordination structure XX，
- - (7) the verb occupies the headword position of AHn,
- - (8) the verb occupies the headword position of HnC.
- -}
-
-      v_N_SP = removeDup [(npCate, snd3 csp, thd3 csp)|csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToN_SP = [rule cate1 cate2 | rule <- [appB,raiFh], cate1 <- v_N_SP, cate2 <- csp_2, elem Nv onOff]
+-- The conversion from verb to adverb happens when the verb occupies adverbial position.
+      v_D_DHv = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToD_DHv = [rule cate1 cate2 | rule <- [appF,comFh], cate1 <- v_D_DHv, cate2 <- csp_2, elem Dv onOff]
           where
           csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      
-      v_N_VO = removeDup [(npCate, snd3 csp, thd3 csp)|csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToN_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_N_VO, elem Nv onOff]
+      v_D_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToD_DHd = [rule cate1 cate2 | rule <- [appF,comFh], cate1 <- v_D_DHd, cate2 <- csp_2, elem Dv onOff]
           where
-          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate)]
+          csp_2 = removeDup [x| x <- csp2, fst3 x == advCate]
+      ctspaByvToD = ctspaByvToD_DHv ++ ctspaByvToD_DHd
+      catesByvToD = [(fst5 cate, "D/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToD]
 
-      v_N_PO = removeDup [(npCate, snd3 csp, thd3 csp)|csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]        -- Prepositional object
-      ctspaByvToN_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_N_PO, elem Nv onOff]
+-- The conversion from verb types to noun-complemented types happens when verb phrases occupy noun-complemented position.
+      v_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToCn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- v_Cn_HnC, elem Cnv onOff]
           where
-          csp_1 = removeDup [x| x <- csp1, fst3 x == prep2AdvCate]
+          csp_1 = removeDup [x| x <- csp1, fst3 x == npCate]
+      ctspaByvToCn = ctspaByvToCn_HnC
+      catesByvToCn = [(fst5 cate, "Cn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToCn]
 
+-- The conversion from verb types to verb-complemented types happens when verb phrases occupy verb-complemented position.
+      v_Cv_HvC = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToCv_HvC = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- v_Cv_HvC, elem Cvv onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaByvToCv = ctspaByvToCv_HvC
+      catesByvToCv = [(fst5 cate, "Cv/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToCv]
+
+{- The conversion from verb to noun happens when
+ - (1) '的' structure U1P,
+ - (2) Coordination structure XX，
+ -}
       v_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
       ctspaByvToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- v_N_U1P, cate2 <- csp2, fst3 cate2 == aux1Cate, elem Nv onOff]
 
@@ -209,46 +267,8 @@ cateComb onOff pc1 pc2
       v_N_XX3 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
       ctspaByvToN_XX3 = [rule cate1 cate2 | rule <- [appB], cate1 <- v_N_XX3, cate2 <- csp2, fst3 cate2 == nounCompCate, thd3 cate2 == "XX", elem Nv onOff]
 
--- when a verb follows an adjective.
-      v_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToN_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- v_N_AHn, elem Nv onOff]
-          where
-          csp_1 =  removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-
-{- When a verb is followed by noun complement's type np\*np.
- - If ctspaByvToN_XX3 exists, then ctspaByvToN_HnC exists also, which will create two same phrase categories.
- -}
-      v_N_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToN_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- v_N_HnC, cate2 <- csp2, fst3 cate2 == nounCompCate, elem Nv onOff]
-
-      ctspaByvToN = ctspaByvToN_SP ++ ctspaByvToN_VO ++ ctspaByvToN_PO ++ ctspaByvToN_U1P ++ ctspaByvToN_XX1 ++ ctspaByvToN_XX2 ++ ctspaByvToN_XX3 ++ ctspaByvToN_AHn ++ ctspaByvToN_HnC
+      ctspaByvToN = ctspaByvToN_U1P ++ ctspaByvToN_XX1 ++ ctspaByvToN_XX2 ++ ctspaByvToN_XX3
       catesByvToN = [(fst5 cate, "N/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToN]
-
--- The conversion from verb to adverb happens when the verb occupies adverbial position.
-      v_D1 = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToD1 = [rule cate1 cate2 | rule <- [appF,comFh], cate1 <- v_D1, cate2 <- csp_2, elem Dv onOff]
-          where
-          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      v_D2 = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToD2 = [rule cate1 cate2 | rule <- [appF,comFh], cate1 <- v_D2, cate2 <- csp_2, elem Dv onOff]
-          where
-          csp_2 = removeDup [x| x <- csp2, fst3 x == advCate]
-      ctspaByvToD = ctspaByvToD1 ++ ctspaByvToD2
-      catesByvToD = [(fst5 cate, "D/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToD]
-
--- The conversion from verb types to noun-complemented types happens when verb phrases occupy noun-complemented position.
-      v_Cn = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- v_Cn, elem Cnv onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, fst3 x == npCate]
-      catesByvToCn = [(fst5 cate, "Cn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToCn]
-
--- The conversion from verb types to verb-complemented types happens when verb phrases occupy verb-complemented position.
-      v_Cv = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
-      ctspaByvToCv = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- v_Cv, elem Cvv onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      catesByvToCv = [(fst5 cate, "Cv/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToCv]
 
 {- The conversion from transitive verb's types to predicate type happens when
  - (1) The verb's type follows conjunction type (X\*X)/*X,
@@ -264,15 +284,15 @@ cateComb onOff pc1 pc2
       ctspaByvtToP_XX = [rule cate1 cate2 | rule <- [appB], cate1 <- vt_P_XX, cate2 <- csp_2, elem Pvt onOff]
           where
           csp_2 = removeDup [x| x <- csp2, thd3 x == "XX"]
-      vt_P_OasS = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
-      ctspaByvtToP_OasS = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- vt_P_OasS, elem Pvt onOff]
+      vt_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
+      ctspaByvtToP_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- vt_P_SP, elem Pvt onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == npCate]
       vt_P_Bei = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
       ctspaByvtToP_Bei = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_Bei, elem Pvt onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == advCate]
-      ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_OasS ++ ctspaByvtToP_Bei
+      ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP ++ ctspaByvtToP_Bei
       catesByvtToP = [(fst5 cate, "P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP]
 
 {- The conversion from transitive verb's types to object-extractioned type happens when the prepositional type happens to the left of this verb.
@@ -301,78 +321,43 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x <- csp1, fst3 x == aux3Cate]
       catesByvdToA = [(fst5 cate, "A/vd-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvdToA]
 
-{- The conversion from adjective to noun happens when the adjective occupies subject, object, AHn's headword position, or HnC's headword position.
+{- The conversion from adjective to noun happens when the adjective occupies subject position.
  -}
-      a_S = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToS = [rule cate1 cate2 | rule <- [appB, raiFh], cate1 <- a_S, cate2 <- csp_2, elem Sa onOff]
+      a_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToS_SP = [rule cate1 cate2 | rule <- [appB, raiFh], cate1 <- a_S_SP, cate2 <- csp_2, elem Sa onOff]
           where
           csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaByaToS = ctspaByaToS_SP
       catesByaToS = [(fst5 cate, "S/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToS]
 
-      a_O = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_O, elem Oa onOff]
-          where
-          vCate2 = [verbCate, verbCate2]
-          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate2)]
-      catesByaToO = [(fst5 cate, "O/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToO]
-
-      a_Hn_A = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToHn_A = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_Hn_A, elem Hna onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
-      a_Hn_C = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToHn_C = [rule cate1 cate2 | rule <- [appB], cate1 <- a_Hn_C, cate2 <- csp_2, elem Hna onOff]
-          where
-          csp_2 = removeDup [x| x<-csp2, fst3 x == nounCompCate]
-      ctspaByaToHn = ctspaByaToHn_A ++ ctspaByaToHn_C
-      catesByaToHn = [(fst5 cate, "Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToHn]
-
-{- The conversion from np/*np to np happens when
- - (1) adjective words are followed by auxiliary word '的',
- - (2) numeral words (with type np/*np) have prefix (with type np/*np) modification,
- - (3) the adjective follows a preposition, such as "比p 收到的a".
+{- The conversion from adjective to predicate happens when
+ - (1) The adjective occupies predicate position,
+ - (2) The adjective occupies headword position of DHv,
+ - (3) The adjective occupies headword position of HvC, such as, "高兴a 一辈子mq", "会d 高兴a 一辈子", "高兴a 极d 了u4";
+ - (4) The conversion also happens when the adjective follows <conjCate> or <conjCate4Backward> follows the adjective, and the coordination phrase acts as predicate.
+ -     such as, "迷惘a、孤独a" => "迷惘a、孤独v" => "迷惘v、孤独v"
  -}
-      a_N1 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToN1 = [rule cate1 cate2 | rule <- [appB], cate1 <- a_N1, cate2 <- csp_2, elem Na onOff]
-          where
-          csp_2 = removeDup [x| x<-csp2, fst3 x == aux1Cate]
-      a_N2 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToN2 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_N2, elem Na onOff]
-          where
-          csp_1 = removeDup [x| x<-csp1, fst3 x == prefixCate]
-      a_N3 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToN3 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_N3, elem Na onOff]
-          where
-          csp_1 = removeDup [x| x<-csp1, fst3 x == prep2AdvCate]
-      ctspaByaToN = ctspaByaToN1 ++ ctspaByaToN2 ++ ctspaByaToN3
-      catesByaToN = [(fst5 cate, "N/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToN]
-
-{- The conversion from adjective to predicate verb happens when the adjective occupies predicate position or headword position of DHv and HvC.
- - such as, "高兴a 一辈子mq", "会d 高兴a 一辈子", "高兴a 极d 了u4"
- - The conversion also happens when the adjective follows <conjCate> or <conjCate4Backward> follows the adjective, and the coordination phrase acts as predicate.
- - such as, "迷惘a、孤独a" => "迷惘a、孤独v" => "迷惘v、孤独v"
- -}
-      a_P1 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToP1 = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_P1, elem Pa onOff]
+      a_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToP_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_P_SP, elem Pa onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
-      a_P2 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToP2 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_P2, elem Pa onOff]
+      a_P_DHv = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToP_DHv = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_P_DHv, elem Pa onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == advCate]
-      a_P3 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToP3 = [rule cate1 cate2 | rule <- [appB], cate1 <- a_P3, cate2 <- csp_2, elem Pa onOff]
+      a_P_HvC = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToP_HvC = [rule cate1 cate2 | rule <- [appB], cate1 <- a_P_HvC, cate2 <- csp_2, elem Pa onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == verbCompCate]
-      a_P4 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToP4 = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_P4, elem Pa onOff]
+      a_P_Conj = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToP_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_P_Conj, elem Pa onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == conjCate]
-      a_P5 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToP5 = [rule cate1 cate2 | rule <- [appB], cate1 <- a_P5, cate2 <- csp_2, elem Pa onOff]
+      a_P_XX = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToP_XX = [rule cate1 cate2 | rule <- [appB], cate1 <- a_P_XX, cate2 <- csp_2, elem Pa onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == getCateFromString "(s\\.np)\\*(s\\.np)"]
-      ctspaByaToP = ctspaByaToP1 ++ ctspaByaToP2 ++ ctspaByaToP3 ++ ctspaByaToP4 ++ ctspaByaToP5
+      ctspaByaToP = ctspaByaToP_SP ++ ctspaByaToP_DHv ++ ctspaByaToP_HvC ++ ctspaByaToP_Conj ++ ctspaByaToP_XX
       catesByaToP = [(fst5 cate, "P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToP]
 
 {- During the past, adjective is only considered to use predicate's syntax type. Now adjective is also allowed to use transitive verbs's syntax types.
@@ -403,76 +388,106 @@ cateComb onOff pc1 pc2
       ctspaByaToV = ctspaByaToV_VO ++ ctspaByaToV_OE ++ ctspaByaToV_DHv ++ ctspaByaToV_HvC
       catesByaToV = [(fst5 cate, "V/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToV]
 
+{- The conversion from adjective to noun happens when
+ - (1) The adjective occupies object position,
+ - (2) The adjective follows a preposition, such as "比p 收到的a".
+ -}
+      a_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_O_VO, elem Oa onOff]
+          where
+          vCate2 = [verbCate, verbCate2]
+          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate2)]
+      a_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_O_PO, elem Oa onOff]
+          where
+          csp_1 = removeDup [x| x<-csp1, fst3 x == prep2AdvCate]
+      ctspaByaToO = ctspaByaToO_VO ++ ctspaByaToO_PO
+      catesByaToO = [(fst5 cate, "O/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToO]
+
 {- The conversion from adjective to adverb happens when
  - (1) The adjective occupies adverbial position to modify a verb,
  - (2) The adjective occupies adverbial position to modify a adverb,
  - (3) The adjective occupies the headword position of DHa.
  -}
-      a_D1 = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToD1 = [rule cate1 cate2 | rule <- [appF,comFh,comFh2], cate1 <- a_D1, cate2 <- csp_2, elem Da onOff]
+      a_D_DHv = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToD_DHv = [rule cate1 cate2 | rule <- [appF,comFh,comFh2], cate1 <- a_D_DHv, cate2 <- csp_2, elem Da onOff]
           where
           csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      a_D2 = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToD2 = [rule cate1 cate2 | rule <- [comFh], cate1 <- a_D2, cate2 <- csp_2, elem Da onOff]
+      a_D_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToD_DHd = [rule cate1 cate2 | rule <- [comFh], cate1 <- a_D_DHd, cate2 <- csp_2, elem Da onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == advCate]
-      a_D3 = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToD3 = [rule cate1 cate2 | rule <- [comFh], cate1 <- csp_1, cate2 <- a_D3, elem Da onOff]
+      a_Hd_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToHd_DHd = [rule cate1 cate2 | rule <- [comFh], cate1 <- csp_1, cate2 <- a_Hd_DHd, elem Da onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == advCate]
-      ctspaByaToD = ctspaByaToD1 ++ ctspaByaToD2 ++ ctspaByaToD3
+      ctspaByaToD = ctspaByaToD_DHv ++ ctspaByaToD_DHd ++ ctspaByaToHd_DHd
       catesByaToD = [(fst5 cate, "D/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToD]
 
 {- The category conversion from np/.np to (np/.np)/*(np/.np) happens when
  - the adjective occupies adjective-adverbial position.
  -}
-      a_Da = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      ctspaByaToDa = [rule cate1 cate2 | rule <- [appF], cate1 <- a_Da, cate2 <- csp_2, elem Daa onOff]
+      a_Da_DHa = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToDa_DHa = [rule cate1 cate2 | rule <- [appF], cate1 <- a_Da_DHa, cate2 <- csp_2, elem Daa onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == adjCate]
+          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) adjCate]
+      ctspaByaToDa = ctspaByaToDa_DHa
       catesByaToDa = [(fst5 cate, "Da/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToDa]
 
--- The category conversion from np/.np to (s\.np)\x(s\.np) happens when the adjective occupies completment position.
-      a_Cv = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToCv = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- a_Cv, elem Cva onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      catesByaToCv = [(fst5 cate, "Cv/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCv]
-
 -- The category conversion from np/.np to np\*np happens when a (measured) numeral occupies completment position.
-      a_Cn = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Cn, elem Cna onOff]
+      a_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToCn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Cn_HnC, elem Cna onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
+      ctspaByaToCn = ctspaByaToCn_HnC
       catesByaToCn = [(fst5 cate, "Cn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCn]
+
+
+-- The category conversion from np/.np to (s\.np)\x(s\.np) happens when the adjective occupies completment position.
+      a_Cv_HvC = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToCv_HvC = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- a_Cv_HvC, elem Cva onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaByaToCv = ctspaByaToCv_HvC
+      catesByaToCv = [(fst5 cate, "Cv/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCv]
 
 {- The category conversion from np/.np to (np/.np)\*(np/.np) happens when np/.np (adjective classic type) complemently modify np/.np (adjective or numeral).
  - For examples, "好a 多a 了", and "二十m 多a 元q 钱n".
  -}
-      a_Ca = removeDup [(adjCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByaToCa = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Ca, elem Caa onOff]
+      a_Ca_HaC = removeDup [(adjCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToCa_HaC = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Ca_HaC, elem Caa onOff]
           where
           csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
+      ctspaByaToCa = ctspaByaToCa_HaC
       catesByaToCa = [(fst5 cate, "Ca/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCa]
 
-{- The conversion from 'np' to 'np/.np' is ONLY allowed when
- - (1) nouns act as attribute,
- - (2) pronouns are followed by quantifiers,
- - (3) or nouns are followed by '地'.
+{- The conversion from adjective to noun happens when the adjective occupies AHn's or HnC's headword position.
  -}
-      n_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA1 = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+      a_Hn_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToHn_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_Hn_AHn, elem Hna onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
-      n_A_PronQuan = removeDup [(pronCate4Quantifier, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA2 = [rule cate1 cate2 | rule <- [appB], cate1 <- n_A_PronQuan, cate2 <- csp_2, elem An onOff]
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
+      a_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToHn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- a_Hn_HnC, cate2 <- csp_2, elem Hna onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == quantifierCate]
-      ctspaBynToA3 = [rule cate1 cate2 | rule <- [appB], cate1 <- n_A, cate2 <- csp_2, elem An onOff]
+          csp_2 = removeDup [x| x<-csp2, fst3 x == nounCompCate]
+      ctspaByaToHn = ctspaByaToHn_AHn ++ ctspaByaToHn_HnC
+      catesByaToHn = [(fst5 cate, "Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToHn]
+
+{- The conversion from np/*np to np happens when
+ - (1) adjective words are followed by auxiliary word '的',
+ - (2) numeral words (with type np/*np) have prefix (with type np/*np) modification.
+ -}
+      a_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+      ctspaByaToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- a_N_U1P, cate2 <- csp_2, elem Na onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == aux2Cate]
-      ctspaBynToA = ctspaBynToA1 ++ ctspaBynToA2 ++ ctspaBynToA3
-      catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
+          csp_2 = removeDup [x| x<-csp2, fst3 x == aux1Cate]
+      a_N_HP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+      ctspaByaToN_HP = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_N_HP, elem Na onOff]
+          where
+          csp_1 = removeDup [x| x<-csp1, fst3 x == prefixCate]
+      ctspaByaToN = ctspaByaToN_U1P ++ ctspaByaToN_HP
+      catesByaToN = [(fst5 cate, "N/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToN]
 
 -- The conversion from noun to predicate is ONLY allowed when the noun acts as predicate or the headword of DHv.
       n_P1 = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
@@ -493,6 +508,14 @@ cateComb onOff pc1 pc2
           csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
       catesBynToV = [(fst5 cate, "V/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV]
 
+-- The conversion from noun to attribue is ONLY allowed when the noun acts as attribue position.
+      n_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- csp_2, elem An onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      ctspaBynToA = ctspaBynToA_AHn
+      catesBynToA = [(fst5 cate, "A/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA]
+
 -- The conversion from noun to noun's completment is ONLY allowed when the noun acts as noun's completment.
       n_Cn = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
       ctspaBynToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- n_Cn, elem Cnn onOff]
@@ -500,201 +523,327 @@ cateComb onOff pc1 pc2
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
       catesBynToCn = [(fst5 cate, "Cn/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToCn]
 
+{- The conversion from noun to verb's completment is ONLY allowed when the noun acts as verb's completment.
+ - Time noun has this requirement. Such as "走v 了u 一m 个q 月nt" and "吃v 半m 个q 月nt 馍n".
+ - Actually, nouns except of time nouns seldom need this conversion. If time words become one class of words,
+ - ambiguity of noun types will become less.
+ -}
+      n_Cv = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
+      ctspaBynToCv = [rule cate1 cate2 | rule <- [appB, comBc], cate1 <- csp_1, cate2 <- n_Cv, elem Cvn onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, elem True (map (\y -> (cateEqual y (fst3 x))) vCate)]
+      catesBynToCv = [(fst5 cate, "Cv/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToCv]
+
 {- The conversion from noun to verb's adberbial type is ONLY allowed when
  - (1) the noun acts as verb's adverbial, using type (s\.np)/#(s\.np),
  - (2) the noun acts as headword of DHd, using type (s\.np)/#(s\.np),
- - (3) the noun acts as sentential adverbial, using type s/*s.
+ - (3) the noun acts as adverbial of DHd, using type (s\.np)/#(s\.np), such as "大学n 期间nt"
+ - (4) the noun acts as sentential adverbial, using type s/*s,
+ - (5) the noun acts as predicate adverbial, using type (s\.np)/#(s\.np), but combines with subject to get predicate-extracted phrase before combining with predicate.
  - Time nouns usually need this conversion.
  -}
       n_D_DHv = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
       ctspaBynToD_DHv = [rule cate1 cate2 | rule <- [appF, comFh, comFh2], cate1 <- n_D_DHv, cate2 <- csp_2, elem Dn onOff]
           where
           csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      n_D_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
-      ctspaBynToD_DHd = [rule cate1 cate2 | rule <- [comFh], cate1 <- csp_1, cate2 <- n_D_DHd, elem Dn onOff]
+      n_Hd_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
+      ctspaBynToHd_DHd = [rule cate1 cate2 | rule <- [comFh], cate1 <- csp_1, cate2 <- n_Hd_DHd, elem Dn onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == advCate]
+      n_D_DHd = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToD_DHd = [rule cate1 cate2 | rule <- [comFh], cate1 <- n_D_DHd, cate2 <- csp_2, elem Dn onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == advCate]
       n_D_DHs = removeDup [(advCate4Sent, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
       ctspaBynToD_DHs = [rule cate1 cate2 | rule <- [appF], cate1 <- n_D_DHs, cate2 <- csp_2, elem Dn onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == sCate]
-      ctspaBynToD = ctspaBynToD_DHv ++ ctspaBynToD_DHd ++ ctspaBynToD_DHs
+      n_D_PE = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
+      ctspaBynToD_PE = [rule cate1 cate2 | rule <- [raiFh], cate1 <- csp_1, cate2 <- n_D_PE, elem Dn onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
+      ctspaBynToD = ctspaBynToD_DHv ++ ctspaBynToHd_DHd ++ ctspaBynToD_DHd ++ ctspaBynToD_DHs ++ ctspaBynToD_PE
       catesBynToD = [(fst5 cate, "D/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToD]
 
-{- The conversion from noun-complemented type "np\*np" to noun's type "np" is ONLY allowed when
- - (1) it occupies the wordhead position of phrase AHn,
- - (2) it occupies the subject's position of phrase SP,
- - (3) it occupies the object's position of phrase VO.
+{- The conversion from noun to adjective adberbial type is ONLY allowed when
+ - Te noun acts as adjective adverbial, using type (np/.np)/*(np/.np).
+ - Such as "那么 好"
  -}
-      nd_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
-      ctspaByndToN_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- nd_N_AHn, elem Nnd onOff]
+      n_Da_DHa = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToDa_DHa = [rule cate1 cate2 | rule <- [appF], cate1 <- n_Da_DHa, cate2 <- csp_2, elem Dan onOff]
           where
-          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
-      nd_N_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
-      ctspaByndToN_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- nd_N_SP, cate2 <- csp_2, elem Nnd onOff]
+          csp_2 = removeDup [x| x<- csp2, fst3 x == adjCate]
+      ctspaBynToDa = ctspaBynToDa_DHa
+      catesBynToDa = [(fst5 cate, "Da/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToDa]
+
+{- The conversion from 'np' to 'np/.np' is ONLY allowed when
+ - (1) pronouns are followed by quantifiers,
+ - (2) nouns are followed by '地'.
+ -}
+      n_ADJ_PQ = removeDup [(pronCate4Numeral, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToADJ_PQ = [rule cate1 cate2 | rule <- [appB], cate1 <- n_ADJ_PQ, cate2 <- csp_2, elem ADJn onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == quantifierCate]
+      n_ADJ_U2P = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToADJ_U2P = [rule cate1 cate2 | rule <- [appB], cate1 <- n_ADJ_U2P, cate2 <- csp_2, elem ADJn onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux2Cate]
+      ctspaBynToADJ = ctspaBynToADJ_PQ ++ ctspaBynToADJ_U2P
+      catesBynToADJ = [(fst5 cate, "ADJ/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToADJ]
+
+{- The conversion from noun-complemented type "np\*np" to noun's type "np" is ONLY allowed when
+ - (1) it occupies the subject's position of phrase SP,
+ - (2) it occupies the object's position of phrase VO.
+ - (3) it occupies the wordhead position of phrase AHn,
+ -}
+      nd_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
+      ctspaByndToS_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- nd_S_SP, cate2 <- csp_2, elem Snd onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == predCate]
-      nd_N_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
-      ctspaByndToN_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- nd_N_VO, elem Nnd onOff]
+      ctspaByndToS = ctspaByndToS_SP
+      catesByndToS = [(fst5 cate, "S/nd-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByndToS]
+
+      nd_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
+      ctspaByndToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- nd_O_VO, elem Ond onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == verbCate]
-      ctspaByndToN = ctspaByndToN_AHn ++ ctspaByndToN_SP ++ ctspaByndToN_VO
-      catesByndToN = [(fst5 cate, "N/nd-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByndToN]
+      ctspaByndToO = ctspaByndToO_VO
+      catesByndToO = [(fst5 cate, "O/nd-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByndToO]
 
--- The conversion from preposition to adverbial is ONLY allowed when the noun following the preposition is elliptical.
-      p_D = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == prep2AdvCate]
-      ctspaBypToD = [rule cate1 cate2 | rule <- [appF,comFh,comFh2], cate1 <- p_D, cate2 <- csp_2, elem Dp onOff]
+      nd_Hn_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == nounCompCate]
+      ctspaByndToHn_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- nd_Hn_AHn, elem Hnnd onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
+      ctspaByndToHn = ctspaByndToHn_AHn
+      catesByndToHn = [(fst5 cate, "Hn/nd-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByndToHn]
+
+{- The conversion from adverbial type (s\.np)/#(s\.np) to the subjective position
+ -}
+      d_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToS_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- d_S_SP, cate2 <- csp_2, elem Sd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == predCate]
+      ctspaBydToS = ctspaBydToS_SP
+      catesBydToS = [(fst5 cate, "S/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToS]
+
+{- The conversion from adverbial type (s\.np)/#(s\.np) to the object's position
+ -}
+      d_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
+      ctspaBydToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_O_VO, elem Od onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == verbCate]
+      d_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]                      -- prepositional object
+      ctspaBydToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_O_PO, elem Od onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) prep2AdvCate]
+      ctspaBydToO = ctspaBydToO_VO ++ ctspaBydToO_PO
+      catesBydToO = [(fst5 cate, "O/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToO]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to attribue type np/.np is ONLY allowed when a noun follows.
+ -}
+      d_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- d_A_AHn, cate2 <- csp_2, elem Ad onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      ctspaBydToA = ctspaBydToA_AHn
+      catesBydToA = [(fst5 cate, "A/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToA]
+
+
+{- The conversion from adverbial type (s\.np)/#(s\.np) to nominal headword is ONLY allowed when
+ - (1) A time noun occupies the headword position of AHn, such as "三m 天nt";
+ - (2) a noun's complement follows the adverb,
+ -}
+      d_Hn_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
+      ctspaBydToHn_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_Hn_AHn, elem Hnd onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
+      d_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToHn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- d_Hn_HnC, cate2 <- csp_2, elem Hnd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) nounCompCate]
+      ctspaBydToHn = ctspaBydToHn_AHn ++ ctspaBydToHn_HnC
+      catesBydToHn = [(fst5 cate, "Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToHn]
+
+{- The conversion from verb-dverbial type (s\.np)/#(s\.np) to the type of verb's complement (s\.np)\x(s\.np) is ONLY allowed when a verb is on the left.
+ -}
+      d_Cv_HvC = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
+      ctspaBydToCv_HvC = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- d_Cv_HvC, elem Cvd onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaBydToCv = ctspaBydToCv_HvC
+      catesBydToCv = [(fst5 cate, "Cv/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToCv]
+
+{- The conversion from adverbial type (s\.np)/#(s\.np) to noun type np is ONLY allowed when an auxiliary word '的' follows.
+ -}
+      d_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- d_N_U1P, cate2 <- csp_2, elem Nd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
+      ctspaBydToN = ctspaBydToN_U1P
+      catesBydToN = [(fst5 cate, "N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToN]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to attribue type np/.np is ONLY allowed when auxiliary word '地' follows.
+ -}
+      d_ADJ_U2P = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToADJ_U2P = [rule cate1 cate2 | rule <- [appB], cate1 <- d_ADJ_U2P, cate2 <- csp_2, elem ADJd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux2Cate]
+      ctspaBydToADJ = ctspaBydToADJ_U2P
+      catesBydToADJ = [(fst5 cate, "ADJ/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToADJ]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to adjective-adverbial type (np/.np)/*(np/.np) is ONLY allowed when an adjective type 'np/.np' follows.
+ -}
+      d_Da_DHa = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToDa_DHa = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Da_DHa, cate2 <- csp_2, elem Dad onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) adjCate]
+      ctspaBydToDa = ctspaBydToDa_DHa
+      catesBydToDa = [(fst5 cate, "Da/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDa]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to sentence-adverbial type s/*s is ONLY allowed when sentential type 's' follows.
+ -}
+      d_Ds_DHs = removeDup [(advCate4Sent, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToDs_DHs = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Ds_DHs, cate2 <- csp_2, elem Dsd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == sCate]
+      ctspaBydToDs = ctspaBydToDs_DHs
+      catesBydToDs = [(fst5 cate, "Ds/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDs]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to directioanl verb-adverbial type (s\.np)/x(s\.np) is ONLY allowed when
+ - a directioanl verb follows.
+ - Such as, 分(s\.np)/.np 不(s\.np)/#(s\.np) 开(s\.np)\x(s\.np) => 分(s\.np)/.np (不 开)(s\.np)\x(s\.np)
+ -}
+      d_Dx_DHx = removeDup [(advCate4DirecVerb, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToDx_DHx = [rule cate1 cate2 | rule <- [comFc], cate1 <- d_Dx_DHx, cate2 <- csp_2, elem Dxd onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == verbCompCate]
+      ctspaBydToDx = ctspaBydToDx_DHx
+      catesBydToDx = [(fst5 cate, "Dx/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDx]
+
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to object extraction-adverbial type (s/.np)/*(s/.np) is ONLY allowed when
+ - an object extraction phrase follows.
+ - Such as, 最近(s\.np)/#(s\.np) 他np 说(s\.np)/.np 的 => 最近(s/.np)/*(s/.np) (他 说)s/.np 的=> (最近 (他 说))s/.np 的
+ -}
+      d_Doe_DHoe = removeDup [(advCate4OE, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
+      ctspaBydToDoe_DHoe = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Doe_DHoe, cate2 <- csp_2, elem Doed onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == objectExtractionCate]
+      ctspaBydToDoe = ctspaBydToDoe_DHoe
+      catesBydToDoe = [(fst5 cate, "Doe/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDoe]
+
+-- The conversion from preposition to adverbial is ONLY allowed when the noun following the preposition is elliptical (省略).
+      p_D_DHv = removeDup [(advCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == prep2AdvCate]
+      ctspaBypToD_DHv = [rule cate1 cate2 | rule <- [appF,comFh,comFh2], cate1 <- p_D_DHv, cate2 <- csp_2, elem Dp onOff]
           where
           csp_2 = removeDup [x| x<- csp2, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
+      ctspaBypToD = ctspaBypToD_DHv
       catesBypToD = [(fst5 cate, "D/p-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBypToD]
 
 {- The conversion from object-extractioned type "s/.np" to nominal constituent is ONLY allowed when
- - (1) '的' follows，whose typical syntactic type is (np/*np)\*np,
+ - (1) the object-extractioned phrase follows a transitive verb, such as "遭到vt 老师n 批评vt".
  - (2) noun completment follows, whose typical syntactic type is np\*np,
- - (3) the object-extractioned phrase follows a transitive verb, such as "遭到vt 老师n 批评vt".
+ - (3) '的' follows，whose typical syntactic type is (np/*np)\*np,
+
+
  -}
-      oe_N_12 = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == objectExtractionCate]
-      ctspaByoeToN_12 = [rule cate1 cate2 | rule <- [appB], cate1 <- oe_N_12, cate2 <- csp_2, elem Noe onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate || fst3 x == nounCompCate]
-      oe_N_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == objectExtractionCate]
-      ctspaByoeToN_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- oe_N_VO, elem Noe onOff]
+      oe_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == objectExtractionCate]
+      ctspaByoeToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- oe_O_VO, elem Ooe onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == verbCate]
-      ctspaByoeToN = ctspaByoeToN_12 ++ ctspaByoeToN_VO
+      ctspaByoeToO = ctspaByoeToO_VO
+      catesByoeToO = [(fst5 cate, "O/oe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByoeToO]
+
+      oe_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == objectExtractionCate]
+      ctspaByoeToHn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- oe_Hn_HnC, cate2 <- csp_2, elem Hnoe onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == nounCompCate]
+      ctspaByoeToHn = ctspaByoeToHn_HnC
+      catesByoeToHn = [(fst5 cate, "Hn/oe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByoeToHn]
+
+      oe_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == objectExtractionCate]
+      ctspaByoeToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- oe_N_U1P, cate2 <- csp_2, elem Noe onOff]
+          where
+          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
+      ctspaByoeToN = ctspaByoeToN_U1P
       catesByoeToN = [(fst5 cate, "N/oe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByoeToN]
 
 {- The conversion from Predicate-extractioned type "s/#(s\.np)" to nominal constituent is ONLY allowed when '的' follows，whose typical syntactic type is (np/*np)\*np.
  -}
-      pe_N = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == predicateExtractionCate]
-      ctspaBypeToN = [rule cate1 cate2 | rule <- [appB], cate1 <- pe_N, cate2 <- csp_2, elem Npe onOff]
+      pe_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == predicateExtractionCate]
+      ctspaBypeToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- pe_N_U1P, cate2 <- csp_2, elem Npe onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
+      ctspaBypeToN = ctspaBypeToN_U1P
       catesBypeToN = [(fst5 cate, "N/pe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBypeToN]
 
 {- The conversion from quantifier type (np/*np)\*(np/*np) to adjective type np/*np is ONLY allowed when a noun follows.
  - Actually, the conversion is used only when there is no numeral to the left.
  - If the context detection is implemented, the stntactic ambiguity can be restricted further.
  -}
-      q_A = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == quantifierCate]
-      ctspaByqToA = [rule cate1 cate2 | rule <- [appF], cate1 <- q_A, cate2 <- csp_2, elem Aq onOff]
+      q_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == quantifierCate]
+      ctspaByqToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- q_A_AHn, cate2 <- csp_2, elem Aq onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      ctspaByqToA = ctspaByqToA_AHn
       catesByqToA = [(fst5 cate, "A/q-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByqToA]
-
-{- The conversion from adverbial type (s\.np)/#(s\.np) to noun type np is ONLY allowed when
- - (1) an auxiliary word '的' follows,
- - (2) the adverb occupies the subjective position,
- - (3) the adverb occupies the objective position,
- - (4) the adverb occupies headword of AHn, such as "三m 天nt",
- - (5) a noun's complement follows the adverb,
- - (6) the adverb follows a preposition.
- -}
-      d_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- d_N_U1P, cate2 <- csp_2, elem Nd onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == aux1Cate]
-      d_N_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToN_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- d_N_SP, cate2 <- csp_2, elem Nd onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == predCate]
-      d_N_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
-      ctspaBydToN_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_N_VO, elem Nd onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, fst3 x == verbCate]
-      d_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
-      ctspaBydToN_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_N_AHn, elem Nd onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) adjCate]
-      d_N_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToN_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- d_N_HnC, cate2 <- csp_2, elem Nd onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) nounCompCate]
-      d_N_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
-      ctspaBydToN_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- d_N_PO, elem Nd onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, cateEqual (fst3 x) prep2AdvCate]
-      ctspaBydToN = ctspaBydToN_U1P ++ ctspaBydToN_SP ++ ctspaBydToN_VO ++ ctspaBydToN_AHn ++ ctspaBydToN_HnC ++ ctspaBydToN_PO
-      catesBydToN = [(fst5 cate, "N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToN]
-
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to adjective type np/.np is ONLY allowed when
- - An auxiliary word '地' follows,
- - or A noun follows.
- -}
-      d_A_U2P = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToA_U2P = [rule cate1 cate2 | rule <- [appB], cate1 <- d_A_U2P, cate2 <- csp_2, elem Ad onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == aux2Cate]
-      d_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- d_A_AHn, cate2 <- csp_2, elem Ad onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
-      ctspaBydToA = ctspaBydToA_U2P ++ ctspaBydToA_AHn
-      catesBydToA = [(fst5 cate, "A/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToA]
-
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to adjective-adverbial type (np/.np)/*(np/.np) is ONLY allowed when an adjective type 'np/.np' follows.
- -}
-      d_Da = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToDa = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Da, cate2 <- csp_2, elem Dad onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) adjCate]
-      catesBydToDa = [(fst5 cate, "Da/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDa]
-
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to sentence-adverbial type s/*s is ONLY allowed when
- - a sentential type 's' follows.
- -}
-      d_Ds = removeDup [(advCate4Sent, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToDs = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Ds, cate2 <- csp_2, elem Dsd onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == sCate]
-      catesBydToDs = [(fst5 cate, "Ds/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDs]
-
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to directioanl verb-adverbial type (s\.np)/x(s\.np) is ONLY allowed when
- - a directioanl verb follows.
- -}
-      d_Dx = removeDup [(advCate4DirecVerb, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToDx = [rule cate1 cate2 | rule <- [comFc], cate1 <- d_Dx, cate2 <- csp_2, elem Dxd onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == verbCompCate]
-      catesBydToDx = [(fst5 cate, "Dx/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDx]
-
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to object extraction-adverbial type (s/.np)/*(s/.np) is ONLY allowed when an object extraction phrase follows.
- -}
-      d_Doe = removeDup [(advCate4OE, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == advCate]
-      ctspaBydToDoe = [rule cate1 cate2 | rule <- [appF], cate1 <- d_Doe, cate2 <- csp_2, elem Doed onOff]
-          where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == objectExtractionCate]
-      catesBydToDoe = [(fst5 cate, "Doe/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDoe]
-
-{- The conversion from verb-dverbial type (s\.np)/#(s\.np) to the type of verb's complement (s\.np)\x(s\.np) is ONLY allowed when a verb is on the left.
- -}
-      d_Cv = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
-      ctspaBydToCv = [rule cate1 cate2 | rule <- [appB,comBc], cate1 <- csp_1, cate2 <- d_Cv, elem Cvd onOff]
-          where
-          csp_1 = removeDup [x| x<- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate)]
-      catesBydToCv = [(fst5 cate, "Cv/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToCv]
 
 {- The conversion from conjunction type (X\*X)/*X to the forward conjunction's type X/*X is ONLY allowed when it's at the head of a clause.
  - For combination of two types, there is no method to indicate the conjunction is at the head of a clause.
+ - But a clause does not certainly have type 's', and probably has various types. Now there is no restriction on clause type.
  -}
-      c_Jf = removeDup [(conjCate4Forward, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == conjCate]
-      ctspaBycToJf = [rule cate1 cate2 | rule <- [appF], cate1 <- c_Jf, cate2 <- csp2, elem Jfc onOff]
+      c_Jf_CC = removeDup [(conjCate4Forward, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == conjCate]
+      ctspaBycToJf_CC = [rule cate1 cate2 | rule <- [appF], cate1 <- c_Jf_CC, cate2 <- csp2, elem Jfc onOff]
+      ctspaBycToJf = ctspaBycToJf_CC
       catesBycToJf = [(fst5 cate, "Jf/c-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBycToJf]
 
 {- The conversion from conjunction type (X\*X)/*X to the backward conjunction's type X\*X is ONLY allowed when it's at the end of a clause.
  - For combination of two types, there is no method to indicate the conjunction is at the end of a clause.
  -}
-      c_Jb = removeDup [(conjCate4Backward, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == conjCate]
-      ctspaBycToJb = [rule cate1 cate2 | rule <- [appB], cate1 <- csp1, cate2 <- c_Jb, elem Jbc onOff]
+      c_Jb_CC = removeDup [(conjCate4Backward, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == conjCate]
+      ctspaBycToJb_CC = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- c_Jb_CC, elem Jbc onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == sCate]
+      ctspaBycToJb = ctspaBycToJb_CC
       catesBycToJb = [(fst5 cate, "Jb/c-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBycToJb]
 
-{- The conversion from '得' typical type ((s\.np)\x(s\.np))/*(np/.np) to its non-typical type ((np/.np)\*(np/.np))/*((np/.np)/*(np/.np)" is ONLY allowed when an adverb follows.
+{- The conversion from '得' typical type ((s\.np)\x(s\.np))/*(np/.np) to its non-typical type ((np/.np)\*(np/.np))/*((np/.np)/*(np/.np)" is ONLY allowed when
+ - an adjective-adverbial follows, such as, 好a 得u 很d.
  -}
-      u3_U3d = removeDup [(aux3dCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == aux3Cate]
-      ctspaByu3ToU3d = [rule cate1 cate2 | rule <- [appF], cate1 <- u3_U3d, cate2 <- csp_2, elem U3du3 onOff]
+      u3_U3d_U3P = removeDup [(aux3dCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == aux3Cate]
+      ctspaByu3ToU3d_U3P = [rule cate1 cate2 | rule <- [appF], cate1 <- u3_U3d_U3P, cate2 <- csp_2, elem U3du3 onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == advCate4Adj]
+      ctspaByu3ToU3d = ctspaByu3ToU3d_U3P
       catesByu3ToU3d = [(fst5 cate, "U3d/u3-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByu3ToU3d]
+
+{- The two adjacent types "s np/.np" or "s np/*np " convert to "np s\.np", forming structure SP, here S/s and P/a happen simultaneously.
+ - Here, s_S_SP and a_P_SP have been defined before.
+ -}
+      ctspaBysToS_aToP = [rule cate1 cate2 | rule <- [appB], cate1 <- s_S_SP, cate2 <- a_P_SP, elem Ss onOff, elem Pa onOff]
+      catesBysToS_aToP = [(fst5 cate, "S/s-P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToS_aToP]
+
+{- The two adjacent types "s <verb>" convert to "np/.np np", forming structure AHn, here A/s and Hn/v happen simultaneously.
+ -}
+      ctspaBysToA_vToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A_AHn, cate2 <- v_Hn_AHn, elem As onOff, elem Hnv onOff]
+      catesBysToA_vToHn = [(fst5 cate, "A/s-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA_vToHn]
+
+{- The two adjacent types "s np" convert to "np np\*np", forming structure HnC, here Hn/s and Cn/n happen simultaneously.
+ -}
+      n_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == npCate]
+      ctspaBysToHn_nToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- s_Hn_HnC, cate2 <- n_Cn_HnC, elem Hns onOff, elem Cnn onOff]
+      catesBysToHn_nToCn = [(fst5 cate, "Hn/s-Cn/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToHn_nToCn]
+
+{- The two adjacent types "np <verb>" convert to "<verb> np", forming structure VO, here V/n and O/v happen simultaneously.
+ -}
+      n_V_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\y-> cateEqual y (fst3 csp)) [npCate])]
+      ctspaBynToV_vToO = [rule cate1 cate2 | rule <- [appF], cate1 <- n_V_VO, cate2 <- v_O_VO, elem Vn onOff, elem Ov onOff]
+      catesBynToV_vToO = [(fst5 cate, "V/n-O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV_vToO]
+
+{- The two adjacent types "np s" convert to "np/.np np", forming structure AHn, here A/n and Hn/s happen simultaneously.
+ - To now, no example has been found.
+ -}
+      ctspaBynToA_sToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- s_Hn_AHn, elem An onOff, elem Hns onOff]
+      catesBynToA_sToHn = [(fst5 cate, "A/n-Hn/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_sToHn]
 
 {- The two adjacent types "np np/.np" convert to "np/.np np", forming structure AHn, here noun-to-adjective and
    adjective-to-noun conversions happen simultaneously.
@@ -707,82 +856,75 @@ cateComb onOff pc1 pc2
           csp_2 = removeDup [x| x<- csp2, fst3 x == adjCate]
       catesBynToA_aToHn = [(fst5 cate, "A/n-Hn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_aToHn]
 
-{- The two adjacent types "np <verb>" convert to "np/.np np", forming structure AHn, here noun-to-adjective and
-   verb-to-noun conversions happen simultaneously.
+{- The two adjacent types "np <verb>" convert to "np/.np np", forming structure AHn, here conversions noun-to-attribue and
+   verb-to-headword of AHn happen simultaneously.
  -}
-      n_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToA_vToN = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- v_N_AHn, elem An onOff, elem Nv onOff]
-      catesBynToA_vToN = [(fst5 cate, "A/n-N/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_vToN]
+      ctspaBynToA_vToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- v_Hn_AHn, elem An onOff, elem Hnv onOff]
+      catesBynToA_vToHn = [(fst5 cate, "A/n-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_vToHn]
 
-{- The two adjacent types "<verb> np/.np" convert to "np s\.np", forming structure SP, here verb-to-Noun and
-   adjective-to-predicate conversions happen simultaneously.
+{- The two adjacent types "<noun> <adverb>" convert to "np/.np np", forming structure AHn, here A/n and Hn/d happen simultaneously.
  -}
-      a_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
-      ctspaByvToN_aToP = [rule cate1 cate2 | rule <- [appB], cate1 <- v_N_SP, cate2 <- a_P_SP, elem Nv onOff, elem Pa onOff]
-      catesByvToN_aToP = [(fst5 cate, "N/v-P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToN_aToP]
+      ctspaBynToA_dToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- d_Hn_AHn, elem An onOff, elem Hnd onOff]
+      catesBynToA_dToHn = [(fst5 cate, "A/n-Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_dToHn]
+
+{- The two adjacent types "np <verb>" convert to "(np/.np)/*(np/.np) np/.np", forming structure DHa, here conversions noun-to-adverbial and
+   verb-to-headword of DHa happen simultaneously.
+ - Such as, "那么r 死vi" => "那么np 死s\.np" => "那么(np/.np)/*(np/.np) 死np/.np"
+ -}
+      v_A_DHa = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\y-> cateEqual y (fst3 csp)) vCate)]
+      ctspaBynToDa_vToA = [rule cate1 cate2 | rule <- [appF], cate1 <- n_Da_DHa, cate2 <- v_A_DHa, elem Dan onOff, elem Av onOff]
+      catesBynToDa_vToA = [(fst5 cate, "Da/n-A/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToDa_vToA]
+
+{- The two adjacent types "<verb> np/.np" convert to "np s\.np", forming structure SP, here conversions verb-to-subject and
+   adjective-to-predicate happen simultaneously.
+ -}
+      ctspaByvToS_aToP = [rule cate1 cate2 | rule <- [appB], cate1 <- v_S_SP, cate2 <- a_P_SP, elem Sv onOff, elem Pa onOff]
+      catesByvToS_aToP = [(fst5 cate, "S/v-P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToS_aToP]
 
 {- The two adjacent verbal types "<verb> <verb>" convert to "np/.np np", forming structure AHn, here verb-to-Attribute and
    verb-to-nominal headword conversions happen simultaneously.
  -}
-      ctspaByvToA_vToN = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- v_N_AHn, elem Av onOff, elem Nv onOff]
-      catesByvToA_vToN = [(fst5 cate, "A/v-N/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA_vToN]
-
-{- The two adjacent types "np <verb>" convert to "<verb> np", forming structure VO, here V/n and N/v happen simultaneously.
- - Here, v_N_VO = removeDup [(npCate, snd3 csp, thd3 csp)|csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
- -}
-      n_V_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\y-> cateEqual y (fst3 csp)) [npCate])]
-      ctspaBynToV_vToN = [rule cate1 cate2 | rule <- [appF], cate1 <- n_V_VO, cate2 <- v_N_VO, elem Vn onOff, elem Nv onOff]
-      catesBynToV_vToN = [(fst5 cate, "V/n-O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV_vToN]
-
-{- The two adjacent types "s np/.np" or "s np/*np " convert to "np s\.np", forming structure SP, here N/s and P/a happen simultaneously.
- - Here, s_N_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
- -       a_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
- -}
-      ctspaBysToN_aToP = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_SP, cate2 <- a_P_SP, elem Ns onOff, elem Pa onOff]
-      catesBysToN_aToP = [(fst5 cate, "N/s-P/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN_aToP]
-
-{- The two adjacent types "<noun> <adverb>" convert to "np/.np np", forming structure AHn, here A/n and N/d happen simultaneously.
- -}
-      n_A' = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      d_N' = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]
-      ctspaBynToA_dToN = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A', cate2 <- d_N', elem An onOff, elem Nd onOff]
-      catesBynToA_dToN = [(fst5 cate, "A/n-N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_dToN]
-
-{- The two adjacent types "<adjective> <verb>" or "<adjective> <verb2>" convert to "np s\.np", forming structure SP, here S/a and P/vt happen simultaneously.
- - The double conversions happen in sentences where the object acts as the subject.
- -}
-      a_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
-      vt_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
-      ctspaByaToS_vtToP = [rule cate1 cate2 | rule <- [appB], cate1 <- a_S_SP, cate2 <- vt_P_SP, elem Sa onOff, elem Pvt onOff]
-      catesByaToS_vtToP = [(fst5 cate, "S/a-P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToS_vtToP]
+      ctspaByvToA_vToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- v_Hn_AHn, elem Av onOff, elem Hnv onOff]
+      catesByvToA_vToHn = [(fst5 cate, "A/v-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA_vToHn]
 
 {- The two adjacent types "<verb> <adverb>" convert to "np/.np np", forming structure AHn, here A/v and N/d happen simultaneously.
  -}
-      v_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
---    d_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == advCate]      -- "d_N_AHn" has been defined before.
-      ctspaByvToA_dToN = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- d_N_AHn, elem Av onOff, elem Nd onOff]
-      catesByvToA_dToN = [(fst5 cate, "A/v-N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA_dToN]
+      ctspaByvToA_dToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- d_Hn_AHn, elem Av onOff, elem Hnd onOff]
+      catesByvToA_dToHn = [(fst5 cate, "A/v-N/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA_dToHn]
 
-{- The two adjacent types "s np" convert to "np np\*np", forming structure HnC, here N/s and Cn/n happen simultaneously.
+{- The two adjacent types "(s\.np)/.np s\.np" convert to "s\.np (s\.np)\x(s\.np)", forming structure HvC, here P/vt and Cv/v happen simultaneously.
+ - Such as "他 分配vt 到北京工作vi"，缺少'被'字，实为病句。
  -}
-      s_N_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
-      n_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == npCate]
-      ctspaBysToN_nToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_HnC, cate2 <- n_Cn_HnC, elem Ns onOff, elem Cnn onOff]
-      catesBysToN_nToCn = [(fst5 cate, "N/s-Cn/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN_nToCn]
+      vt_P_HvC = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == verbCate]
+      ctspaByvtToP_vToCv = [rule cate1 cate2 | rule <- [appB], cate1 <- vt_P_HvC, cate2 <- v_Cv_HvC, elem Pvt onOff, elem Cvv onOff]
+      catesByvtToP_vToCv = [(fst5 cate, "P/vt-Cv/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP_vToCv]
 
-{- The two adjacent types "s <verb>" convert to "np/.np np", forming structure AHn, here A/s and N/v happen simultaneously.
+{- The two adjacent types "<adjective> <verb>" or "<adjective> <verb2>" convert to "np s\.np", forming structure SP, here S/a and P/vt happen simultaneously.
+ - The double conversions happen in sentences where the object acts as the subject.
+ - a_S_SP = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, cateEqual (fst3 csp) adjCate]
+ - vt_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])], which has been defined before.
  -}
-      ctspaBysToA_vToN = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A_AHn, cate2 <- v_N_AHn, elem As onOff, elem Nv onOff]
-      catesBysToA_vToN = [(fst5 cate, "A/s-N/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA_vToN]
+      ctspaByaToS_vtToP = [rule cate1 cate2 | rule <- [appB], cate1 <- a_S_SP, cate2 <- vt_P_SP, elem Sa onOff, elem Pvt onOff]
+      catesByaToS_vtToP = [(fst5 cate, "S/a-P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToS_vtToP]
 
 -- The categories gotten by all rules.
-      cates = catesBasic ++ catesBysToP ++ catesBysToN ++ catesBysToA ++ catesByvToA
-        ++ catesByvToN ++ catesByvToD ++ catesByvToCn ++ catesByvToCv ++ catesByvtToP ++ catesByvtToOE ++ catesByviToVt ++ catesByvdToA ++ catesByaToS ++ catesByaToO ++ catesByaToHn
-        ++ catesByaToN ++ catesByaToP ++ catesByaToV++ catesByaToD ++ catesByaToDa
-        ++ catesByaToCv ++ catesByaToCn ++ catesByaToCa ++ catesBynToA ++ catesBynToP ++ catesBynToV ++ catesBynToCn ++ catesBynToD ++ catesByndToN ++ catesBypToD ++ catesByoeToN
-        ++ catesBypeToN ++ catesByqToA ++ catesBydToN ++ catesBydToA ++ catesBydToDa ++ catesBydToDs ++ catesBydToDx ++ catesBydToDoe ++ catesBydToCv ++ catesBycToJf ++ catesBycToJb ++ catesByu3ToU3d
-        ++ catesBynToA_aToHn ++ catesBynToA_vToN ++ catesByvToN_aToP ++ catesByvToA_vToN ++ catesBynToV_vToN ++ catesBysToN_aToP ++ catesBynToA_dToN
-        ++ catesByaToS_vtToP ++ catesByvToA_dToN ++ catesBysToN_nToCn ++ catesBysToA_vToN
+      cates = catesBasic ++ catesBysToS ++ catesBysToP ++ catesBysToO ++ catesBysToA ++ catesBysToHn ++ catesBysToN
+        ++ catesByvToS ++ catesByvToO ++ catesByvToA ++ catesByvToHn ++ catesByvToD ++ catesByvToCn ++ catesByvToCv ++ catesByvToN
+        ++ catesByvtToP ++ catesByvtToOE ++ catesByviToVt ++ catesByvdToA
+        ++ catesByaToS ++ catesByaToP ++ catesByaToV ++ catesByaToO ++ catesByaToD ++ catesByaToDa ++ catesByaToCn ++ catesByaToCv ++ catesByaToCa ++ catesByaToHn ++ catesByaToN
+        ++ catesBynToP ++ catesBynToV ++ catesBynToA ++ catesBynToCn ++ catesBynToCv ++ catesBynToD ++ catesBynToDa ++ catesBynToADJ
+        ++ catesByndToS ++ catesByndToO ++ catesByndToHn
+        ++ catesBydToS ++ catesBydToO ++ catesBydToA ++ catesBydToHn ++ catesBydToCv ++ catesBydToN ++ catesBydToADJ ++ catesBydToDa ++ catesBydToDs ++ catesBydToDx ++ catesBydToDoe
+        ++ catesBypToD
+        ++ catesByoeToO ++ catesByoeToHn ++ catesByoeToN
+        ++ catesBypeToN
+        ++ catesByqToA
+        ++ catesBycToJf ++ catesBycToJb
+        ++ catesByu3ToU3d
+        ++ catesBysToS_aToP ++ catesBysToA_vToHn ++ catesBysToHn_nToCn
+        ++ catesBynToV_vToO ++ catesBynToA_sToHn ++ catesBynToA_aToHn ++ catesBynToA_vToHn ++ catesBynToA_dToHn ++ catesBynToDa_vToA
+        ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesByvToA_dToHn ++ catesByvtToP_vToCv
+        ++ catesByaToS_vtToP
 
 {- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
  - It's not yet clear how duplicate phrases are created.
@@ -1103,7 +1245,7 @@ growTree onOff t pcClo
    For every split, there may be multiple pairs of parent categories owing to multiple rules available.
  -}
 
-        forestByTipGrow = [map (\x -> [fst x | notElem (fst x) t] ++ [snd x | notElem (snd x) t] ++ t ) splOfATip | splOfATip <- splOfAllTips]                                               -- [[[PhraCate]]]
+        forestByTipGrow = [map (\x -> [fst x | notElem (fst x) t] ++ [snd x | notElem (snd x) t] ++ t ) splOfATip | splOfATip <- splOfAllTips]           -- [[[PhraCate]]]
 
 -- It's necessary of composing grows at different tips, while not composing two kinds of grows at an identical tip.
 

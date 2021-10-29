@@ -28,7 +28,7 @@ module Category (
     midSlash,      -- Category -> a
     derivate,      -- Category -> Slash -> Category -> Category
     pronCate,      -- Category, "np"
-    pronCate4Quantifier,     -- Category, "np/#np"
+    pronCate4Numeral,     -- Category, "np/#np"
     ndCate,        -- Category, "np\*np"
     adjCate,       -- Category, "np/.np"
     predCate,      -- Category, "s\.np"
@@ -66,7 +66,7 @@ module Category (
     conjCate4Forward,            -- Category, "X/*X"
     prefixCate,           -- Category, "np/*np"
     postfixCate,          -- Category, "np\*X"
-    baPhraseCate          -- Category, "(s\#np)/#((s\.np)/.np)"
+    baPhraseCate          -- Category, "((s\#np)/#((s\.np)/.np)"
     ) where
 
 type Slash = String
@@ -258,8 +258,8 @@ derivate  cate1 slash cate2 = Derivative cate1 slash cate2
 pronCate :: Category
 pronCate = getCateFromString "np"
 
-pronCate4Quantifier :: Category
-pronCate4Quantifier = getCateFromString "np/#np"
+pronCate4Numeral :: Category
+pronCate4Numeral = getCateFromString "np/#np"
 
 ndCate :: Category
 ndCate = getCateFromString "np\\*np"
@@ -345,7 +345,7 @@ aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*(np/.np)"
 aux3Cate :: Category
 aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*(np/.np)"
 
--- Auxiliary word #3d is also '得', here 'd' means an adverb follows.
+-- Auxiliary word #3d is also '得', here 'd' means an adjective adverb follows.
 aux3dCate :: Category
 aux3dCate = getCateFromString "((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"
 

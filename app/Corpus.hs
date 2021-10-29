@@ -43,6 +43,7 @@ module Corpus (
     readScript,          -- String -> Script
     readPCList,          -- String -> [PhraCate]
     readTrees,           -- String -> [Tree]
+    getTreeDepth,        -- Tree -> Int
     readRuleSet,         -- String -> [Rule]
     readRule,            -- String -> Rule
     readClosures,        -- String -> [Closure]
@@ -65,9 +66,10 @@ import Control.Monad
 import qualified System.IO.Streams as S
 import Database.MySQL.Base
 import Data.List.Utils
+import Data.List
 import Data.Tuple.Utils
 import Category
-import Phrase (Tag,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString)
+import Phrase (Tag,stOfCate,spOfCate,ssOfCate,getPhraBySpan,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString)
 import Rule
 import Utils
 import Database
@@ -141,8 +143,8 @@ posCate = [("n","np"),
            ("pa","((s/.np)\\#np)/#((s\\.np)/.np)"),    -- 介词'把'的类型，宾语提前到动语前
            ("pb","(s/#(s/.np))\\#np"),                 -- 介宾'被'的类型，宾语提取到主语前
            ("c","(X\\*X)/*X"),                         -- 连词的典型类型，双向连词，分别通过Cb/c、Cf/c得到后向、前向连词。
-           ("cb","X\\*X"),
-           ("cf","X/*X"),
+           ("cb","X\\*X"),                             -- 后向连词
+           ("cf","X/*X"),                              -- 前向连词
            ("u","(np/*np)\\*np|((s\\.np)/#(s\\.np))\\*(np/.np)|((s\\.np)\\x(s\\.np))/*(np/.np)|((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))|(s\\.np)\\x(s\\.np)|(np/.np)\\*(np/.np)|X\\*X"),
            ("u1","(np/*np)\\*np"),                     -- 的
            ("u2","((s\\.np)/#(s\\.np))\\*(np/.np)"),   -- 地
@@ -177,6 +179,7 @@ posCate = [("n","np"),
            ("w",""),
            ("wc","(X\\*X)/*X"),                       -- 顿号（、），有时的逗号（，）
            ("wn","np"),
+           ("ws","np"),                               -- 外文字符串
            ("wu","")]
 
 {- To now, the recognizable phrasal structures are as following.
@@ -190,6 +193,7 @@ posCate = [("n","np"),
    DHs: Adervbial-sentence phrase
    DHd: Adverbial-adverb (headword) phrase
    DHx: Adverbial-directioanl verb phrase
+   DHoe: Adverbial-object extraction phrase, such as "最近d 他说oe 的 话"
    HaC: Adjective (headword)-complement phrase
    AHn: Attribute-noun (headword) phrase
    HnC: Noun (headword)-complement phrase
@@ -200,15 +204,18 @@ posCate = [("n","np"),
    U1P: 1-auxiliary word phrase, namely with '的' as end
    U2P: 2-auxiliary word phrase, namely with '地' as end
    U3P: 3-auxiliary word phrase, namely with '得' as end
+   U3Pv: U3P phrase for verb complement, such as "干 得 好"
+   U3Pa: U3P phrase for adjective complement, such as "好 得 很"
    U4P: 4-auxiliary word phrase, namely with '着|了|过' as end, identical to HvC.
    U5P: 5-auxiliary word phrase, namely with '等|似的|一样' as end
    U6P: 6-auxiliary word phrase, namely with '所' as head
    PO: Preposition object phrase
-   MOv: Move object before verb, namely '把'字结构
-   MOs: Move object before subject, namely '被'字结构 which is not same as traditional '被'字结构
+   MOv: Move object before verb, namely '把'字结构, which is one kind of PO.
+   MOs: Move object before subject, namely '被'字结构 which is not same as traditional '被'字结构, and is also one kind of PO.
    SP: Subject-predicate phrase
    TP: Tone Phrase
    EM: Exclamation mood
+   HP: Prefix phrase, such as "老 三", "第 一", and "初 一".
    KP: Postfix phrase, such as "工作 者", "我 们", and "中 式".
    DE: Word, also considered as primitive phrase. "DE" means artificial designation.
    NR: Not recognizable phrase
@@ -216,7 +223,7 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","KP","DE","NR"]
+phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","HP","KP","DE","NR"]
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
    adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
@@ -512,6 +519,21 @@ readPCList str = map getPhraCateFromString (stringToList str)
 readTrees :: String -> [[PhraCate]]
 readTrees str = map readPCList (stringToList str)
 
+-- Get the depth of a tree, namely the biggest depth of its leaves.
+getTreeDepth :: Tree -> Int
+getTreeDepth [] = 0                                        -- Empty tree
+getTreeDepth [r] = 1                                       -- Only root
+getTreeDepth t = if (roots == [] || length roots > 1)
+                   then (-1)                               -- No parsing tree or more than one parsing tree.
+                   else (1 + maximum [getTreeDepth lt, getTreeDepth rt])
+    where
+      leafNum = length (getPhraBySpan 0 t)                       -- Phrase length
+      roots = getPhraBySpan (leafNum - 1) t
+      secStart = ssOfCate (roots!!0)                             -- Suppose only one root
+      lrt = [x | x <- t, spOfCate x /= leafNum - 1]              -- Remove the root
+      lt = [x | x <- lrt, stOfCate x < secStart]                 -- Left subtree
+      rt = [x | x <- lrt, stOfCate x >= secStart]                -- Right subtree
+
 -- Read a rule set from the String of this rule set.
 readRuleSet :: String -> [Rule]
 readRuleSet str = map readRule (stringToList str)
@@ -519,49 +541,66 @@ readRuleSet str = map readRule (stringToList str)
 -- Read a rule from a string.
 readRule :: String -> Rule
 readRule str
-    | str == "P/s" = Ps        -- 1
-    | str == "N/s" = Ns        -- 2
-    | str == "A/s" = As        -- 3
-    | str == "A/v" = Av        -- 4
-    | str == "N/v" = Nv        -- 5
-    | str == "D/v" = Dv        -- 6
-    | str == "Cn/v" = Cnv      -- 7
-    | str == "Cv/v" = Cvv      -- 8
-    | str == "P/vt" = Pvt      -- 9
-    | str == "OE/vt" = OEvt    -- 10
-    | str == "Vt/vi" = Vtvi    -- 11
-    | str == "A/vd" = Avd      -- 12
-    | str == "S/a" = Sa        -- 13
-    | str == "O/a" = Oa        -- 14
-    | str == "Hn/a" = Hna      -- 15
-    | str == "N/a" = Na        -- 16
-    | str == "P/a" = Pa        -- 17
-    | str == "V/a" = Va        -- 18
-    | str == "D/a" = Da        -- 19
-    | str == "Da/a" = Daa      -- 20
-    | str == "Cv/a" = Cva      -- 21
-    | str == "Cn/a" = Cna      -- 22
-    | str == "Ca/a" = Caa      -- 23
-    | str == "A/n" = An        -- 24
-    | str == "P/n" = Pn        -- 25
-    | str == "V/n" = Vn        -- 26
-    | str == "Cn/n" = Cnn      -- 27
-    | str == "D/n" = Dn        -- 28
-    | str == "N/nd" = Nnd      -- 29
-    | str == "D/p" = Dp        -- 30
-    | str == "N/oe" = Noe      -- 31
-    | str == "N/pe" = Npe      -- 32
-    | str == "A/q" = Aq        -- 33
-    | str == "N/d" = Nd        -- 34
-    | str == "A/d" = Ad        -- 35
-    | str == "Da/d" = Dad      -- 36
-    | str == "Ds/d" = Dsd      -- 37
-    | str == "Dx/d" = Dxd      -- 38
-    | str == "Doe/d" = Doed    -- 39
-    | str == "Cv/d" = Cvd      -- 40
-    | str == "Jf/c" = Jfc      -- 41
-    | str == "Jb/c" = Jbc      -- 42
-    | str == "U3d/u3" = U3du3  -- 43
+    | str == "S/s" = Ss        -- s1
+    | str == "P/s" = Ps        -- s2
+    | str == "O/s" = Os        -- s3
+    | str == "A/s" = As        -- s4
+    | str == "Hn/s" = Hns      -- s5
+    | str == "N/s" = Ns        -- s5
+    | str == "S/v" = Sv        -- v1
+    | str == "O/v" = Ov        -- v2
+    | str == "A/v" = Av        -- v3
+    | str == "Hn/v" = Hnv      -- v4
+    | str == "D/v" = Dv        -- v5
+    | str == "Cn/v" = Cnv      -- v6
+    | str == "Cv/v" = Cvv      -- v7
+    | str == "N/v" = Nv        -- v8
+    | str == "P/vt" = Pvt      -- v9
+    | str == "OE/vt" = OEvt    -- v10
+    | str == "Vt/vi" = Vtvi    -- v11
+    | str == "A/vd" = Avd      -- v12
+    | str == "S/a" = Sa        -- a1
+    | str == "P/a" = Pa        -- a2
+    | str == "V/a" = Va        -- a3
+    | str == "O/a" = Oa        -- a4
+    | str == "D/a" = Da        -- a5
+    | str == "Da/a" = Daa      -- a6
+    | str == "Ca/a" = Caa      -- a7
+    | str == "Cn/a" = Cna      -- a8
+    | str == "Cv/a" = Cva      -- a9
+    | str == "Hn/a" = Hna      -- a10
+    | str == "N/a" = Na        -- a11
+    | str == "P/n" = Pn        -- n1
+    | str == "V/n" = Vn        -- n2
+    | str == "A/n" = An        -- n3
+    | str == "Cn/n" = Cnn      -- n4
+    | str == "Cv/n" = Cvn      -- n5
+    | str == "D/n" = Dn        -- n6
+    | str == "Da/n" = Dan      -- n7
+    | str == "ADJ/n" = ADJn    -- n8
+    | str == "S/nd" = Snd      -- n9
+    | str == "O/nd" = Ond      -- n10
+    | str == "Hn/nd" = Hnnd    -- n11
+    | str == "S/d" = Sd        -- d1
+    | str == "O/d" = Od        -- d2
+    | str == "A/d" = Ad        -- d3
+    | str == "Hn/d" = Hnd      -- d4
+    | str == "Cv/d" = Cvd      -- d5
+    | str == "N/d" = Nd        -- d6
+    | str == "ADJ/d" = ADJd    -- d7
+    | str == "Da/d" = Dad      -- d8
+    | str == "Ds/d" = Dsd      -- d9
+    | str == "Dx/d" = Dxd      -- d10
+    | str == "Doe/d" = Doed    -- d11
+    | str == "D/p" = Dp        -- p1
+    | str == "O/oe" = Noe      -- oe1
+    | str == "Hn/oe" = Noe     -- oe2
+    | str == "N/oe" = Noe      -- oe3
+    | str == "N/pe" = Npe      -- pe1
+    | str == "A/q" = Aq        -- q1
+    | str == "Jf/c" = Jfc      -- c1
+    | str == "Jb/c" = Jbc      -- c2
+    | str == "U3d/u3" = U3du3  -- au1
     | otherwise = error "readRule: Input string is not recognized."
 
 scriptToString :: Script -> String

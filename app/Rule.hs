@@ -3,7 +3,7 @@
 
 module Rule (
     rules,    -- [(Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)]
-    ruleTags, -- [Tag]
+    ruleTags, -- [Tag], List of CCG rule tags
     semComb,  -- Seman -> Seman -> Seman
     appF,     -- (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
     appB,     -- (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
@@ -18,7 +18,7 @@ module Rule (
     raiBh2,   -- (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
     raiBc,    -- (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
     Rule(..),         -- Enumerated type for the tags of category-converted rules
-    ccTags,           -- Tags of category-converted rules
+    ccTags,           -- [String], List of category type-conversional tags
     OnOff,            -- [Rule], Rule used is the one in this module
     ruleOn,           -- Rule -> OnOff -> OnOff
     ruleOff,          -- Rule -> OnOff -> OnOff

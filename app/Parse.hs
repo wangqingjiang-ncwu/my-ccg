@@ -165,7 +165,7 @@ cateComb onOff pc1 pc2
    S/d, O/d, A/d, Hn/d, Cv/d, N/d, Da/d, Ds/d, Dx/d, Doe/d,
    D/p,
    O/oe, Hn/oe, N/oe,
-   N/pe, A/q, Jfc, Jb/c, U3d/u3.
+   N/pe, A/q, Jf/c, Jb/c, U3d/u3.
    Besides, two adjacent syntactic types can convert to their new types respectively and simultaneously,
    such as "np np/.np -> np/.np np" noted as A/n-Hn/a. When used with some standard rules, two-typed combination is
    labelled as "N/v-"++<tag>, "A/v-"++<tag>, and so on. Now, type conversions only happen in
@@ -709,7 +709,7 @@ cateComb onOff pc1 pc2
       ctspaBydToDs = ctspaBydToDs_DHs
       catesBydToDs = [(fst5 cate, "Ds/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBydToDs]
 
-{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to directioanl verb-adverbial type (s\.np)/x(s\.np) is ONLY allowed when
+{- The conversion from verb-adverbial type (s\.np)/#(s\.np) to directional verb-adverbial type (s\.np)/x(s\.np) is ONLY allowed when
  - a directioanl verb follows.
  - Such as, 分(s\.np)/.np 不(s\.np)/#(s\.np) 开(s\.np)\x(s\.np) => 分(s\.np)/.np (不 开)(s\.np)\x(s\.np)
  -}
@@ -863,6 +863,7 @@ cateComb onOff pc1 pc2
       catesBynToA_vToHn = [(fst5 cate, "A/n-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_vToHn]
 
 {- The two adjacent types "<noun> <adverb>" convert to "np/.np np", forming structure AHn, here A/n and Hn/d happen simultaneously.
+ - To now, no example has been found.
  -}
       ctspaBynToA_dToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- n_A_AHn, cate2 <- d_Hn_AHn, elem An onOff, elem Hnd onOff]
       catesBynToA_dToHn = [(fst5 cate, "A/n-Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_dToHn]

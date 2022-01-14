@@ -94,16 +94,16 @@ checkIpc sn username = do
 -- Command interpreter for given user.
 interpreter :: String -> IO ()
 interpreter username = do
-    putStrLn " ? -> Display command list."
-    putStrLn " 1 -> Get raw part-of-speech marked sentence indicated by serial_num."
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Get raw part-of-speech marked sentence indicated by serial_num"
     putStrLn " 2 -> Copy raw sentence indicated by serial_num to column raw_sent2"
-    putStrLn " 3 -> Get the revised part-of-speech marked sentence indicated by serial_num."
-    putStrLn " 4 -> Create CCG-marked sentence from its revised part-of-speech marks."
-    putStrLn " 5 -> Get CCG-marked sentence indicated by serial_num."
-    putStrLn " 6 -> Copy CCG-marked sentence indicated by serial_num to column cate_sent2."
-    putStrLn " 7 -> Get revised CCG-marked sentence indicated by serial_num."
-    putStrLn " 8 -> Parse the sentence indicated by serial_num."
-    putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num."
+    putStrLn " 3 -> Get the revised part-of-speech marked sentence indicated by serial_num"
+    putStrLn " 4 -> Create CCG-marked sentence from its revised part-of-speech marks"
+    putStrLn " 5 -> Get CCG-marked sentence indicated by serial_num"
+    putStrLn " 6 -> Copy CCG-marked sentence indicated by serial_num to column cate_sent2"
+    putStrLn " 7 -> Get revised CCG-marked sentence indicated by serial_num"
+    putStrLn " 8 -> Parse the sentence indicated by serial_num"
+    putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num"
     putStrLn " A -> Statistically analyze the database table corpus and stru_gene"
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
@@ -313,16 +313,17 @@ doDisplayTreesForASent username = do
     readTree_String sn >>= sentToClauses >>= dispTree
     interpreter username
 
--- A. Do statistical analysis about Table corpus and stru_gene, and display results.
+-- A. Do statistical analysis about table corpus and stru_gene, and display results.
 doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
-    putStrLn " ? -> Display command list."
-    putStrLn " 1 -> Count in table 'corpus'."
-    putStrLn " 2 -> Count in table 'stru_gene'."
-    putStrLn " 0 -> Go back to the upper layer."
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Count in table 'corpus'"
+    putStrLn " 2 -> Count in table 'stru_gene'"
+    putStrLn " 3 -> Search in table 'corpus'"
+    putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","0"]
+    if notElem line ["?","1","2","3","0"]
        then do
          putStrLn "Invalid input."
          doStatisticalAnalysis username
@@ -330,32 +331,37 @@ doStatisticalAnalysis username = do
          "?" -> doStatisticalAnalysis username
          "1" -> doCountInCorpus username
          "2" -> doCountInStruGene username
+         "3" -> doSearchInCorpus username
          "0" -> interpreter username
 
 -- A1. Do count in corpus and display results. 't' means from field 'tree', and 's' means from 'script'.
 doCountInCorpus :: String -> IO ()
 doCountInCorpus username = do
-    putStrLn " ? -> Display command list."
-    putStrLn " t1 -> Get total number of sentences."
-    putStrLn " t2 -> Get clausal number in every sentence."
-    putStrLn " t3 -> Get averge clausal number per sentence."
-    putStrLn " t4 -> Get length of every clause in every sentence."
-    putStrLn " t5 -> Get phrase number of every clause in every sentence."
-    putStrLn " t6 -> Get clausal number of different clausal lengths."
-    putStrLn " t7 -> Get clausal number of different parsing-tree depths."
-    putStrLn " t8 -> Get frequency total and normalized frequencies of different CCG tags."
-    putStrLn " t9 -> Get frequency total and normalized frequencies of different phrasal structures."
-    putStrLn " tA -> Get frequency total and normalized frequencies of different type-tag-stru(s)."
-    putStrLn " s1 -> Get transitive times of every clause in all sentences."
-    putStrLn " s2 -> Get frequencies of different ransitive times in all clause parsing."
-    putStrLn " s3 -> Get conversion-ruled list in parsing every clause."
-    putStrLn " s4 -> Get number of abandoned phrases in parsing every clause."
-    putStrLn " s5 -> Get number of abandoned not-recognizable phrases in parsing every clause."
-    putStrLn " 0 -> Go back to the upper layer."
+    putStrLn " ? -> Display command list"
+    putStrLn " t1 -> Get total number of sentences"
+    putStrLn " t2 -> Get clausal number in every sentence"
+    putStrLn " t3 -> Get averge clausal number per sentence"
+    putStrLn " t4 -> Get length of every clause in every sentence and average clausal length"
+    putStrLn " t5 -> Get phrase number of every clause in every sentence"
+    putStrLn " t6 -> Get clausal number of different clausal lengths"
+    putStrLn " t7 -> Get parsing-tree depths of every clause in every sentence"
+    putStrLn " t8 -> Get frequency total and normalized frequencies of different C2CCG calculus tags"
+    putStrLn " t9 -> Get frequency of type conversions used in parsing every clause"
+    putStrLn " tA -> Get frequency total and normalized frequencies of different phrasal structures"
+    putStrLn " tB -> Get frequency total and normalized frequencies of different type-tag-stru(s)"
+    putStrLn " s1 -> Get transitive times of every clause in all sentences"
+    putStrLn " s2 -> Get frequencies of different ransitive times in all clause parsing"
+    putStrLn " s3 -> Get the list of transitive times for every different clausal length"
+    putStrLn " s4 -> Get type-conversional list and type-conversional total in parsing every clause"
+    putStrLn " s5 -> Get frequency of using type conversions in transitive computing for every clausal length"
+    putStrLn " s6 -> Get number of abandoned phrases in parsing every clause"
+    putStrLn " s7 -> Get the minimum, maximum, and mean number of abandoned phrases for every clausal length"
+    putStrLn " s8 -> Get number of abandoned not-recognizable phrases in parsing every clause"
+    putStrLn " 0 -> Go back to the upper layer"
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","s1","s2","s3","s4","s5","0"]
+    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","s1","s2","s3","s4","s5","s6","s7","s8","0"]
        then do
          putStrLn "Invalid input."
          doCountInCorpus username
@@ -371,11 +377,15 @@ doCountInCorpus username = do
          "t8" -> doCountInTree username 8
          "t9" -> doCountInTree username 9
          "tA" -> doCountInTree username 10
+         "tB" -> doCountInTree username 11
          "s1" -> doCountInScript username 1
          "s2" -> doCountInScript username 2
          "s3" -> doCountInScript username 3
          "s4" -> doCountInScript username 4
          "s5" -> doCountInScript username 5
+         "s6" -> doCountInScript username 6
+         "s7" -> doCountInScript username 7
+         "s8" -> doCountInScript username 8
          "0" -> interpreter username
 
 -- A1_1. Display statistical results from field 'tree' in table 'corpus'.
@@ -405,21 +415,16 @@ doCountInScript username funcIndex = do
 -- A2. Display statistical results from table 'struGene'.
 doCountInStruGene :: String  -> IO ()
 doCountInStruGene username = do
-    putStrLn " ? -> Display command list."
-    putStrLn " 1 -> Get total number of structural genes."
-    putStrLn " 2 -> Get frequencies of different overlapping types."
-    putStrLn " 3 -> Get frequencies of most common phrasal overlapping (LROs) by given common proportion."
-    putStrLn " 4 -> Get frequencies of most common phrasal overlapping (LROPs) by given common proportion."
-    putStrLn " 5 -> Get clausal number of different clausal lengths."
-    putStrLn " 6 -> Get clausal number of different parsing-tree depths."
-    putStrLn " 7 -> Get frequency total and normalized frequencies of different CCG tags."
-    putStrLn " 8 -> Get frequency total and normalized frequencies of different phrasal structures."
-    putStrLn " 9 -> Get frequency total and normalized frequencies of different type-tag-stru(s)."
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Get total number of structural genes"
+    putStrLn " 2 -> Get frequencies of different overlapping types"
+    putStrLn " 3 -> Get frequencies of most common phrasal overlapping (LROs) by given common proportion"
+    putStrLn " 4 -> Get frequencies of most common phrasal overlapping (LROPs) by given common proportion"
     putStrLn " 0 -> Go back to the upper layer."
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","0"]
+    if notElem line ["?","1","2","3","4","0"]
       then do
         putStrLn "Invalid input."
         doCountInStruGene username
@@ -429,11 +434,6 @@ doCountInStruGene username = do
         "2" -> doCountInStruGene' username 2
         "3" -> doCountInStruGene' username 3
         "4" -> doCountInStruGene' username 4
-        "5" -> doCountInTree username 5
-        "6" -> doCountInTree username 6
-        "7" -> doCountInTree username 7
-        "8" -> doCountInTree username 8
-        "9" -> doCountInTree username 9
         "0" -> interpreter username
 
 -- A2_1. Display statistical results from table 'stru_gene'.
@@ -441,6 +441,56 @@ doCountInStruGene' :: String -> Int -> IO ()
 doCountInStruGene' username funcIndex = do
     countInStruGene funcIndex
     doCountInStruGene username
+
+-- A3. Display search result in table 'corpus'. 't' means from field 'tree', and 's' means from 'script'.
+doSearchInCorpus :: String -> IO ()
+doSearchInCorpus username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " t1 -> Get serial_num list indicating those parsing trees which include given C2CCG calculus tags"
+    putStrLn " t2 -> Display parsing trees of all clauses of all sentences."
+    putStrLn " t3 -> To do."
+    putStrLn " s1 -> ...."
+    putStrLn " s2 -> ...."
+    putStrLn " 0 -> Go back to the upper layer"
+
+    putStr "Please input command: "
+    line <- getLine
+    if notElem line ["?","t1","t2","s1","s2","0"]
+      then do
+        putStrLn "Invalid input."
+        doSearchInCorpus username
+      else case line of
+        "?" -> doSearchInCorpus username
+        "t1" -> doSearchInTree username 1
+        "t2" -> doSearchInTree username 2
+        "t3" -> doSearchInTree username 3
+        "s1" -> doSearchInScript username 1
+        "s2" -> doSearchInScript username 2
+        "0" -> interpreter username
+
+-- A3_1. Display search results from field 'tree' in table 'corpus'.
+doSearchInTree :: String -> Int -> IO ()
+doSearchInTree username funcIndex = do
+    putStr "Please input the value of 'serial_num' of start sentence: "
+    line <- getLine
+    let bottomSn = read line :: Int
+    putStr "Please input the value of 'serial_num' of end sentence: "
+    line <- getLine
+    let topSn = (read line :: Int) + 1
+    searchInTree bottomSn topSn funcIndex
+    doSearchInCorpus username
+
+-- A3_2. Display search results from field 'script' in table 'corpus'.
+doSearchInScript :: String -> Int -> IO ()
+doSearchInScript username funcIndex = do
+    putStr "Please input the value of 'serial_num' of start sentence: "
+    line <- getLine
+    let bottomSn = read line :: Int
+    putStr "Please input the value of 'serial_num' of end sentence: "
+    line <- getLine
+    let topSn = (read line :: Int) + 1
+    searchInScript bottomSn topSn funcIndex
+    doSearchInCorpus username
 
 -- 0. Quit from this program.
 doQuit :: IO ()

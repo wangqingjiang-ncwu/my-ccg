@@ -1,10 +1,10 @@
 name:                my-ccg
-version:             0.2.5.1
+version:             0.2.6.0
 github:              "wangqingjiang-ncwu/my-ccg"
 license:             BSD3
 author:              "China University of Water Resources and Electric Power"
 maintainer:          "wangqingjiang@ncwu.edu.cn"
-copyright:           "Copyright (c) 2019-2021 China University of Water Resources and Electric Power"
+copyright:           "Copyright (c) 2019-2022 China University of Water Resources and Electric Power"
 
 extra-source-files:
 - README.md

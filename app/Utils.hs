@@ -25,6 +25,8 @@ module Utils (
     throwLastBrac, -- String -> String
     splitAtDeli,   -- Char -> String -> [String]
     splitAtDeliThrowSpace,       -- Char -> String -> [String]
+    splitAtDeliAtFP,             -- Char -> String -> [String]
+    splitTagAsConvOrCal,         -- String -> [String]
     maxStrLen,     -- [String] -> Int
     doubleBackSlash,   -- String -> String
     putNStr,       -- [String] -> IO ()
@@ -48,7 +50,8 @@ module Utils (
     rewriteBackSlash,  -- String -> string
     quickSortForInt,   -- [Int] -> [Int]
     toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
-    toAscListOfMapByValue   -- [(String,Int)] -> [(String,Int)]
+    toAscListOfMapByValue,  -- [(String,Int)] -> [(String,Int)]
+    isSubstr           -- String -> String -> String -> String -> Bool
     ) where
 
 import Data.Tuple
@@ -175,6 +178,29 @@ splitAtDeliThrowSpace c cs
     where
       ind = elemIndex c cs
       i = maybe (-1) (0+) ind     -- Result -1 for no delimiter.
+
+-- Split a string with designated delimiter at its first place.
+splitAtDeliAtFP :: Char -> String -> [String]
+splitAtDeliAtFP _ "" = []
+splitAtDeliAtFP c cs
+    | i == -1 = [cs]
+    | i == 0 = [drop 1 cs]
+    | i == length cs - 1 = [take i cs]
+    | otherwise = [take i cs, drop (i+1) cs]
+    where
+      ind = elemIndex c cs
+      i = maybe (-1) (0+) ind     -- Result -1 for no delimiter.
+
+{- Split a C2CCG Tag as type-conversional and CCG calculus tags.
+ - For ">", only calculus tag ">" is there.
+ - For "S/v->", the conversional tag is "S/v", and the calculus tag is ">".
+ - For "S/v-P/a-<", the conversional tag is "S/v", "P/a", and the calculus tag is "<", here conversional tag "S/v-P/a" is omited.
+ -}
+splitTagAsConvOrCal :: String -> [String]
+splitTagAsConvOrCal "" = []
+splitTagAsConvOrCal tag
+    | tag!!0 /= '<' && tag!!0 /= '>' = (splitAtDeliAtFP '-' tag)!!0 : (splitTagAsConvOrCal ((splitAtDeliAtFP '-' tag)!!1))
+    | otherwise = [tag]
 
 -- Calculate the string-length maximum in a String list.
 maxStrLen :: [String] -> Int
@@ -376,3 +402,11 @@ toDescListOfMapByValue :: Eq k => [(k, Int)] -> [(k, Int)]
 toDescListOfMapByValue [] = []
 toDescListOfMapByValue [x] = [x]
 toDescListOfMapByValue (t:ts) = (toDescListOfMapByValue [x | x <- ts, snd x > snd t]) ++ [t] ++ (toDescListOfMapByValue [x | x <- ts, snd x <= snd t])
+
+-- Decide the first string is a substring of the second, here the third and the fourth strings are origial first string and second string.
+isSubstr :: String -> String -> String -> String -> Bool
+isSubstr [] _ _ _ = True         -- Including [] is a substring of []
+isSubstr _ [] _ _ = False
+isSubstr str1 str2 str3 str4
+    | (str1!!0) == (str2!!0) = isSubstr (tail str1) (tail str2) str3 str4
+    | otherwise = isSubstr str3 (tail str4) str3 (tail str4)

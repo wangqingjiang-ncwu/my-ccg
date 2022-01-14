@@ -473,10 +473,11 @@ sentToClauses cs = return $ stringToList cs
 
 -- Display trees' structure of clauses of a sentence, one tree per clause.
 dispTree :: [String] -> IO ()
-dispTree [] = putStrLn "End of Forest."
+dispTree [] = putStr ""                      -- Nothing to display.
 dispTree (s:cs) = do
-    showTreeStru spls spls
     dispTree cs
+    putStrLn $ "Clause No.: " ++ show (length cs + 1)
+    showTreeStru spls spls
     where
       pcs = getClauPhraCate s
       spls = divPhraCateBySpan pcs      -- Span lines

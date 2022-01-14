@@ -7,8 +7,11 @@ module Statistics (
     countInTree,                    -- Int -> Int -> Int -> IO ()
     countInScript,                  -- Int -> Int -> Int -> IO ()
     countInStruGene,                -- Int -> IO ()
+    searchInTree,                   -- Int -> Int -> Int -> IO ()
+    searchInScript,                 -- Int -> Int -> Int -> IO ()
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
-    truncDescListByProportion       -- Float -> [(String, Int)] -> [(String, Int)]
+    truncDescListByProportion,      -- Float -> [(String, Int)] -> [(String, Int)]
+    filterByString                  -- [(Int, String)] -> String -> [(Int, String)]
     ) where
 
 import Control.Monad
@@ -27,25 +30,30 @@ import Rule
 import Utils
 import Database
 import Corpus
+import SentParse
 
 {- The following functions read field 'tree' of table 'corpus', then count all clauses according the input index.
  - 1. Get total number of sentences;
  - 2. Get clausal number in every sentence;
  - 3. Get averge clausal number per sentence;
- - 4. Get clausal length in every sentence;
+ - 4. Get clausal length in every sentence and average clausal length;
  - 5. Get phrase number of every clause in every sentence;
  - 6. Get clausal number of different clausal lengths;
- - 7. Get clausal number of different parsing-tree depths;
- - 8. Get frequency total and normalized frequencies of different CCG tags;
- - 9. Get frequency total and normalized frequencies of different phrasal structures;
- - A. Get frequency total and normalized frequencies of different type-tag-stru(s);
+ - 7. Get  parsing-tree depths of every clause in every sentence;
+ - 8. Get frequency totals and normalized frequencies of different CCG tags;
+ - 9. Get frequencies of type conversions used in parsing every clause;
+ - A. Get frequency total and normalized frequencies of different phrasal structures;
+ - B. Get frequency total and normalized frequencies of different type-tag-stru(s);
 
  - The following functions read field 'script' of table 'corpus', then count all clauses according the input index.
  - 1. Get transitive times of every clause in all sentences;
  - 2. Get frequencies of different numbers of ransitive times in all clause parsing;
- - 3. Get conversion-ruled list in parsing every clause;
- - 4. Get the number of abandoned phrases in parsing every clause of every sentences;
- - 5. Get the number of abandoned not-recognizable phrases in parsing every clause of every sentence;
+ - 3. Get the list of transitive times for every different clausal lengths;
+ - 4. Get type-conversional list and type-conversional total in parsing every clause;
+ - 5. Get total of using type conversions in transitive computing for every clausal length;
+ - 6. Get the number of abandoned phrases in parsing every clause of every sentence;
+ - 7. Get the minimum, maximum, and mean number of abandoned phrases for every clausal length;
+ - 8. Get the number of abandoned not-recognizable phrases in parsing every clause of every sentence;
 
  - The following functions read Table 'stru_gene', then count all structural genes according the input index.
  - 1. Get total number of structural genes;
@@ -53,6 +61,10 @@ import Corpus
  - 3. Get frequencies of most common phrasal overlapping (LROs) by given common proportion;
  - 4. Get frequencies of most common unambiguous phrasal overlapping (LROPs) by given common proportion;
  - 5. Get descending hitCount
+
+- The following functions read Table 'tree', then search all clauses according the input index.
+- 1. Get serial_num list indicating those parsing trees which include given CCG tags;
+
  -}
 
 {- Get statistics about field 'tree' in Table 'corpus' whose serial numbers are less than 'topSn' and
@@ -95,19 +107,28 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 4                                          -- To get the length of every clause in every sentence.
        then do
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[[Int]]], here every integer is the length of a clause.
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[Int]], here every integer is the length of a clause.
+         let clauseLengthTotal = foldl (+) 0 $ map (foldl (+) 0) sentClauLengthList
+         let averageClauseLength = (fromIntegral clauseLengthTotal :: Float) / (fromIntegral clauseTotalNum :: Float)
          putStrLn $ "countInTree: Length of every clause in every sentence: " ++ show sentClauLengthList
-      else putStr $ ""
+         putStrLn $ "countInTree: Average clause length: " ++ (printf "%.04f" averageClauseLength)
+
+         let clauLength2LengthListMap = toClauLength2CerParaListMap sentClauLengthList sentClauLengthList Map.empty               -- Map Int [Int]
+         let ascenListOfClauLength2ClauNum = map (\x -> (fst x, length (snd x))) $ Map.toAscList clauLength2LengthListMap         -- [(ClauLength, ClauNum)]
+         let ascenListOfClauLength2FreqRate = map (\x -> (fst x, (fromIntegral (snd x))/(fromIntegral clauseTotalNum))) ascenListOfClauLength2ClauNum    -- [(ClauLength, FreqRate)]
+         putStrLn $ "countInTree: The frequency rate of every clausal length: [" ++ showAscenListOfClauLength2FreqRate ascenListOfClauLength2FreqRate ++ "]"
+
+       else putStr $ ""
 
     if funcIndex == 5                                          -- To get phrase number of every clause in every sentence. Actually, phrase number can be obtained from clause length.
        then do
-         let sentClauPhraNumList = map (map length) sentClauPhraList                    -- [[[Int]]], here every integer is the phrase number of a clause.
+         let sentClauPhraNumList = map (map length) sentClauPhraList                    -- [[Int]], here every integer is the phrase number of a clause.
          putStrLn $ "countInTree: Phrase number of every clause in every sentence: " ++ show sentClauPhraNumList
        else putStr ""
 
     if funcIndex == 6                                          -- To get the number of clauses with different lengths.
        then do
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[[Int]]], here every integer is the length of a clause.
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[Int]], here every integer is the length of a clause.
          let clauLength2NumMap = toClauLength2NumMap sentClauLengthList Map.empty       -- Map Int Int, namely Map <clauLength> <clauNum>, and 'empty' return null Map.
          putStrLn $ "countInTree: Clause count by clause length: " ++ show clauLength2NumMap
        else putStr ""
@@ -126,23 +147,77 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 8                                           -- To get the frequency of every CCG tag in all sentences.
        then do
-         let tag2FreqMap = toTag2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map Tag <tagNum>.
-         let tagFreqMapList = Map.toList (Map.delete "Desig" tag2FreqMap)       -- [(String, Int)], remove tag "Desig".
+         let tag2FreqMap = Map.delete "Desig" (toTag2FreqMap sentClauPhraList Map.empty)                -- Map String Int, namely Map Tag <tagNum>, not including "Desig".
+         let tagFreqMapList = Map.toList tag2FreqMap                                                    -- [(String, Int)]
          let tagFregTotal = foldl (+) 0 (map snd tagFreqMapList)
          let ascListOfTagFreqByValue = toAscListOfMapByValue tagFreqMapList
          let descListOfTagFreqByValue = toDescListOfMapByValue tagFreqMapList
-         let tagNormFreqDescList = map (\x -> (fst x, ((/(fromIntegral tagFregTotal)). fromIntegral) (snd x))) descListOfTagFreqByValue   -- Normalized frequencies of different CCG tags.
+         let tagNormFreqDescList = map (\x -> (fst x, ((/(fromIntegral tagFregTotal)). fromIntegral) (snd x))) descListOfTagFreqByValue
+                                                               -- Normalized frequencies of different C2CCG calculus tags.
 
---       putStrLn $ "countInTree: The list of frequencies of different CCG tags: " ++ show tag2FreqMap
---       putStrLn $ "countInTree: The ascending list of frequencies of different CCG tags: " ++ show ascListOfTagFreqByValue
-         putStrLn $ "countInTree: The descending list of frequencies of different CCG tags: " ++ show descListOfTagFreqByValue
-         putStrLn $ "countInTree: The number of different CCG tags: " ++ show (length tagFreqMapList)
-         putStrLn $ "countInTree: The frequency total of different CCG tags: " ++ show tagFregTotal
---       putStrLn $ "countInTree: The normalized frequencies of different CCG tags: " ++ show tagNormFreqDescList
-         putStrLn $ "countInTree: The normalized frequencies of different CCG tags: " ++ show (formatMapListWithFloatValue tagNormFreqDescList 4)
+--       putStrLn $ "countInTree: The list of frequencies of different C2CCG calclus tags: " ++ show tag2FreqMap
+--       putStrLn $ "countInTree: The ascending list of frequencies of different C2CCG calculus tags: " ++ show ascListOfTagFreqByValue
+         putStrLn $ "countInTree: The descending list of frequencies of different C2CCG calculus tags: " ++ show descListOfTagFreqByValue
+         putStrLn $ "countInTree: The number of different C2CCG calculus tags: " ++ show (length tagFreqMapList)
+         putStrLn $ "countInTree: The frequency total of different C2CCG calculus tags: " ++ show tagFregTotal
+--       putStrLn $ "countInTree: The normalized frequencies of different C2CCG calculus tags: " ++ show tagNormFreqDescList
+         putStrLn $ "countInTree: The normalized frequencies of different C2CCG calculus tags: " ++ show (formatMapListWithFloatValue tagNormFreqDescList 4)
+
+{- Actually, C2CCG calculus tags (Abbr. tags) represent CCG rules sometimes including category type conversions,
+ - which are used to deduce one new categorial type from two existed categorial types.
+ - The <convCalTag> is either type conversion tag such as 'S/v' and 'P/a', or CCG calculus tag such as '>' and '>T->B'.
+ - Especially, a type conversion tag, such as "S/v-P/a", represents two simultaneously used conversions, then every tag and the compound tag are all counted once.
+ -}
+         let convCalTag2FreqMap = toConvCalTag2FreMap tagFreqMapList Map.empty                                       -- From List [(<tag>, <tagNum>)], get Map <convCalTag> <tagNum>.
+         let convTag2FreqMap = Map.filterWithKey (\k _ -> (k!!0 /= '>') && (k!!0 /= '<')) convCalTag2FreqMap         -- Filter out conversional tags and their frequencies.
+         let calTag2FreqMap = Map.filterWithKey (\k _ -> (k!!0 == '>') || (k!!0 == '<')) convCalTag2FreqMap          -- Filter out CCG calculus tags and their frequencies.
+         let convTagTotal = Map.size convTag2FreqMap                            -- The total number of different conversional tags
+         let calTagTotal = Map.size calTag2FreqMap                              -- The total number of different calculus tags
+         let convCalTagFreqMapList = Map.toList convCalTag2FreqMap
+         let convTagFreqMapList = Map.toList convTag2FreqMap
+         let calTagFreqMapList = Map.toList calTag2FreqMap
+         let descListOfConvCalTagFreqByValue = toDescListOfMapByValue convCalTagFreqMapList
+         let descListOfConvTagFreqByValue = toDescListOfMapByValue convTagFreqMapList
+         let descListOfCalTagFreqByValue = toDescListOfMapByValue calTagFreqMapList
+         let convTagFreqTotal = foldl (+) 0 (map snd convTagFreqMapList)
+         let calTagFreqTotal = foldl (+) 0 (map snd calTagFreqMapList)
+         let convTagUsageRateDescList = map (\x -> (fst x, ((/(fromIntegral convTagFreqTotal)). fromIntegral) (snd x))) descListOfConvTagFreqByValue
+         let calTagUsageRateDescList = map (\x -> (fst x, ((/(fromIntegral calTagFreqTotal)). fromIntegral) (snd x))) descListOfCalTagFreqByValue
+         putStrLn $ "countInTree: The total number of different conversional tags: " ++ show convTagTotal
+         putStrLn $ "countInTree: The frequency total of various conversional tags: " ++ show convTagFreqTotal
+         putStrLn $ "countInTree: The total number of different CCG calculus tags: " ++ show calTagTotal
+         putStrLn $ "countInTree: The frequency total of varions CCG calculus tages: " ++ show calTagFreqTotal
+         putStrLn $ "countInTree: The descending list of frequencies of different conversional or calculus tags: " ++ show descListOfConvCalTagFreqByValue
+         putStrLn $ "countInTree: The descending list of frequencies of different category type conversion tags: " ++ show descListOfConvTagFreqByValue
+         putStrLn $ "countInTree: The descending list of usage rate of different category type conversion tags: " ++ show (formatMapListWithFloatValue convTagUsageRateDescList 4)
+         putStrLn $ "countInTree: The descending list of frequencies of different CCG calculus tags: " ++ show descListOfCalTagFreqByValue
+         putStrLn $ "countInTree: The descending list of usage rate of different CCG calculus tags: " ++ show (formatMapListWithFloatValue calTagUsageRateDescList 4)
+
        else putStr ""
 
-    if funcIndex == 9                                          -- To get the frequency of every phrasal structure in all sentences.
+    if funcIndex == 9                                          -- Get frequency of using type conversions in every clausal length.
+       then do
+         let sentClauPhraTagList = map (map (map (snd5 . (!!0) . snd3))) sentClauPhraList                     -- 'sentClauPhraList' type is [[[PhraCate]]].
+         let sentClauPhraTagWithoutDesigList = map (map (filter (/= "Desig"))) sentClauPhraTagList            -- [[[Tag]]], not including "Desig" phrases.
+         let sentClauPhraConvList = map (map (map toConvTagListForAPhrase)) sentClauPhraTagWithoutDesigList   -- [[[[ConvTag]]]], 'ConvTag' is "S/v", "P/a, or "S/v-P/a".
+         let sentClauPhraConvNumList = map (map (map length)) sentClauPhraConvList                      -- [[[ConvNum]]], 'ConvNum' is the number of used conversions in a phrase.
+         let sentClauConvNumList = map (map (foldl (+) 0)) sentClauPhraConvNumList                      -- [[ConvNum]], 'ConvNum' is the number of used conversions in a clause.
+
+--       putStrLn $ "countInTree: The number of used conversions in every clause: " ++ show sentClauConvNumList
+
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList                                 -- [[ClauLength]], 'ClauLength' is the length of a clause.
+         putStrLn $ "countInTree: The length of every clause: " ++ show sentClauLengthList
+
+         let clauLength2ConvNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauConvNumList Map.empty                   -- Map Int [Int]
+         let ascenListOfClauLength2ConvNumList = Map.toAscList clauLength2ConvNumListMap                                                -- [(Int, [Int])]
+         let ascenListOfClauLength2ConvNumMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumList   -- [(ClauLength, [Min, Max, Mean])]
+         putStrLn $ "countInTree: The list of frequencies of using type conversions in parsing trees for every clausal length: " ++ show ascenListOfClauLength2ConvNumList
+         putStrLn $ "countInTree: Clausal count: " ++ show (foldl (+) 0 (map (length . snd) ascenListOfClauLength2ConvNumList))
+         putStrLn $ "countInTree: The minimum, maximum, and mean value of frequencies of using type conversions in parsing trees for every clausal length: [" ++ showListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumMinMaxMeanList ++ "]"
+
+       else putStr ""
+
+    if funcIndex == 10                                         -- To get the frequency of every phrasal structure in all sentences.
        then do
          let phraStru2FreqMap = toPhraStru2FreqMap sentClauPhraList Map.empty         -- Map String Int, namely Map PhraStru <psNum>.
          let phraStru2FreqMapList = Map.toList (Map.delete "DE" phraStru2FreqMap)     -- [(String, Int)], remove phrasal structure "DE".
@@ -157,7 +232,7 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The normalized frequencies of different phrasal structures: " ++ show (formatMapListWithFloatValue phraStruNormFreqDescList 4)
        else putStr ""
 
-    if funcIndex == 10                                          -- To get the frequency of every triple (Syntactic type, CCG rule tag, Phrasal structure) in all sentences.
+    if funcIndex == 11                                          -- To get the frequency of every triple (Syntactic type, CCG rule tag, Phrasal structure) in all sentences.
        then do
          let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty            -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
          let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap        -- [(String, Int)]
@@ -201,27 +276,111 @@ countInScript bottomSn topSn funcIndex = do
        then do
          let transTimes2FreqMap = toTransTimes2FreqMap sentClauScriptList Map.empty                  -- Map Int Int, namely Map <transTimes> <ttNum>.
          let descListOfTT2FreqByValue = toDescListOfMapByValue (Map.toList transTimes2FreqMap)
-         putStrLn $ "countInScript: The descending list of frequencies of different numbers of transitive times: " ++ show descListOfTT2FreqByValue
+         putStrLn $ "countInScript: The descending list of frequencies of different transitive times: " ++ show descListOfTT2FreqByValue
+
+         let transTimesTotal = fromIntegral $ foldl (+) 0 $ map snd descListOfTT2FreqByValue         -- The total number of transtive times for all clauses.
+         let descListOfTT2NormalizedFreqByValue = map (\x -> (fst x, ((/ transTimesTotal) . fromIntegral. snd) x)) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
+         putStrLn $ "countInScript: Transitive times total for all clauses: " ++ show transTimesTotal
+         putStrLn $ "countInScript: The descending list of normalized frequencies of different transitive times: " ++ show (formatMapListWithFloatValue descListOfTT2NormalizedFreqByValue 4)
        else putStr ""
 
-    if funcIndex == 3                                         -- To get conversion-ruled list in parsing every clause.
+    if funcIndex == 3                                         -- To get the list of transitive times for every different clausal lengths.
        then do
-         let sentClauConvRuleListList = map (map snd3) sentClauScriptList
-         putStrLn $ "countInScript: The conversion-ruled list of every clause in all sentences: " ++ show sentClauConvRuleListList
+         let sentClauTransTimesList = map (map (length . snd3)) sentClauScriptList      -- [[[Int]]], here every integer is the transitive times in parsing a clause.
+
+         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
+         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
+         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
+         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
+         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
+
+         let clauLength2TransTimesListMap = toClauLength2CerParaListMap sentClauLengthList sentClauTransTimesList Map.empty             -- Map Int [Int]
+         let ascenListOfClauLength2TransTimesList = Map.toAscList clauLength2TransTimesListMap                                          -- [(Int, [Int])]
+         let ascenListOfClauLength2TransTimesMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2TransTimesList     -- [(ClauLength, [Min, Max, Mean])]
+         putStrLn $ "countInScript: The list of transitive times for every different clausal length: " ++ show ascenListOfClauLength2TransTimesList
+         putStrLn $ "countInScript: Clausal count: " ++ show (foldl (+) 0 (map (length . snd) ascenListOfClauLength2TransTimesList))
+         putStrLn $ "countInScript: The minimum, maximum, and mean value of transitive times for every clausal length: [" ++ showListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2TransTimesMinMaxMeanList ++ "]"
+
        else putStr ""
 
--- To get the number of abandoned phrases in parsing every clause of every sentence, which is useful to evaluate ambiguity of clause syntax.
-    if funcIndex == 4
+    if funcIndex == 4                                         -- To get type-conversional list and type-conversional total in parsing every clause.
+       then do
+         let sentClauTransConvList = map (map snd3) sentClauScriptList
+                                                              -- [[[[tag]]]], conversional tags(#4) used in every transition(#3) in parsing every clause(#2) in sentence list(#1).
+         let sentClauTransConvNumList = map (map (map length)) sentClauTransConvList
+                                                              -- [[[num]]], list of numbers of conversional tags (#3) in parsing every clause(#2) in sentence list(#1).
+         let sentClauConvTotalList = map (map (foldl (+) 0)) sentClauTransConvNumList
+                                                              -- [[total]], list of totals of conversional tags in parsing every clause(#2) in sentence list(#1).
+         putStrLn $ "countInScript: The conversion-taged list of every clause in every sentences: " ++ show sentClauTransConvList
+         putStrLn $ "countInScript: The total num. of conversional tags used in parsing every clause in every sentences: " ++ show sentClauConvTotalList
+       else putStr ""
+
+    if funcIndex == 5                                         -- Frequency of using type conversions in transitive computing for every clausal length.
+       then do
+         let sentClauTransConvList = map (map snd3) sentClauScriptList          -- [[[[tag]]]]
+         let sentClauTransConvNumList = map (map (map length)) sentClauTransConvList        -- [[[num]]]
+         let sentClauConvFreqList = map (map (foldl (+) 0)) sentClauTransConvNumList       -- [[total]]
+
+         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
+         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
+         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
+         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
+         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
+
+         let clauLength2ConvNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauConvFreqList Map.empty                  -- Map Int [Int]
+         let ascenListOfClauLength2ConvNumList = Map.toAscList clauLength2ConvNumListMap                                                -- [(Int, [Int])]
+         let ascenListOfClauLength2ConvNumMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumList   -- [(ClauLength, [Min, Max, Mean])]
+         putStrLn $ "countInScript: The list of frequencies of using type conversions in transitive computing for every clausal length: " ++ show ascenListOfClauLength2ConvNumList
+         putStrLn $ "countInScript: Clausal count: " ++ show (foldl (+) 0 (map (length . snd) ascenListOfClauLength2ConvNumList))
+         putStrLn $ "countInScript: The minimum, maximum, and mean value of total of using type conversions in transitive computing for every clausal length: [" ++ showListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumMinMaxMeanList ++ "]"
+
+       else putStr ""
+
+{- To get the number of abandoned phrases in parsing every clause of every sentence, which is useful to evaluate ambiguity of clause syntax.
+ -}
+    if funcIndex == 6
        then do
          let sentClauAbanPhraNumList = map (map (length . thd3)) sentClauScriptList
+         let abanedPhraTotal = foldl (+) 0 (map (foldl (+) 0) sentClauAbanPhraNumList)
          putStrLn $ "countInScript: The number of abandoned phrases in parsing every clause: " ++ show sentClauAbanPhraNumList
+         putStrLn $ "countInScript: The total number of abandoned phrases: " ++ show abanedPhraTotal ++ ", the mean number of abandoned phrases per clause: " ++ show (fromIntegral abanedPhraTotal / fromIntegral clauseTotalNum)
+       else putStr ""
+
+{- To get the minimum, maximum, and mean number of abandoned phrases for every clausal length.
+ -}
+    if funcIndex == 7
+       then do
+         let sentClauAbanPhraNumList = map (map (length . thd3)) sentClauScriptList
+
+         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
+         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
+         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
+         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
+         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
+
+         let clauLength2AbanPhraNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauAbanPhraNumList Map.empty               -- Map Int [Int]
+         let ascenListOfClauLength2AbanPhraNumList = Map.toAscList clauLength2AbanPhraNumListMap                                            -- [(Int, [Int])]
+         let ascenListOfClauLength2AbanPhraNumMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2AbanPhraNumList   -- [(ClauLength, [Min, Max, Mean])]
+
+--       putStrLn $ "countInScript: The length of every clause in every sentence: " ++ show sentClauLengthList
+--       putStrLn $ "countInScript: The number of abandoned phrases in parsing every clause: " ++ show sentClauAbanPhraNumList
+         putStrLn $ "countInScript: The number of abandoned phrases in parsing every clause for every clausal length: " ++ show ascenListOfClauLength2AbanPhraNumList
+         putStrLn $ "countInScript: Clausal count: " ++ show (foldl (+) 0 (map (length . snd) ascenListOfClauLength2AbanPhraNumList))
+         putStrLn $ "countInScript: The minimum, maximum, and mean number of abandoned phrases for every clausal length: [" ++ showListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2AbanPhraNumMinMaxMeanList ++ "]"
+
        else putStr ""
 
 {- To get the number of abandoned not-recognizable phrases in parsing every clause of every sentence,
  - which is useful to evaluate how much proportion of phrases are not accepted by Chinese syntax.
- _ To now, no phrase is not recognizable for the present C^2-CCG.
+ - To now, the phrases not recognized by the present C2CCG are filtered out automatically.
  -}
-    if funcIndex == 5
+    if funcIndex == 8
        then do
          let sentClauAbanNRPhraNumList = toSentClauAbanNRPhraNumList sentClauScriptList
          putStrLn $ "countInScript: The number of abandoned not-recognizable phrases in parsing every clause of every sentence: " ++ show sentClauAbanNRPhraNumList
@@ -300,6 +459,41 @@ countInStruGene funcIndex = do
             putStrLn $ "countInStruGene: The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
           else putStr ""
 
+{- Get search result in field 'tree' in Table 'corpus' whose serial numbers are less than 'topSn' and
+ - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ -}
+searchInTree :: Int -> Int -> Int -> IO ()
+searchInTree bottomSn topSn funcIndex = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select serial_num, tree from corpus where serial_num >= ? and serial_num < ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
+
+    snTreeList <- readStreamByInt32Text [] is                          -- [(Int, String)], storing serial_num and parsing tree of every sentence.
+
+    if funcIndex == 1                                                   -- To get serial_num list indicating those parsing trees which include given CCG tags.
+       then do
+         putStr "Please input the C2CCG tag used in parsing sentence: "
+         tag <- getLine
+         let snListMatchTag = filterByString snTreeList tag             -- [(Int, String)], matching given CCG tag.
+         putStrLn $ "searchInTree: The serial_num list of trees which use tag \"" ++ tag ++ "\": " ++ show (map fst snListMatchTag)
+       else putStr ""
+
+    if funcIndex == 2                                                   -- To display parsing trees of all clauses of all sentences.
+      then do
+        dispTreeListOnStdout snTreeList
+      else putStr ""
+
+{-    if funcIndex == 3                                                   -- To do.
+      then do
+        putStr "To do."
+      else putStr ""
+ -}
+{- Get search result in field 'script' in Table 'corpus' whose serial numbers are less than 'topSn' and
+ - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ -}
+searchInScript :: Int -> Int -> Int -> IO ()
+searchInScript bottomSn topSn funcIndex = putStrLn "searchInScript: to do."
+
 {- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
  - until read Nothing.
  -}
@@ -318,7 +512,17 @@ readStreamByInt es is = do
         Just x -> readStreamByInt (es ++ [[fromMySQLInt8 (x!!0), fromMySQLInt64 (x!!1)]]) is
         Nothing -> return es
 
-{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
+{- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText].
+ -}
+readStreamByInt32Text :: [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+readStreamByInt32Text es is = do
+    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32Text (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
  - until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8].
  -}
@@ -328,7 +532,7 @@ readStreamByTextTextInt8 es is = do
         Just x -> readStreamByTextTextInt8 (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2))]) is
         Nothing -> return es
 
-{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
+{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
  - until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8, MySQLText].
  -}
@@ -420,8 +624,45 @@ insertPhraList2TagFreqMap (x:xs) tag2FreqMap = insertPhraList2TagFreqMap xs (ins
 
 {- Get the format print of a Map list with given decimal places to represent float values.
  -}
-formatMapListWithFloatValue :: [(String, Float)] -> Int -> [(String, String)]
+formatMapListWithFloatValue :: Show a => [(a, Float)] -> Int -> [(a, String)]       -- 'a' may be any showable type, Polymorphism!
 formatMapListWithFloatValue mapList n = map (\x -> (fst x, printf ("%.0" ++ show n ++"f") (snd x))) mapList
+
+{- Convert one Map String Int to another Map String Int, the former is {(tag, tagNum)}, and the latter is {(convCalTag, convCalTagNum)}.
+ - Here, 'tag' is C2CCG calculus tag such as '>', '<', '>B', '<B', '>Bx', '<Bx', and '>T->B', sometimes including type-conversional tag such as 'S/n->', 'P/a-<B, and 'S/n-P/a-<'.
+ - The 'convCalTag' is a type-conversioned tag or a CCG calculus tag. A type-conversioned tag is a primitive type-conversioned tag or a compound type-conversioned tag.
+ - For an example, C2CCG calculus tag 'S/n-P/a-<' includes type-conversioned tag 'S/n', 'P/a', 'S/n-P/a', and CCG calculus tag '<'.
+ - From a tag-frequency Map, a convCalTag-frequency Map is obtained.
+ -}
+toConvCalTag2FreMap :: [(String, Int)] -> Map String Int -> Map String Int
+toConvCalTag2FreMap [] convCalTag2FreqMap = convCalTag2FreqMap
+toConvCalTag2FreMap (si:sis) convCalTag2FreqMap = toConvCalTag2FreMap sis $ insertTagFreq2ConvCalTag2FreqMap si convCalTag2FreqMap
+
+{- Insert a (<tag>, <tagNum>) into Map <convCalTag> <convCalTagNum>, here <tag> is C2CCG calculus tag, <convCalTag> is type-conversioned tag or CCG calculus tag.
+ - For ">", only calculus tag ">" is there.
+ - For "S/v->", the conversional tag is "S/v", and the calculus tag is ">".
+ - For "S/v-P/a-<", the conversional tag is "S/v", "P/a", "S/v-P/a", and the calculus tag is "<".
+ -}
+insertTagFreq2ConvCalTag2FreqMap :: (String, Int) -> Map String Int -> Map String Int
+insertTagFreq2ConvCalTag2FreqMap (tag, tagNum) convCalTag2FreqMap
+    | length tags == 1 = Map.insertWith (+) (tags!!0) tagNum convCalTag2FreqMap
+    | length tags == 2 = Map.insertWith (+) (tags!!0) tagNum $ Map.insertWith (+) (tags!!1) tagNum convCalTag2FreqMap
+    | length tags == 3 = Map.insertWith (+) (tags!!0 ++ "-" ++ tags!!1) tagNum $ Map.insertWith (+) (tags!!0) tagNum $ Map.insertWith (+) (tags!!1) tagNum $ Map.insertWith (+) (tags!!2) tagNum convCalTag2FreqMap
+    | otherwise = Map.empty                                                     -- Exception !
+    where
+    tags = splitTagAsConvOrCal tag
+
+{- From the tag of a phrase, filter out conversional tags.
+ - The input argument is a C2CCG tag used to get this phrase, such as "S/v-P/a-<".
+ - The output result is [ConvTag], such as "S/v", "P/a", "S/v-P/a".
+ -}
+toConvTagListForAPhrase :: String -> [String]
+toConvTagListForAPhrase tag
+    | length tags == 1 = []                        -- Only has CCG calculus tag.
+    | length tags == 2 = [tags!!0]
+    | length tags == 3 = [tags!!0, tags!!1, tags!!0 ++ "-" ++ tags!!1]
+    | otherwise = []                                                            -- Exception !
+    where
+    tags = splitTagAsConvOrCal tag
 
 {- Get the frequencies of various phrasal structures, which is Data.Map.
  - The input is the list of sentential categories, and the output is Map PhraStru <psNum>.
@@ -506,6 +747,50 @@ insertScript2TransTimesFreqMap (clauIdx, ruleLists, banPCs) transTimes2FreqMap =
     transTimes = length ruleLists
     ttNum = maybe 1 (1+) (Map.lookup transTimes transTimes2FreqMap)
 
+{- From clausal length and certain statistical parameter (such as transitive times or conversioanl number) of every clause of every sentence,
+ - get parameter list of every different clausal length and store it in a Map Int [Int].
+ - The first argument is clausal length of every clause of every sentence (Abbr. scll), and the second is certain statistcal parameter of every clause of every sentence (Abbr. sctt).
+ -}
+toClauLength2CerParaListMap :: [[Int]] -> [[Int]] -> Map Int [Int] -> Map Int [Int]
+toClauLength2CerParaListMap [] _ clauLength2CerParaListMap = clauLength2CerParaListMap
+toClauLength2CerParaListMap _ [] clauLength2CerParaListMap = clauLength2CerParaListMap
+toClauLength2CerParaListMap (cll:scll) (ctt:sctt) clauLength2CerParaListMap = toClauLength2CerParaListMap scll sctt $ insertSent2ClauLengthCerParaListMap cll ctt clauLength2CerParaListMap
+
+{- For every clause in a sentence, insert clausal length and its certain parameters in parsing the clause into Map <clause length> <clausal certain parameter>.
+ - The first argument is the list of clausal lengths, and the second is the list of certain parameters in parsing corresponding clauses.
+ -}
+insertSent2ClauLengthCerParaListMap:: [Int] -> [Int] -> Map Int [Int] -> Map Int [Int]
+insertSent2ClauLengthCerParaListMap [] [] clauLength2CerParaListMap = clauLength2CerParaListMap
+insertSent2ClauLengthCerParaListMap cll ctt clauLength2CerParaListMap = insertSent2ClauLengthCerParaListMap otherClauLength otherClauCerPara $ Map.insert clauLength cpList clauLength2CerParaListMap
+    where
+    clauLength = head cll
+    otherClauLength = tail cll
+    clauCerPara = head ctt
+    otherClauCerPara = tail ctt
+    cpList = maybe [clauCerPara] (clauCerPara:) (Map.lookup clauLength clauLength2CerParaListMap)
+
+{- For every clausal length, get minimum, maximum, and mean value of certain parameter.
+ - The input argument is [(clausal length, [certain parameter])], and the result is [(clausal length, (Min, Max, Mean))].
+ -}
+toListOfClauLength2CerParaMinMaxMeanList :: [(Int, [Int])] -> [(Int, (Int, Int, Float))]
+toListOfClauLength2CerParaMinMaxMeanList [] = []
+toListOfClauLength2CerParaMinMaxMeanList [(l, ttl)] = [(l, (minimum ttl, maximum ttl, ((fromIntegral (sum ttl) :: Float) / (fromIntegral (length ttl) :: Float))))]
+toListOfClauLength2CerParaMinMaxMeanList (s:ss) = toListOfClauLength2CerParaMinMaxMeanList [s] ++ toListOfClauLength2CerParaMinMaxMeanList ss
+
+{- Get the string of list 'ascenListOfClauLength2TransTimesMinMaxMeanList' and 'ascenListOfClauLength2ConvNumMinMaxMeanList'.
+ -}
+showListOfClauLength2CerParaMinMaxMeanList :: [(Int, (Int, Int, Float))] -> String
+showListOfClauLength2CerParaMinMaxMeanList [] = ""
+showListOfClauLength2CerParaMinMaxMeanList [(l, (max, min, mean))] = "(" ++ show l ++ ", (" ++ show max ++ ", " ++ show min ++ ", " ++ printf "%.02f" mean ++ ")"
+showListOfClauLength2CerParaMinMaxMeanList (l:ls) = showListOfClauLength2CerParaMinMaxMeanList [l] ++ ", " ++ showListOfClauLength2CerParaMinMaxMeanList ls
+
+{- Get the string of list 'ascenListOfClauLength2FreqRate'.
+ -}
+showAscenListOfClauLength2FreqRate :: [(Int, Float)] -> String
+showAscenListOfClauLength2FreqRate [] = ""
+showAscenListOfClauLength2FreqRate [(clauLength, freqRate)] = "(" ++ show clauLength ++ ", " ++ printf "%.04f" freqRate ++ ")"
+showAscenListOfClauLength2FreqRate (cl:cls) = showAscenListOfClauLength2FreqRate [cl] ++ ", " ++ showAscenListOfClauLength2FreqRate cls
+
 {- Get the number of not-recognizable phrases in parsing every clause in every sentence.
  -}
 toSentClauAbanNRPhraNumList :: [[Script]] -> [[Int]]
@@ -550,3 +835,24 @@ readFloat0to1 = do
        else do
          putStr "Please input a float value in [0, 1] again: "
          readFloat0to1
+
+{- Filter [(Int, String)], and remain the elements which match pattern string.
+ -}
+filterByString :: [(Int, String)] -> String -> [(Int, String)]
+filterByString [] _ = []
+filterByString [(i1, s1)] patt
+    | isSubstr patt s1 patt s1 = [(i1, s1)]
+    | otherwise = []
+filterByString (kv:kvs) patt = (filterByString [kv] patt) ++ (filterByString kvs patt)
+
+{- Display parsing trees of every sentence in a set of sentences, usually every sentence includes multiple clauses, and every clause has its parsing tree.
+ - The input is [(sn,treeStr)], here 'sn' is serial number of a sentence which has parsing trees represented by string 'treeStr'.
+ -}
+dispTreeListOnStdout :: [(Int, String)] -> IO ()
+dispTreeListOnStdout [] = putStrLn "No parsing tree to display."
+dispTreeListOnStdout [(sn, treeStr)] = do
+    putStrLn $ "Sentence No.: " ++ show sn
+    sentToClauses treeStr >>= dispTree
+dispTreeListOnStdout (t:ts) = do
+    dispTreeListOnStdout [t]
+    dispTreeListOnStdout ts

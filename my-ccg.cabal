@@ -7,7 +7,7 @@ cabal-version: 1.12
 -- hash: ca4027a3138714ea95ef74480d1ebcaae44b9c6ef1a076616aef942b00e9a0ea
 
 name:           my-ccg
-version:        0.2.5.1
+version:        0.2.6.0
 synopsis:       A package for CCG-based Chinese language processing
 description:    Please see the README on GitHub at <https://github.com/wangqingjiang-ncwu/my-ccg#readme>
 category:       Natural Language Understanding
@@ -15,7 +15,7 @@ homepage:       https://github.com/wangqingjiang-ncwu/my-ccg#readme
 bug-reports:    https://github.com/wangqingjiang-ncwu/my-ccg/issues
 author:         China University of Water Resources and Electric Power
 maintainer:     wangqingjiang@ncwu.edu.cn
-copyright:      Copyright (c) 2019-2021 China University of Water Resources and Electric Power
+copyright:      Copyright (c) 2019-2022 China University of Water Resources and Electric Power
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple

@@ -310,7 +310,7 @@ doDisplayTreesForASent username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
-    readTree_String sn >>= sentToClauses >>= dispTree
+    readTree_String sn >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.
     interpreter username
 
 -- A. Do statistical analysis about table corpus and stru_gene, and display results.

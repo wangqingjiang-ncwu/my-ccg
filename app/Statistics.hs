@@ -166,7 +166,7 @@ countInTree bottomSn topSn funcIndex = do
 {- Actually, C2CCG calculus tags (Abbr. tags) represent CCG rules sometimes including category type conversions,
  - which are used to deduce one new categorial type from two existed categorial types.
  - The <convCalTag> is either type conversion tag such as 'S/v' and 'P/a', or CCG calculus tag such as '>' and '>T->B'.
- - Especially, a type conversion tag, such as "S/v-P/a", represents two simultaneously used conversions, then every tag and the compound tag are all counted once.
+ - Especially, a type conversion tag, such as "S/v-P/a", represents two simultaneously used conversions, then ONLY the compound tag not every tag is counted once.
  -}
          let convCalTag2FreqMap = toConvCalTag2FreMap tagFreqMapList Map.empty                                       -- From List [(<tag>, <tagNum>)], get Map <convCalTag> <tagNum>.
          let convTag2FreqMap = Map.filterWithKey (\k _ -> (k!!0 /= '>') && (k!!0 /= '<')) convCalTag2FreqMap         -- Filter out conversional tags and their frequencies.
@@ -199,7 +199,7 @@ countInTree bottomSn topSn funcIndex = do
        then do
          let sentClauPhraTagList = map (map (map (snd5 . (!!0) . snd3))) sentClauPhraList                     -- 'sentClauPhraList' type is [[[PhraCate]]].
          let sentClauPhraTagWithoutDesigList = map (map (filter (/= "Desig"))) sentClauPhraTagList            -- [[[Tag]]], not including "Desig" phrases.
-         let sentClauPhraConvList = map (map (map toConvTagListForAPhrase)) sentClauPhraTagWithoutDesigList   -- [[[[ConvTag]]]], 'ConvTag' is "S/v", "P/a, or "S/v-P/a".
+         let sentClauPhraConvList = map (map (map toConvTagListForAPhrase)) sentClauPhraTagWithoutDesigList   -- [[[[ConvTag]]]], 'ConvTag' in "S/v-P/a-<" is "S/v-P/a".
          let sentClauPhraConvNumList = map (map (map length)) sentClauPhraConvList                      -- [[[ConvNum]]], 'ConvNum' is the number of used conversions in a phrase.
          let sentClauConvNumList = map (map (foldl (+) 0)) sentClauPhraConvNumList                      -- [[ConvNum]], 'ConvNum' is the number of used conversions in a clause.
 
@@ -438,26 +438,26 @@ countInStruGene funcIndex = do
 
     -- 4. Get frequencies of most common unambiguous phrasal overlapping, namely [(LeftOver_RightOver_OverType_Prior, Int), here the common proportion is 'prop';
     if funcIndex == 4
-          then do
-            conn <- getConn
-            stmt <- prepareStmt conn "select leftOver,rightOver,overType,prior from stru_gene"
-            (defs, is) <- queryStmt conn stmt []
-            leftOver_RightOver_OverType_PriorList <- readStreamByTextTextInt8Text [] is        -- [String], here the string is "LeftOver_RightOver_OverType_Prior"
-            let leftOver_RightOver_OverType_Prior2FreqMap = keyToMap leftOver_RightOver_OverType_PriorList Map.empty
-                                                                                               -- Map Sting Int, namely Map <LROP> <LROPNum>.
-            putStrLn $ "countInStruGene: The total number of different LROPs: " ++ show (Map.size leftOver_RightOver_OverType_Prior2FreqMap)
+       then do
+         conn <- getConn
+         stmt <- prepareStmt conn "select leftOver,rightOver,overType,prior from stru_gene"
+         (defs, is) <- queryStmt conn stmt []
+         leftOver_RightOver_OverType_PriorList <- readStreamByTextTextInt8Text [] is        -- [String], here the string is "LeftOver_RightOver_OverType_Prior"
+         let leftOver_RightOver_OverType_Prior2FreqMap = keyToMap leftOver_RightOver_OverType_PriorList Map.empty
+                                                                                            -- Map Sting Int, namely Map <LROP> <LROPNum>.
+         putStrLn $ "countInStruGene: The total number of different LROPs: " ++ show (Map.size leftOver_RightOver_OverType_Prior2FreqMap)
 
-            let descListOfLROP2FreqByValue = toDescListOfMapByValue (Map.toList leftOver_RightOver_OverType_Prior2FreqMap)
-   --       putStrLn $ "countInStruGene: The descending list of frequencies of different LROPs: " ++ show descListOfLROP2FreqByValue
+         let descListOfLROP2FreqByValue = toDescListOfMapByValue (Map.toList leftOver_RightOver_OverType_Prior2FreqMap)
+--       putStrLn $ "countInStruGene: The descending list of frequencies of different LROPs: " ++ show descListOfLROP2FreqByValue
 
-            putStr "Please input the percent proportion of frequency of most common LROPs in frequency of all LROPs [0.00-1.00]: "
-            prop <- readFloat0to1
-            let truncatedDescListOfLROP2FreqByProp = truncDescListByProportion prop descListOfLROP2FreqByValue
-            let valueTotal = foldl (+) 0 (map snd descListOfLROP2FreqByValue)
-            let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLROP2FreqByProp)
-            let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
-            putStrLn $ "countInStruGene: The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
-          else putStr ""
+         putStr "Please input the percent proportion of frequency of most common LROPs in frequency of all LROPs [0.00-1.00]: "
+         prop <- readFloat0to1
+         let truncatedDescListOfLROP2FreqByProp = truncDescListByProportion prop descListOfLROP2FreqByValue
+         let valueTotal = foldl (+) 0 (map snd descListOfLROP2FreqByValue)
+         let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLROP2FreqByProp)
+         let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
+         putStrLn $ "countInStruGene: The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
+       else putStr ""
 
 {- Get search result in field 'tree' in Table 'corpus' whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
@@ -640,13 +640,14 @@ toConvCalTag2FreMap (si:sis) convCalTag2FreqMap = toConvCalTag2FreMap sis $ inse
 {- Insert a (<tag>, <tagNum>) into Map <convCalTag> <convCalTagNum>, here <tag> is C2CCG calculus tag, <convCalTag> is type-conversioned tag or CCG calculus tag.
  - For ">", only calculus tag ">" is there.
  - For "S/v->", the conversional tag is "S/v", and the calculus tag is ">".
- - For "S/v-P/a-<", the conversional tag is "S/v", "P/a", "S/v-P/a", and the calculus tag is "<".
+ - For "S/v-P/a-<", the conversional tag is "S/v-P/a", and the calculus tag is "<".
  -}
 insertTagFreq2ConvCalTag2FreqMap :: (String, Int) -> Map String Int -> Map String Int
 insertTagFreq2ConvCalTag2FreqMap (tag, tagNum) convCalTag2FreqMap
     | length tags == 1 = Map.insertWith (+) (tags!!0) tagNum convCalTag2FreqMap
     | length tags == 2 = Map.insertWith (+) (tags!!0) tagNum $ Map.insertWith (+) (tags!!1) tagNum convCalTag2FreqMap
-    | length tags == 3 = Map.insertWith (+) (tags!!0 ++ "-" ++ tags!!1) tagNum $ Map.insertWith (+) (tags!!0) tagNum $ Map.insertWith (+) (tags!!1) tagNum $ Map.insertWith (+) (tags!!2) tagNum convCalTag2FreqMap
+    | length tags == 3 = Map.insertWith (+) (tags!!0 ++ "-" ++ tags!!1) tagNum $ Map.insertWith (+) (tags!!2) tagNum convCalTag2FreqMap
+--  | length tags == 3 = Map.insertWith (+) (tags!!0 ++ "-" ++ tags!!1) tagNum $ Map.insertWith (+) (tags!!0) tagNum $ Map.insertWith (+) (tags!!1) tagNum $ Map.insertWith (+) (tags!!2)
     | otherwise = Map.empty                                                     -- Exception !
     where
     tags = splitTagAsConvOrCal tag
@@ -659,7 +660,8 @@ toConvTagListForAPhrase :: String -> [String]
 toConvTagListForAPhrase tag
     | length tags == 1 = []                        -- Only has CCG calculus tag.
     | length tags == 2 = [tags!!0]
-    | length tags == 3 = [tags!!0, tags!!1, tags!!0 ++ "-" ++ tags!!1]
+    | length tags == 3 = [tags!!0 ++ "-" ++ tags!!1]
+--  | length tags == 3 = [tags!!0, tags!!1, tags!!0 ++ "-" ++ tags!!1]
     | otherwise = []                                                            -- Exception !
     where
     tags = splitTagAsConvOrCal tag
@@ -852,7 +854,7 @@ dispTreeListOnStdout :: [(Int, String)] -> IO ()
 dispTreeListOnStdout [] = putStrLn "No parsing tree to display."
 dispTreeListOnStdout [(sn, treeStr)] = do
     putStrLn $ "Sentence No.: " ++ show sn
-    sentToClauses treeStr >>= dispTree
+    sentToClauses treeStr >>= dispTree' 1          -- The ordered number of first clause is 1.
 dispTreeListOnStdout (t:ts) = do
     dispTreeListOnStdout [t]
     dispTreeListOnStdout ts

@@ -18,6 +18,7 @@ module SentParse (
     readTree_String,      -- Int -> IO String
     sentToClauses,        -- String -> IO [String]
     dispTree,             -- [String] -> IO ()
+    dispTree',            -- Int -> [String] -> IO ()
     getClauPhraCate,      -- String -> [PhraCate]
     parseSentWithoutPruning      -- [Rule] -> [String] -> IO ()
 
@@ -478,6 +479,17 @@ dispTree (s:cs) = do
     dispTree cs
     putStrLn $ "Clause No.: " ++ show (length cs + 1)
     showTreeStru spls spls
+    where
+      pcs = getClauPhraCate s
+      spls = divPhraCateBySpan pcs      -- Span lines
+
+-- Display trees' structure of remaining clauses of a sentence, one tree per clause, and the 'idx' is ordered number of first clause among remaining clauses.
+dispTree' :: Int -> [String] -> IO ()
+dispTree' _ [] = putStr ""                      -- Nothing to display.
+dispTree' idx (s:cs) = do
+    putStrLn $ "Clause No.: " ++ show idx
+    showTreeStru spls spls
+    dispTree' (idx + 1) cs
     where
       pcs = getClauPhraCate s
       spls = divPhraCateBySpan pcs      -- Span lines

@@ -233,6 +233,7 @@ raiFc cate1 cate2
 {- Backward type raising and harmonic composition: (Y/X)\Z X -> (Y/X)\Z Y\(Y/X)-> Y\Z
  - '被'字结构 MOs
  - 被pb 他r 打vt => 被pb (他r 打vt)vi => (s/#(s/.np))\#np np (s\.np)/.np => (s/#(s/.np))\#np s/.np => (s/#(s/.np))\#np s\#(s/#(s/.np)) => s\#np, namely raiBh.
+ - Seemingly, the functional name "raiBh" should be "raiBB", because 'h' is not necessary for representing harmonic，while backward direction in combination should be reflected.
  -}
 raiBh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBh cate1 cate2
@@ -252,6 +253,7 @@ raiBh cate1 cate2
  - Here, backward harmonic composition^2 is not pure, because the two parameters are not all backward.
  - To now, the rule is only used for '把' phrase.
  - For examples, ((s/.np)\#np)/#((s\.np)/.np) np => ((s/.np)\#np)/#((s\.np)/.np) s\.(s/.np) => (s\#np)/#((s\.np)/.np)
+ - Similarly, the functional name should be "raiBB2".
  -}
 raiBh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBh2 cate1 cate2

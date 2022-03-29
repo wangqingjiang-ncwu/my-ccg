@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2021 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module OutputTest (
@@ -93,7 +93,7 @@ outputTest = do
     drawLine 7
     putStrLn "[Here line feed is added]"
     putStrLn ""
-    
+
     putStrLn "The result of nSpace 7 is"
     nSpace 7
     putStrLn "[Here line feed is added]"
@@ -112,7 +112,7 @@ outputTest = do
     let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
     let width = getCateWidth pc11 [[pc11,pc12,pc13],[pc21],[pc31]]
     putStrLn (show width)
-    
+
     putStrLn "The result of findPhraStartPos ((0,0),[(np, \"Desig\", \"Frank\",\"DE\",True)],0) [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\", \"Frank' loves'\",\"OE\",True)],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is"
     let c11 = getCateFromString "np"
     let c12 = getCateFromString "(s\\.np)/.np"
@@ -187,7 +187,7 @@ outputTest = do
     showNCateSymb 0 [pc11,pc12,pc13] [[pc11,pc12,pc13],[pc21],[pc31]]
     putStrLn "[Here line feed is added]"
     putStrLn ""
-    
+
     putStrLn "The result of showNCateLine 0 [((1,1),[(s\\.np, \">\", \"loves' Mary'\",\"VO\",True)],2)] [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((1,1),[(s\\.np, \">\",\"loves' Mary'\",\"VO\",True)],2)],[((0,2),[(s, \"<\", \"(loves' Mary') Frank'\",\"SP\",True)],1)]] is"
     let c11 = getCateFromString "np"
     let c12 = getCateFromString "(s\\.np)/.np"
@@ -217,7 +217,7 @@ outputTest = do
     showNCateSymb 0 [pc21] [[pc11,pc12,pc13],[pc21],[pc31]]
     putStrLn "[Here line feed is added]"
     putStrLn ""
-    
+
     putStrLn "The result of showNCateLine 0 [((0,2),[(s, \"<\", \"(loves' Mary') Frank'\",True)],1)] [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((1,1),[(s\\.np, \">\",\"loves' Mary'\",\"VO\",True)],2)],[((0,2),[(s, \"<\", \"(loves' Mary') Frank'\",\"SP\",True)],1)]] is"
     let c11 = getCateFromString "np"
     let c12 = getCateFromString "(s\\.np)/.np"

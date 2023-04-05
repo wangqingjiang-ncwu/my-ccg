@@ -5,7 +5,7 @@
 注：分析树部分为纯文本，用记事本打开，才能看到正确的树结构。
 
 一、树库简介
-    为应对汉语词类多功能与非形态，在组合范畴语法（Combinatory Categorial Grammar，CCG）中引入句法类型转换，形成带有句法类型（也称范畴）转换的组合范畴语法（Combinatory Categorial Grammar with Category Conversions , CCG-C2）。
+    为应对汉语词类多功能与非形态，在组合范畴语法（Combinatory Categorial Grammar，CCG）中引入句法类型转换，形成带有句法类型（也称范畴）转换的组合范畴语法（Combinatory Categorial Grammar with Category Conversions, CCG-C2）。
 假设汉语句法的基本范畴只有np和s，分别对应名词性语言单位和主谓结构小句。基本范畴是范畴，两个范畴通过斜线拼接得到的仍是范畴，称为衍生范畴。衍生范畴中的前向或后向斜线也有类型，类型包括.、◇、×、★四种。
 范畴分为函数和参数两种，规定函数应用（>和<）、函数结合（>B、>B2、<B、<B2、>Bx、<Bx、>T、<T）得到一个新范畴的规则有
 	X/★Y:f  Y:a ⇒ X:fa 	    	(>)

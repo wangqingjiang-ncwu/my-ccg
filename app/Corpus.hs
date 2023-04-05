@@ -225,14 +225,13 @@ posCate = [("n","np"),
 phraStruList :: [PhraStru]
 phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","HP","KP","DE","NR"]
 
-{- To indicate which phrasal structure is more prior in an overlapping pair, a left-adjacent phrase and a right-
-   adjacent phrase should be considered. As basic fragments, such four phrasal structures would exist in many
+{- To indicate which phrasal structure is more prior in an overlapping pair, the left-adjacent phrases and the right-
+   adjacent phrases should be considered. As basic fragments, such quadruples would exist in many
    sentences, and act like human body genes.
    The structural gene is a 6-tuple (<leftExtend>, <leftOver>, <rightOver>, <rightExtend>, <overType>, <prior>), here
-   <leftExtend> is a left adjacent phrase of <leftOver>, <rightExtend> is a right adjacent phrase of <rightOver>, and
+   <leftExtend> is the left adjacent phrases of <leftOver>, <rightExtend> is the right adjacent phrases of <rightOver>, and
    <leftOver> and <rightOver> are the left-to-right overlapping phrases, with <overType> to indicate overlapping type,
-   and with <prior> to indicate which is prior to exist. Besides, <leftOver> and <rightOver> are at least one active,
-   <leftExtend> and <leftOver> are at least one active, and <rightOver> and <rightExtend> are at least one active.
+   and with <prior> to indicate which is prior to exist. Besides, <leftOver> and <rightOver> are at least one active.
  -}
 
 type LeftExtend = [(Category,Tag,PhraStru)]     -- Left neighbors

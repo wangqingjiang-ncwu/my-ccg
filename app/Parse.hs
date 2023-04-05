@@ -22,7 +22,8 @@ module Parse (
     findTipsOfTree,    -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
     uniForest,         -- [[[PhraCate]]] -> [[PhraCate]]
     uniTwoForest,      -- [[PhraCate]] -> [[PhraCate]] -> [[PhraCate]]
-    uniTwoTree         -- [PhraCate] -> [PhraCate] -> [PhraCate]
+    uniTwoTree,        -- [PhraCate] -> [PhraCate] -> [PhraCate]
+    findCate           -- (Start, Span) -> [PhraCate] -> [PhraCate]
     ) where
 
 import Control.Monad
@@ -1294,6 +1295,17 @@ uniTwoForest f1 f2 = [uniTwoTree t1 t2 | t1<-f1, t2<-f2]
 uniTwoTree :: [PhraCate] -> [PhraCate] -> [PhraCate]
 uniTwoTree t1 t2 = t1 ++ [x | x<-t2, notElem x t1]
 
+-- Find a phrase category by its (Start, Span). If does not, return [].
+findCate :: (Start, Span) -> [PhraCate] -> [PhraCate]
+findCate (_, -1) _ = []      -- For a leaf node, its non-existing parents have span -1 and 0.
+findCate (st, sp) [] = []
+findCate (st, sp) [x]
+    | st == stOfCate x && sp == spOfCate x = [x]
+    | otherwise = []
+findCate (st, sp) (x:xs)
+    | st == stOfCate x && sp == spOfCate x = x:(findCate (st, sp) xs)
+    | otherwise = findCate (st, sp) xs
+
 -- Show all phrases.
 showNPhraCate' :: [PhraCate] -> IO ()
 showNPhraCate' [] = return ()
@@ -1304,7 +1316,7 @@ showNPhraCate' (pc:pcs) = do
 
 showPhraCate' :: PhraCate -> IO ()
 showPhraCate' pc = do
---  putStr (show pc)       -- Function 'show' converts Chinese characters to [char].
+--  putStr (show pc)           -- Function 'show' converts Chinese characters to [char].
     putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
     putCtsca' (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"

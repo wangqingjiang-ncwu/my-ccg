@@ -11,6 +11,9 @@ module SentParse (
     parseSent',           -- Int -> [String] -> IO ()
     storeClauseParsing,   -- Int -> Int -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
     parseClause,          -- [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
+    parseSentWithAllLexRules,          -- Int -> [String] -> IO ()
+    parseSentWithAllLexRules',         -- Int -> Int -> [String] -> IO Bool
+    parseClauseWithAllLexRules,        -- [PhraCate] -> IO [PhraCate]
     doTrans,              -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([OnOff],[PhraCate],[PhraCate])
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
@@ -223,6 +226,123 @@ parseClause rules nPCs banPCs = do
           putStrLn "  ##### Parsing Tree #####"
           showTreeStru spls spls
           return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+
+{- Parse a sentence which includes multiple clauses. Parsing can start from a certain clause, and end with a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'. The parsing results would not be stored back to database, so the 'sn' is useless now.
+ -}
+parseSentWithAllLexRules :: Int -> [String] -> IO ()
+parseSentWithAllLexRules sn cs = do
+    hSetBuffering stdin LineBuffering                  -- Open input buffering
+    let clauNum = length cs
+    putStr $ " There are " ++ show clauNum ++ " clauses in total, from which clause to start: [RETURN for 1] "
+    clauIdxOfStart <- getLine
+    putStr $ " With which clause to end: [RETURN for " ++ show clauNum ++ "] "
+    clauIdxOfEnd <- getLine
+    if clauIdxOfStart /= ""                            -- Not RETURN
+      then do
+        let cis = read clauIdxOfStart :: Int
+        if cis < 1 || cis > clauNum
+          then do
+            putStrLn $ "The start clause " ++ show cis ++ " does not exist! Input again!"
+            parseSentWithAllLexRules sn cs
+          else if clauIdxOfEnd /= ""
+            then do
+              let cie = read clauIdxOfEnd :: Int
+              if cie < 1 || cie > clauNum
+                then do
+                  putStrLn $ "The end clause " ++ show cie ++ " does not exist! Input again!"
+                  parseSentWithAllLexRules sn cs
+                else if cis > cie
+                  then do
+                    putStrLn $ "The start clause is after the end clause! Input again!"
+                    parseSentWithAllLexRules sn cs
+                  else do
+                    let cs2 = drop (cis - 1) $ take cie cs
+                    parseSentWithAllLexRules' sn cis cs2                  -- Parse clauses from 'cis' to 'cie'.
+            else do
+              let cie = clauNum
+              if cis > cie
+                then do
+                  putStrLn $ "The start clause is after the end clause! Input again!"
+                  parseSentWithAllLexRules sn cs
+                else do
+                  let cs2 = drop (cis - 1) $ take cie cs
+                  parseSentWithAllLexRules' sn cis cs2                    -- Parse clauses from 'cis' to 'cie'.
+      else do                                       -- When input 'cis', user presses RETURN.
+        let cis = 1                                 -- Here, clausal indices start from 1.
+        if clauIdxOfEnd /= ""
+          then do
+            let cie = read clauIdxOfEnd :: Int
+            if cie < 1 || cie > clauNum
+              then do
+                putStrLn $ "The end clause " ++ show cie ++ " does not exist! Input again!"
+                parseSentWithAllLexRules sn cs
+              else if cis > cie
+                then do
+                  putStrLn $ "The start clause is after the end clause! Input again!"
+                  parseSentWithAllLexRules sn cs
+                else do
+                  let cs2 = drop (cis - 1) $ take cie cs
+                  parseSentWithAllLexRules' sn cis cs2                    -- Parse clauses from 'cis' to 'cie'.
+          else do
+            let cie = clauNum                       -- When input 'cie', user presses RETURN
+            if cie < 1 || cie > clauNum
+              then do
+                putStrLn $ "The end clause " ++ show cie ++ " does not exist! Input again!"
+                parseSentWithAllLexRules sn cs
+              else if cis > cie
+                then do
+                  putStrLn $ "The start clause is after the end clause! Input again!"
+                  parseSentWithAllLexRules sn cs
+                else do
+                  let cs2 = drop (cis - 1) $ take cie cs
+                  parseSentWithAllLexRules' sn cis cs2                    -- Parse clauses from 'cis' to 'cie'.
+
+{- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', but not used now.
+ - 'cis' is the clausal index of first clause to parse.
+ -}
+parseSentWithAllLexRules' :: Int -> Int -> [String] -> IO ()
+parseSentWithAllLexRules' _ _ [] = putStrLn ""
+parseSentWithAllLexRules' sn cis cs = do
+    parseSentWithAllLexRules' sn cis $ take (length cs - 1) cs
+    let clauIdx = cis + length cs - 1
+    putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
+    let nPCs = initPhraCate $ getNCate $ words (last cs)
+    putStr "Before parsing: "
+    showNPhraCate nPCs
+    putStr "Word semantic sequence: "
+    showNSeman nPCs
+
+    pcClo <- parseClauseWithAllLexRules 1 nPCs                      -- pcClo is the closure under LexRule(nPCs).
+    putStrLn $ "The forest closure includes " ++ show (length pcClo) ++ " phrasal categoires, which are:"
+    showNPhraCate pcClo
+
+    let sp = getNuOfInputCates pcClo - 1
+    putStrLn $ "Maximal span is " ++ show sp
+
+    let roots = findCate (0, sp) pcClo
+    let forest = growForest lexRule [[t]|t<-roots] pcClo
+    putStrLn ("        Parsing Tree No.1 ~ No." ++ show (length forest))
+    showForest forest
+    putStr "\n"
+    putStrLn ("        Tree Structure No.1 ~ No." ++ show (length forest))
+    showForestWithTreeStru forest
+
+{- Here is a parsing process for a clause using all lexcial rules, which still is a recursive process.
+   Input: The transitive index, and a sequence of phrasal categories.
+   Algo.:
+   (1) Do one trip of transition;
+   (2) If creating new phrasal categories, take resultant phrases as input, go (1); Otherwise, return the resultant forest PCs.
+ -}
+parseClauseWithAllLexRules :: Int -> [PhraCate] -> IO [PhraCate]
+parseClauseWithAllLexRules transIdx nPCs = do
+    let nPCs2 = sortPhraCateBySpan $ removeDup $ trans lexRule nPCs []          -- Every trip of transition begins with whole rule set.
+                                                                    -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
+                                                                    -- [Rule] is the set of rules used in this trip of transition.
+    putStrLn $ "The result after " ++ show transIdx ++ "th transtion contains " ++ show (length nPCs2) ++ " phrasal categories, which are:"
+    showNPhraCate nPCs2
+    if nPCs2 /= nPCs
+      then parseClauseWithAllLexRules (transIdx + 1) nPCs2          -- Do the next trip of transition with resultant PCs.
+      else return nPCs
 
 {- Do a trip of transition, insert or update related structural genes in Table stru_gene, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.

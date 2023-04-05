@@ -27,6 +27,7 @@ import Statistics
     8   Parse the sentence given by value of column 'serial_num'.
     9   Display parsing result of the sentence given by value of column 'serial_num'.
     A   Statistically analyze the database table 'corpus' and 'stru_gene'.
+    B   Experiments.
     0   Quit from this program.
  -}
 main :: IO ()
@@ -36,8 +37,8 @@ main = do
     hSetEncoding stdout utf8                       -- Set encoding for stdout as UTF8
     hFlush stdout                                  -- Flush buffered data to assure changing the encoding.
 
-    putStrLn " Chinese CCG parser (build 0.2.5.0)"
-    putStrLn " Copyright (c) 2019-2021 China University of Water Resources and Electric Power, All rights reserved."
+    putStrLn " Chinese CCG parser (build 0.2.6.0)"
+    putStrLn " Copyright (c) 2019-2022 China University of Water Resources and Electric Power, All rights reserved."
 
     (username, ok) <- login 1
     if ok
@@ -56,8 +57,8 @@ login n = do
     password <- getLine
 
     conn <- getConn
-    stmt <- prepareStmt conn "select * from user where name = ? && password = ?"
-    (defs, is) <- queryStmt conn stmt [toMySQLText username, toMySQLText password]   --([ColumnDef], InputStream [MySQLValue])
+    stmt <- prepareStmt conn "select * from user where name = ? && password = ?"     -- my-ccg-exe user/password
+    (defs, is) <- queryStmt conn stmt [toMySQLText username, toMySQLText password]   -- ([ColumnDef], InputStream [MySQLValue])
     row <- S.read is
     let row' = case row of
                  Just x -> x
@@ -105,10 +106,11 @@ interpreter username = do
     putStrLn " 8 -> Parse the sentence indicated by serial_num"
     putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num"
     putStrLn " A -> Statistically analyze the database table corpus and stru_gene"
+    putStrLn " B -> Experiments"
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","0"]
       then do
              putStrLn "Invalid input."
              interpreter username
@@ -124,6 +126,7 @@ interpreter username = do
              "8" -> doParseSent username
              "9" -> doDisplayTreesForASent username
              "A" -> doStatisticalAnalysis username
+             "B" -> doExperiments username
              "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
@@ -491,6 +494,48 @@ doSearchInScript username funcIndex = do
     let topSn = (read line :: Int) + 1
     searchInScript bottomSn topSn funcIndex
     doSearchInCorpus username
+
+-- B. Do experiments.
+doExperiments :: String -> IO ()
+doExperiments username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Parse sentence using all lexcial rules"
+    putStrLn " 0 -> Go back to the upper layer"
+    putStr "Please input command: "
+    line <- getLine
+    if notElem line ["?","1","0"]
+      then do
+        putStrLn "Invalid input."
+        doExperiments username
+      else case line of
+        "?" -> doExperiments username
+        "1" -> doParseSentWithAllLexRules username
+        "0" -> interpreter username
+
+{- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
+ -}
+doParseSentWithAllLexRules :: String -> IO ()
+doParseSentWithAllLexRules username = do
+    putStr "Please input value of 'serial_num': "
+    line <- getLine
+    let sn = read line :: Int
+
+    conn <- getConn
+    stmt <- prepareStmt conn "select cate_check from corpus where serial_num = ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
+    cate_check <- S.read is
+    let cate_check' = case cate_check of
+                          Just x -> x
+                          Nothing -> error "doParseSentWithAllLexRules: No cate_check was read."
+    skipToEof is                                                   -- Go to the end of the stream.
+    let cate_check = fromMySQLInt8 (cate_check'!!0)
+    if cate_check == 0
+      then do
+             putStrLn $ "Parsing failed because cate_check = " ++ show cate_check
+             interpreter username
+      else do
+             getSentFromDB sn >>= getSent >>= parseSentWithAllLexRules sn
+             interpreter username
 
 -- 0. Quit from this program.
 doQuit :: IO ()

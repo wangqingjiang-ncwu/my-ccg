@@ -19,6 +19,7 @@ module Rule (
     raiBc,    -- (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
     Rule(..),         -- Enumerated type for the tags of category-converted rules
     ccTags,           -- [String], List of category type-conversional tags
+    lexRule,          -- [Rule]
     OnOff,            -- [Rule], Rule used is the one in this module
     ruleOn,           -- Rule -> OnOff -> OnOff
     ruleOff,          -- Rule -> OnOff -> OnOff
@@ -325,6 +326,9 @@ data Rule = Ss | Ps | Os | As | Hns | Ns
           | Aq
           | Jfc | Jbc
           | U3du3 deriving (Eq)
+
+lexRule :: [Rule]
+lexRule = [Ss, Ps, Os, As, Hns, Ns, Sv, Ov, Av, Hnv, Dv, Cnv, Cvv, Nv, Pvt, OEvt, Vtvi, Avd, Sa, Oa, Hna, Na, Pa, Va, Da, Daa, Cva, Cna, Caa, Pn, Vn, An, Cnn, Cvn, Dn, Dan, ADJn, Snd, Ond, Hnnd, Sd, Od, Ad, Hnd, Cvd, Nd, ADJd, Dad, Dsd, Dxd, Doed, Dp, Ooe, Hnoe, Noe, Npe, Aq, Jfc, Jbc, U3du3]
 
 -- Define how the tag of a category-converted rule shows as a letter string.
 instance Show Rule where

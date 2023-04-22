@@ -231,7 +231,7 @@ rightStr str
 
 midSlashStr :: String -> Slash
 midSlashStr str
-    | index == 0 = error "midSlashStr: No slash."
+    | index == -1 = error "midSlashStr: No slash."
     | otherwise = [str!!index, str!!(index + 1)]
         where
         index = indexOfSlash 0 0 str

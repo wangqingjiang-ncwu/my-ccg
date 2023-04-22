@@ -75,6 +75,7 @@ appF cate1 cate2
     | isAvail && ca1 == prefixCate = (lca, ">", semComb se1 se2, "HP", True)
     | isAvail && ca1 == advCate4OE = (lca, ">", semComb se1 se2, "DHoe", True)
     | isAvail && cateEqual ca1 (getCateFromString "s/.np") = (sCate, ">", semComb se1 se2, "NR", True)
+    | isAvail && ca1 == prep2CompCate = (lca, ">", semComb se1 se2, "PO", True)
     | isAvail =  (leftCate ca1, ">", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">", "", "", False)
     where

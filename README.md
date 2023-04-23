@@ -1,6 +1,6 @@
 # my-ccg
 
-Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
+Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 All rights reserved.
 
 This is a Haskell implemented, Combinatory Categorial Grammar based Chinese syntatic and semantic parser.

@@ -300,15 +300,19 @@ advCate4DirecVerb = getCateFromString "(s\\.np)/x(s\\.np)"
 advCate4OE :: Category
 advCate4OE = getCateFromString "(s/.np)/*(s/.np)"
 
+-- Category of preposition which combines one following object to construct a adverbial, such as "走v 到p 华水n"
 prep2AdvCate :: Category
 prep2AdvCate = getCateFromString "((s\\.np)/#(s\\.np))/*np"
 
+-- Category of preposition which combines one following object to construct a complement, such as "走v 到p 华水n"
 prep2CompCate :: Category
 prep2CompCate = getCateFromString "((s\\.np)\\x(s\\.np))/*np"
 
+-- '把'
 prep4BaCate :: Category
 prep4BaCate = getCateFromString "((s/.np)\\#np)/#((s\\.np)/.np)"
 
+-- '被'
 prep4BeiCate :: Category
 prep4BeiCate = getCateFromString "(s/#(s/.np))\\#np"
 

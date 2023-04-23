@@ -51,7 +51,8 @@ module Utils (
     quickSortForInt,   -- [Int] -> [Int]
     toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
     toAscListOfMapByValue,  -- [(String,Int)] -> [(String,Int)]
-    isSubstr           -- String -> String -> String -> String -> Bool
+    isSubstr,          -- String -> String -> String -> String -> Bool
+    txt2csv4WordEmbed       -- String -> IO ()
     ) where
 
 import Data.Tuple
@@ -410,3 +411,37 @@ isSubstr _ [] _ _ = False
 isSubstr str1 str2 str3 str4
     | (str1!!0) == (str2!!0) = isSubstr (tail str1) (tail str2) str3 str4
     | otherwise = isSubstr str3 (tail str4) str3 (tail str4)
+
+{- Get csv file from txt file which includes vector semantics of Chinese words and phrases.
+ - Format of txt file:
+ -    k lines of meta data
+ -    word1 float1 float2 ... floatn
+ -    word2 float1 float2 ... floatn
+ -    ...
+ - Format of csv file:
+ -    k,lines,of,meta,data
+ -    word1,float1,float2,...,floatn
+ -    word2,float1,float2,...,floatn
+ -    ...
+ -}
+txt2csv4WordEmbed :: String -> String -> IO ()
+txt2csv4WordEmbed txtFile csvFile = do
+    txtInfo <- readFile txtFile
+    let txtLines = lines txtInfo
+    let csvInfo = unlines $ map replaceBlankByComma txtLines
+    writeFile csvFile csvInfo
+
+-- Replace all blanks with comma.
+replaceBlankByComma :: String -> String
+replaceBlankByComma [] = []
+replaceBlankByComma (x:xs)
+    | x == ' ' = ',' : replaceBlankByComma xs
+    | otherwise = x : replaceBlankByComma xs
+
+-- Replace the first blank by comma. If FoundFirstBlank is true, that represents the first blank has been found and replaced.
+replaceFirstBlankByComma :: Bool -> String -> String
+replaceFirstBlankByComma _ [] = []
+replaceFirstBlankByComma True xs = xs
+replaceFirstBlankByComma False (x:xs)
+    | x == ' ' = ',' : xs
+    | otherwise = x : replaceFirstBlankByComma False xs

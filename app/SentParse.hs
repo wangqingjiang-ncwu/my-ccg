@@ -389,23 +389,26 @@ doTrans onOff nPCs banPCs = do
              doTrans onOff nPCs banPCs
       else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
              then do
-               let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result
+               let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
                putStr "Transitive result before pruning: "
                showNPhraCate (sortPhraCateBySpan nPCs2)
                putStr "Banned phrases: "
                showNPhraCate (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
-               overPairs <- updateStruGene nPCs2 [] $ getOverlap nPCs2   -- Record overlapping pairs for pruning.
+               let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
+               overPairs <- updateStruGene nPCs2 [] pcps    -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
                nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result with pruning.
                putStr "Transitive result after pruning: "
                showNPhraCate (sortPhraCateBySpan (fst nbPCs))
                putStr "Banned phrases: "
-               showNPhraCate (snd nbPCs)                    -- If there is any phrase removed, here is not empty.
+               showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
 
                putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
                transOk <- getLine                           -- Get user decision of whether to do next transition
                if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
-                 then return (onOff,(fst nbPCs),(snd nbPCs))
+                 then do
+                     updateAmbiResol nPCs2 overPairs        -- Record ambiguity resolution fragments.
+                     return (onOff,(fst nbPCs),(snd nbPCs))
                  else if transOk == "n"
                         then doTrans onOff nPCs banPCs      -- Redo this trip of transition.
                         else if transOk == "e"
@@ -450,7 +453,7 @@ updateStruGene' gene overPairs = do
     let rightExtend = fth5 gene
     let overType = fif5 gene
 
-    putStr "Find new structural fragment: "
+    putStr "Find structural fragment: "
     showStruFrag leftExtend leftOver rightOver rightExtend overType
 
     let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
@@ -559,6 +562,67 @@ updateStruGene' gene overPairs = do
                 else do
                   putStrLn "updateStruGene': Illegal priority"
                   updateStruGene' gene overPairs   -- Calling the function itself again.
+
+{- Insert new ambiguity resolution fragments into or update old ambiguity resolution fragments in table ambi_resol.
+ - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
+ -}
+updateAmbiResol :: [PhraCate] -> [OverPair] -> IO ()
+updateAmbiResol _ [] = do
+    putStrLn "updateAmbiResol: Update finshed."                      -- To make output easy to read.
+updateAmbiResol nPCs (op:ops) = do
+    updateAmbiResol' nPCs op
+    updateAmbiResol nPCs ops
+
+{- Insert a new ambiguity resolution fragment into or update an old ambiguity resolution fragment in table ambi_resol.
+ -}
+updateAmbiResol' :: [PhraCate] -> OverPair -> IO ()
+updateAmbiResol' nPCs overPair = do
+    let lop = fst3 overPair                                   -- Get left overlapping phrase.
+    let rop = snd3 overPair                                   -- Get right overlapping phrase.
+    let context =  sortPhraCateBySpan [x | x <- nPCs, x /= lop, x/= rop]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
+    let ot = getOverType nPCs lop rop                         -- Get overlapping type
+    let prior = thd3 overPair                                 -- Get prior selection of the two overlapping phrases.
+
+    putStrLn $ "updateAmbiResol': Inquire ambiguity resolution fragment: leftOver = '" ++ show lop ++ "' && " ++
+                                          "rightOver = '" ++ show rop ++ "' && " ++
+                                          "context = '" ++ show context ++ "' && " ++
+                                          "overType = " ++ show ot ++ " && " ++
+                                          "prior = '" ++ show prior ++ "'"
+
+    let lopv = doubleBackSlash (show lop)                     -- Get values to insert them into MySql Table
+    let ropv = doubleBackSlash (show rop)
+    let contextv = doubleBackSlash (show context)
+    let otv = show ot
+    let priorv = show prior
+
+    conn <- getConn
+    let sqlstat = read (show ("select id, hitCount from ambi_resol where leftOver = '" ++ lopv ++ "' && " ++ "rightOver = '" ++ ropv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "' && " ++ "prior = " ++ priorv)) :: Query
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt []
+
+    rows <- S.toList is
+    if rows /= []
+      then
+        if length rows > 1
+          then do
+            close conn                              -- Close MySQL connection.
+            error "updateAmbiResol': Find duplicate ambiguity resolution fragments, which is impossible."
+          else do
+            let id = fromMySQLInt32U ((rows!!0)!!0)
+            let hitCount = fromMySQLInt32U ((rows!!0)!!1)
+            putStrLn $ "updateAmbiResol': (" ++ show id ++ ") hitCount: " ++ show hitCount
+            resetStmt conn stmt
+            let sqlstat = read (show ("update ambi_resol set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+            stmt <- prepareStmt conn sqlstat
+            executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
+            close conn                               -- Close MySQL connection.
+      else do
+        putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
+        let sqlstat = read (show ("insert ambi_resol (leftOver,rightOver,context,overType,prior,hitCount) values ('" ++ lopv ++ "','" ++ ropv ++ "','" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
+        stmt1 <- prepareStmt conn sqlstat
+        oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+        putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
+        close conn                                   -- Close MySQL connection.
 
 {- Store the parsing tree of a clause into database. Actually, here is an append operation.
    The function is obsoleted, and replaced with Function storeClauseParsing.

@@ -23,14 +23,11 @@ import Text.Printf
 import qualified Data.Tuple as Tuple
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Category
 import Phrase
---import Phrase (Tag,taOfCate,psOfCate,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString,getPhraBySpan)
-import Rule
 import Utils
 import Database
 import Corpus
-import SentParse
+import SentParse (sentToClauses, dispTree')
 
 {- The following functions read field 'tree' of table 'corpus', then count all clauses according the input index.
  - 1. Get total number of sentences;

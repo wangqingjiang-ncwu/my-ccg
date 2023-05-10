@@ -52,6 +52,7 @@ executable my-ccg-exe
       Output
       OutputTest
       Parse
+      AmbiResol
       Phrase
       Rule
       SentParse
@@ -90,6 +91,7 @@ test-suite my-ccg-test
       Output
       OutputTest
       Parse
+      AmbiResol
       Phrase
       Rule
       SentParse

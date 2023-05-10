@@ -40,6 +40,7 @@ import Data.String.Utils
 import Phrase
 import Rule
 import Corpus
+import AmbiResol (OverType,Prior(..),OverPair)
 import Parse
 import Output
 import Utils

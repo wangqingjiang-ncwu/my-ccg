@@ -33,7 +33,7 @@ import Data.List
 import Category
 import Phrase
 import Rule
-import Corpus (OverPair,Prior(..))
+import AmbiResol (OverPair,Prior(..))
 import Utils
 
 {- Function cateComb combines two input (phrasal) categories into resultant one.

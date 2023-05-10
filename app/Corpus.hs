@@ -9,18 +9,10 @@ module Corpus (
     pos,                 -- [POS]
     posCate,             -- [(POS, CateSymb)]
     phraStruList,        -- [PhraStru]
-    LeftExtend,          -- [(Category,Tag,PhraStru)]
-    LeftOver,            -- (Category,Tag,PhraStru)
-    RightOver,           -- (Category,Tag,PhraStru)
-    RightExtend,         -- [(Category,Tag,PhraStru)]
-    OverType,            -- Int
-    Prior(..),           -- Prior and its all Constructors
-    StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     getRawSentForASent,  -- Int -> IO String
     getRawSent2ForASent, -- Int -> IO String
     getCateSentForASent, -- Int -> IO String
     getCateSent2ForASent,  -- Int -> IO String
-    OverPair,            -- (PhraCate, PhraCate, Prior)
     posToCate,           -- IO ()
     posToCateForASent,   -- Int -> IO ()
     rawToCate,           -- [(MySQLValue]] -> [[MySQLValue]]
@@ -224,35 +216,6 @@ posCate = [("n","np"),
 
 phraStruList :: [PhraStru]
 phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","HP","KP","DE","NR"]
-
-{- To indicate which phrasal structure is more prior in an overlapping pair, the left-adjacent phrases and the right-
-   adjacent phrases should be considered. As basic fragments, such quadruples would exist in many
-   sentences, and act like human body genes.
-   The structural gene is a 6-tuple (<leftExtend>, <leftOver>, <rightOver>, <rightExtend>, <overType>, <prior>), here
-   <leftExtend> is the left adjacent phrases of <leftOver>, <rightExtend> is the right adjacent phrases of <rightOver>, and
-   <leftOver> and <rightOver> are the left-to-right overlapping phrases, with <overType> to indicate overlapping type,
-   and with <prior> to indicate which is prior to exist. Besides, <leftOver> and <rightOver> are at least one active.
- -}
-
-type LeftExtend = [(Category,Tag,PhraStru)]     -- Left neighbors
-type LeftOver = (Category,Tag,PhraStru)         -- Overlapping left phrase
-type RightOver = (Category,Tag,PhraStru)        -- Overlapping right phrase
-type RightExtend = [(Category,Tag,PhraStru)]    -- Right neighbors
-type OverType = Int                             -- Overlapping type
-data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing.
-
-instance Show Prior where
-    show Lp = "Lp"
-    show Rp = "Rp"
-    show Noth = "Noth"
-
--- The structural genes are stored in table stru_gene of MySQL database ccg4c.
-
-type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
-
--- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
-
-type OverPair = (PhraCate, PhraCate, Prior)
 
 -- Get raw part-of-speech marked sentence indicated by serial_num.
 getRawSentForASent :: Int -> IO String

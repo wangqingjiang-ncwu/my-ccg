@@ -41,6 +41,7 @@ import Rule
 import Phrase
 import Parse
 import Corpus
+import AmbiResol (OverType)
 import Utils
 import Data.Char
 import Data.List

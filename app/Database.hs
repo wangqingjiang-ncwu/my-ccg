@@ -17,6 +17,7 @@ module Database (
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
   toMySQLInt32,                -- Int -> MySQLValue (MySQLInt32)
   toMySQLInt64,                -- Int -> MySQLValue (MySQLInt64)
+  toMySQLBytes,                -- String -> MySQLValue (MySQLBytes)
   toMySQLText,                 -- String -> MySQLValue (MySQLText)
   toMySQLNullText,             -- MySQLValue (MySQLNull)
   toMySQLNullVarchar,          -- MySQLValue (MySQLNull)
@@ -35,8 +36,7 @@ module Database (
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
   getConn,                     -- IO MySQLConn
-  getConnByUserWqj,            -- IO MySQLConn
-  getConnByUserWqjAtLocal      -- IO MySQLConn
+  getConnByUserWqj             -- IO MySQLConn
   ) where
 
 import           Control.Monad
@@ -44,12 +44,12 @@ import           System.IO
 import qualified System.IO.Streams as S
 import           Database.MySQL.Base
 import           Data.List.Utils
-import           Data.List as DL hiding (words)
+import           Data.List as DL
 import           Data.Tuple.Utils
 import           Data.Int
-import           Data.Text as DT hiding (length, map, head, last, foldl, words)
+import           Data.Text as DT hiding (length, map, head, last, foldl)
 import           Data.Word
-import           Data.ByteString.Char8 as BC hiding (putStrLn,readFile,map,words,head,last)
+import           Data.ByteString.Char8 as BC hiding (putStrLn, readFile, map, head, last)
 import           Utils
 
 fromMySQLInt8 :: MySQLValue -> Int
@@ -102,6 +102,9 @@ toMySQLInt32 v = MySQLInt32 (read (show v) :: Int32)
 
 toMySQLInt64 :: Int -> MySQLValue
 toMySQLInt64 v = MySQLInt64 (read (show v) :: Int64)
+
+toMySQLBytes :: String -> MySQLValue
+toMySQLBytes v = MySQLBytes (BC.pack v)                                         -- Convert String to ByteString
 
 toMySQLText :: String -> MySQLValue
 toMySQLText v = MySQLText (DT.pack v)
@@ -157,13 +160,12 @@ getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 -- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
 getConn = do
-    confInfo <- readFile "mysql_config"      -- Read the local configuration file
-    let confTupleSeq = [(head keyValue, last keyValue)| keyValue <- map (splitAtDeli ':') (words confInfo)]
-    let host = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Host"]    -- Change [String] as String
-    let user = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "User"]
-    let password = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Password"]
-    let database = DL.foldl (++) "" [snd tp | tp <- confTupleSeq, fst tp == "Database"]
---  putStrLn $ "host:" ++ host ++ ", user:" ++ user ++ ", password:" ++ password ++ ", database:" ++ database
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let host = getConfProperty "Host" confInfo
+    let user = getConfProperty "User" confInfo
+    let password = getConfProperty "Password" confInfo
+    let database = getConfProperty "Database" confInfo
+    putStrLn $ "host:" ++ host ++ ", user:" ++ user ++ ", password:" ++ password ++ ", database:" ++ database
 
     connect defaultConnectInfo {
       ciHost = host,
@@ -175,16 +177,6 @@ getConn = do
 -- Get a connection to database 'ccg4c' with user 'wqj'.
 getConnByUserWqj :: IO MySQLConn
 getConnByUserWqj = connect defaultConnectInfo {
-    ciHost = "125.219.93.62",
---    ciHost = "127.0.0.1",
-    ciUser = "wqj",
-    ciPassword = "wqj",
-    ciDatabase = "ccg4c"
-    }
-
--- Get a connection to database 'ccg4c' with user 'wqj' at local host.
-getConnByUserWqjAtLocal :: IO MySQLConn
-getConnByUserWqjAtLocal = connect defaultConnectInfo {
     ciHost = "127.0.0.1",
     ciUser = "wqj",
     ciPassword = "wqj",

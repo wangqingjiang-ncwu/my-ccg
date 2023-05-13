@@ -9,11 +9,13 @@ module Main (
 import Control.Monad
 import qualified System.IO.Streams as S
 import System.IO
+import qualified Data.String as DS
 import Database.MySQL.Base
 import Corpus
 import SentParse
 import Database
 import Statistics
+import Utils
 
 {- This program create syntactic and semantic parsing results for Chinese sentences. Please run MySQL Workbench or other similiar tools, connecting MySQL database 'ccg4c', and querying table 'corpus' for revising parts of speech as well as CCG syntactic types, and the MySQL server is running on a certain compute in Hua-shui campus. The program includes commands for parsing sentences and storing results in database 'ccg4c', as following.
     ?   Display this message.
@@ -34,6 +36,7 @@ main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering               -- Set buffering mode for stdout as no buffering.
     hSetBuffering stdin LineBuffering              -- Set buffering mode for stdin as line buffering.
+--  hSetEncoding stdin utf8                        -- Set encoding for stdin as UTF8
     hSetEncoding stdout utf8                       -- Set encoding for stdout as UTF8
     hFlush stdout                                  -- Flush buffered data to assure changing the encoding.
 
@@ -271,10 +274,31 @@ doGetCateSent2ForASent username = do
     interpreter username
 
 {- 8. Parse the sentence indicated by serial_num, here 'username' MUST
-   be the intellectual property creator (ipc) of the row indicated by serial_num.
+ - be the intellectual property creator (ipc) of the row indicated by serial_num.
  -}
 doParseSent :: String -> IO ()
 doParseSent username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Do parsing by human mind"
+    putStrLn " 2 -> Do parsing by script"
+    putStrLn " 0 -> Go back to the upper layer"
+    putStr "Please input command: "
+    line <- getLine
+    if notElem line ["?","1","2","0"]
+       then do
+         putStrLn "Invalid input."
+         doParseSent username
+    else case line of
+         "?" -> doParseSent username
+         "1" -> doParseSentByHumanMind username
+         "2" -> doParseSentByScript username
+         "0" -> interpreter username
+
+{- 8_1. Human-Machine-interactively Parse the sentence indicated by serial_num, here 'username' MUST
+ - be the intellectual property creator (ipc) of the row indicated by serial_num.
+ -}
+doParseSentByHumanMind :: String -> IO ()
+doParseSentByHumanMind username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
@@ -295,17 +319,49 @@ doParseSent username = do
         if (cate_check == 0 || tree_check == 1)
           then do
              putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
-             interpreter username
+             doParseSent username
           else if (cate_check == 1 && tree_check == 0)
                  then do
                    getSentFromDB sn >>= getSent >>= parseSent sn
-                   interpreter username
+                   doParseSent username
                  else do
                    putStrLn "Value of cate_check or tree_check is abnormal."
-                   interpreter username
+                   doParseSent username
       else do
         putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
-        interpreter username
+        doParseSent username
+
+{- 8_2. According to the previously created script, parse the sentence indicated by serial_num, here 'username' MUST
+ - be the intellectual property creator (ipc) of the row indicated by serial_num.
+ -}
+doParseSentByScript :: String -> IO ()
+doParseSentByScript username = do
+    putStr "Please input value of 'serial_num': "
+    line <- getLine
+    let sn = read line :: Int
+
+    confInfo <- readFile "Configuration"
+    let tree_target = getConfProperty "tree_target" confInfo
+
+    conn <- getConn
+    let query = DS.fromString ("select tree_check from " ++ tree_target ++ " where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
+    record <- S.read is
+    let record' = case record of
+                    Just x -> x
+                    Nothing -> [(MySQLInt8 (-1))]
+    skipToEof is                                                                -- Go to the end of the stream.
+    let tree_check = fromMySQLInt8 (record'!!0)
+    if (tree_check /= 0)
+      then do
+        putStrLn $ "Parsing failed because tree_check = " ++ (show tree_check)
+        doParseSent username
+      else do
+        let script_source = getConfProperty "script_source" confInfo
+        putStrLn $ "tree_check = " ++ (show tree_check) ++ "script_source = " ++ (show script_source)
+        doParseSent username
+
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()

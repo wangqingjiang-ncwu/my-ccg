@@ -1,0 +1,20 @@
+# Parameters for database connection
+Host:127.0.0.1
+User:hssc
+Password:hssc
+Database:ccg4c
+
+# Source of parsing scripts, such as 'corpus', 'treebank1'.
+script_source:corpus
+
+# Source of parsing trees, such as 'corpus', 'treebank1'.
+tree_source:corpus
+
+# Storage position of parsing scripts, such as 'corpus', 'treebank1'.
+script_target:treebank1
+
+# Storage position of parsing trees, such as 'corpus', 'treebank1'.
+tree_target:treebank1
+
+# Ambiguity resolution model, such as 'stru_gene', 'ambi_resol1'.
+ambi_resol_model:ambi_resol1

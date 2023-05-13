@@ -17,6 +17,8 @@ module SentParse (
     doTrans,              -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([OnOff],[PhraCate],[PhraCate])
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
+    parseSentByScript,    -- Int -> [String] -> IO ()
+    parseSentByScript',   -- Int -> Int -> [String] -> IO ()
     storeTree,            -- Int -> String -> IO ()
     readTree_String,      -- Int -> IO String
     sentToClauses,        -- String -> IO [String]
@@ -563,6 +565,30 @@ updateStruGene' gene overPairs = do
                 else do
                   putStrLn "updateStruGene': Illegal priority"
                   updateStruGene' gene overPairs   -- Calling the function itself again.
+
+{- Re-parse a sentence according the previously created parsing script.
+ - Here every clause is a String, and parsing starts from the first clause.
+ - The first parameter is the value of 'serial_num' in database Table 'corpus'.
+ -}
+parseSentByScript :: Int -> [String] -> IO ()
+parseSentByScript sn cs = do
+    hSetBuffering stdin LineBuffering                  -- Open input buffering
+    putStr $ " There are " ++ show (length cs) ++ " clauses in total. Press RETURN to start and press other key to cancel parsing:"
+    clauIdx <- getLine
+    if clauIdx == ""                                   -- Press RETURN key.
+      then do
+        let finFlag = parseSentByScript' sn 0 cs
+        if finFlag
+          then putStrLn "parseSentByScript: Finished parsing."
+          else putStrLn "parseSentByScript: Not finished parsing."
+      else putStrLn "parseSent: Parsing was cancelled."             -- Press other key.
+
+{- Re-parse a sentence according the previously created parsing script.
+ - Here every clause is a String, and parsing starts from the first clause.
+ - The first parameter is the value of 'serial_num' in database Table 'corpus'.
+ -}
+parseSentByScript' :: Int -> Int -> [String] -> Bool
+parseSentByScript' sn clauIdx cs = True
 
 {- Insert new ambiguity resolution fragments into or update old ambiguity resolution fragments in table ambi_resol.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.

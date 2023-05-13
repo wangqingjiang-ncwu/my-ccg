@@ -52,12 +52,16 @@ module Utils (
     toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
     toAscListOfMapByValue,  -- [(String,Int)] -> [(String,Int)]
     isSubstr,          -- String -> String -> String -> String -> Bool
-    txt2csv4WordEmbed       -- String -> IO ()
+    txt2csv4WordEmbed, -- String -> IO ()
+    getConfProperty    -- String -> String -> String
     ) where
 
 import Data.Tuple
 import Data.List
 import Data.String.Utils
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.String as DS
 
 -- Functions on four tuple.
 
@@ -445,3 +449,20 @@ replaceFirstBlankByComma True xs = xs
 replaceFirstBlankByComma False (x:xs)
     | x == ' ' = ',' : xs
     | otherwise = x : replaceFirstBlankByComma False xs
+
+-- Get a property value by a given property name in configuration text.
+getConfProperty :: String -> String -> String
+getConfProperty propName confInfo = case propValue of
+    Just x -> x
+    Nothing -> ""
+    where
+      confInfo' = [kv | kv <- DS.lines confInfo, length kv /= 0]                -- Remove blank lines
+      validConfInfo = [kv | kv <- confInfo', kv!!0 /= '#']                      -- Remove the lines starting from '#'
+      confTupleSeq = [(head keyValue, last keyValue)| keyValue <- map (splitAtDeli ':') validConfInfo]
+      kvMap = kvListToMap confTupleSeq Map.empty
+      propValue = Map.lookup propName kvMap
+
+-- Store key-value pair into Map String String.
+kvListToMap :: [(String, String)] -> Map String String -> Map String String
+kvListToMap [] m = m
+kvListToMap (s:ss) m = kvListToMap ss (Map.insert (fst s) (snd s) m)

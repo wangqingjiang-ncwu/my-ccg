@@ -165,10 +165,10 @@ showStruFrag leftExtend leftOver rightOver rightExtend overType = do
 
 showAmbiModel1Frag :: PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
 showAmbiModel1Frag leftPhrase rightPhrase context overType = do
-    putStr "leftOver = "
-    showPhraCate leftOver
-    putStr ", rightOver = "
-    showPhraCate rightOver
+    putStr "leftPhrase = "
+    showPhraCate leftPhrase
+    putStr ", rightPhrase = "
+    showPhraCate rightPhrase
     putStr ", context = "
     showNPhraCateWithoutNewLine context
     putStrLn $ ", overType = " ++ show overType

@@ -338,7 +338,7 @@ doParseSentByScript username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
-    getSentFromDB sn >>= getSent >>= parseSentWithScript sn
+    getSentFromDB sn >>= getSent >>= parseSentByScript sn
     doParseSent username
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.

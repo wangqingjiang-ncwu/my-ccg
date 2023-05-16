@@ -18,12 +18,12 @@ module SentParse (
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
     parseSentByScript,    -- Int -> [String] -> IO ()
-    parseSentByScript',   -- Int -> [String] -> IO Bool
+    parseSentByScript',   -- Int -> [String] -> [Script] -> IO Bool
     parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
-    doTransWithScript,    -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+    doTransWithScript,    -- [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
     doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
-    ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO (OverPair)
-    ambiResolByManualResol',          -- (PhraCate, PhraCate, [PhraCate], OverType) -> [OverPair] -> IO [OverPair]
+    ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+    ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
     updateAmbiResol,      -- [PhraCate] -> [OverPair] -> IO ()
     updateAmbiResol',     -- [PhraCate] -> OverPair -> IO ()
     storeClauseParsingToTreebank,     -- Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
@@ -42,6 +42,7 @@ import System.IO
 import qualified System.IO.Streams as S
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString as BS
+import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List.Utils
 import Data.List
@@ -583,7 +584,27 @@ parseSentByScript sn cs = do
     clauIdx <- getLine
     if clauIdx == "Y"                                  -- Press key 'Y'.
       then do
-        let finFlag = parseSentByScript' sn cs
+        confInfo <- readFile "Configuration"
+        let script_source = getConfProperty "script_source" confInfo
+        conn <- getConn
+        let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
+        record <- S.read is
+        let record' = case record of
+                        Just x -> x
+                        Nothing -> [MySQLText "NULL"]
+        let scripts = fromMySQLText (record'!!0)
+        skipToEof is                                                                -- Go to the end of the stream.
+
+        if (scripts == "NULL")
+          then error "parseSentByScript': No script was read."
+          else putStrLn $ show scripts
+        closeStmt conn stmt
+
+        let scripts' = readScripts $ scripts
+
+        finFlag <- parseSentByScript' sn cs scripts'
         if finFlag
           then putStrLn "parseSentByScript: Finished parsing."
           else putStrLn "parseSentByScript: Not finished parsing."
@@ -593,30 +614,12 @@ parseSentByScript sn cs = do
  - Here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
  - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
  -}
-parseSentByScript' :: Int -> [String] -> IO Bool
-parseSentByScript' _ [] = return True
-parseSentByScript' sn cs = do
-    confInfo <- readFile "Configuration"
-    let script_source = getConfProperty "script_source" confInfo
-    conn <- getConn
-    let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
-    stmt <- prepareStmt conn query
-    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
-    record <- S.read is
-    let record' = case record of
-                    Just x -> x
-                    Nothing -> [MySQLText "NULL"]
-    skipToEof is                                                                -- Go to the end of the stream.
-    let scripts = fromMySQLText (record'!!0)
-    if (scripts == "NULL")
-      then error "parseSentByScript': No script was read."
-      else putStrLn $ show scripts
-    closeStmt conn stmt
-
-    let scripts' = readScripts $ fromMySQLText scripts                          -- [Script]
-    finFlag <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts')
+parseSentByScript' :: Int -> [String] -> [Script] -> IO Bool
+parseSentByScript' _ [] _ = return True
+parseSentByScript' sn cs scripts = do
     let clauIdx = length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
+    finFlag <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts)
     if finFlag                                                                  -- True means sentential parsing has been finished.
       then do
         let nPCs = initPhraCate $ getNCate $ words (last cs)
@@ -625,22 +628,26 @@ parseSentByScript' sn cs = do
         putStr "Word semantic sequence: "
         showNSeman nPCs
 
-        rtbPCs' <- parseClauseWithScript [] nPCs [] (last scripts)              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
-        if rtbPCs' == ([],[],[])
+        rtbPCs <- parseClauseWithScript [] nPCs [] (last scripts)               -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        if rtbPCs == ([],[],[])
           then return False                                                     -- False means the current clause is terminated manually.
           else do
-            storeClauseParsingToTreebank sn clauIdx rtbPCs'
+            storeClauseParsingToTreebank sn clauIdx rtbPCs
             return True
+      else do
+        putStrLn "  Skip!"
+        return False
 
 {- Parsing a clause is a recursive transition process.
-   Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, and a parsing script;
-   Algo.:
-   (1) Do one trip of transition;
-   (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
+ - Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, and a parsing script;
+ - Algo.:
+ - (1) Do one trip of transition;
+ - (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned
+ -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  -}
 parseClauseWithScript :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
 parseClauseWithScript rules nPCs banPCs script = do
-    rtbPCs <- doTransWithScript [] nPCs banPCs script                           -- Every trip of transition begins with empty rule set.
+    rtbPCs <- doTransWithScript nPCs banPCs script
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
@@ -662,26 +669,17 @@ parseClauseWithScript rules nPCs banPCs script = do
  - rules used in this trip, the resultant phrases, and the banned phrases.
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
-doTransWithScript :: [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
-doTransWithScript onOff nPCs banPCs script = do
-    let rws = map ("+" ++) $ head $ snd3 script                                 -- Get rule switch series
-    let updateOnOff [] rws                                                      -- Set [Rule] for this trip of transition
-
+doTransWithScript :: [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithScript nPCs banPCs script = do
+    let onOff = head $ snd3 script                                 -- Get rule switch series
     let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
     let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
-    overPairs <- ambiResolByScript nPCs2 [] pcps script    -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    let overPairs = ambiResolByScript nPCs2 [] pcps script    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
     let pcpsWithPrior = map (\x->(fst3 x, snd3 x)) overPairs
     let pcps' = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior]                  -- [(PhraCate, PhraCate)] not resolved by script.
-
-    if pcps' /= []
-      then do
-        putStrLn "Ambiguities are resolved by script ... [Failed]"
-        let overPairs' = ambiResolByManualResol nPCs2 overPairs pcps'           -- Continue resolving ambiguities but by human mind.
-      else
-        putStrLn "Ambiguities are resolved by script ... [OK]"
-        let overPairs' = overPairs
-
-    nbPCs <- transWithPruning onOff nPCs banPCs overPairs'    -- Get transitive result with pruning.
+    overPairs' <- ambiResolByManualResol nPCs2 [] pcps'       -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    let overPairs'' = overPairs ++ overPairs'
+    nbPCs <- transWithPruning onOff nPCs banPCs overPairs''                     -- Get transitive result with pruning.
     putStr "Transitive result after pruning: "
     showNPhraCate (sortPhraCateBySpan (fst nbPCs))
     putStr "Banned phrases: "
@@ -691,7 +689,7 @@ doTransWithScript onOff nPCs banPCs script = do
     transOk <- getLine                           -- Get user decision of whether to do next transition
     if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
       then do
-          updateAmbiResol (fst nbPCs) overPairs'                                -- Record ambiguity resolution fragments.
+          updateAmbiResol (fst nbPCs) overPairs                                 -- Record ambiguity resolution fragments.
           return (onOff,(fst nbPCs),(snd nbPCs))
       else if transOk == "n"
              then doTransWithManualResol onOff nPCs banPCs      -- do this trip of transition by manually resolving ambiguities.
@@ -700,11 +698,6 @@ doTransWithScript onOff nPCs banPCs script = do
                     else do
                       putStrLn "Please input 'y', 'n', or 'e'!"
                       doTrans onOff nPCs banPCs
-  else if ruleSwitchOk == "e"
-         then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
-         else do
-           putStrLn "Please input 'y', 'n', or 'e'!"
-           doTrans onOff nPCs banPCs
 
 {- Resolve ambiguities by parsing script. Let banPCs be the set of banned phrases, which can be obtained from parsing script. For (lp, rp),
  - if lp belongs to banPCs but rp does not, then we get (lp, rp, Rp).
@@ -715,8 +708,8 @@ doTransWithScript onOff nPCs banPCs script = do
 ambiResolByScript :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> Script -> [OverPair]
 ambiResolByScript _ overPairs [] _ = overPairs
 ambiResolByScript nPCs overPairs (pcp:pcps) script
-    | notElem lp banPCs && elem rp banPcs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
-    | elem lp banPCs && notElem rp banPcs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
+    | notElem lp banPCs && elem rp banPCs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
+    | elem lp banPCs && notElem rp banPCs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
     | elem lp banPCs && elem rp banPCs = ambiResolByScript nPCs ((lp, rp, Noth):overPairs) pcps script
     | otherwise = ambiResolByScript nPCs overPairs pcps script
     where
@@ -729,6 +722,7 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
 doTransWithManualResol :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithManualResol onOff nPCs banPCs = do
     showOnOff onOff
     putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) "
     ruleSwitchOk <- getLine
@@ -802,25 +796,24 @@ doTransWithManualResol :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [Phr
                       putStrLn "Please input 'y', 'n', or 'e'!"
                       doTransWithManualResol onOff nPCs banPCs
 
-{- Manually resolve ambiguities but not insert or update ambiguity resolution records.
- - MySQL table storing ambiguity resolution fragments is dictated by configuration file 'Configuration'.
+{- Mannually resolve a set of overlapping phrases, and return the list of OverPair(s).
  -}
-ambiResolByManualResol [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
-ambiResolByManualResol _ overPairs [] = return overPairs                        -- No overlapping phrases need to be resolved.
+ambiResolByManualResol :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+ambiResolByManualResol _ overPairs [] = return overPairs
 ambiResolByManualResol nPCs overPairs (pcp:pcps) = do
-    newOverPairs <- ambiResolByManualResol' nPCs overPairs pcp                  -- Update structural gene in Table stru_gene
-    ambiResolByManualResol nPCs newOverPairs pcps
+    op <- ambiResolByManualResol' nPCs pcp
+    ambiResolByManualResol nPCs (op:overPairs) pcps
 
-{- Mannually resolve a pair of overlapping phrases, and add the resolving result into the input list of OverPair(s), then return the new OverPair list.
+{- Mannually resolve a pair of overlapping phrases, and return a OverPair.
  -}
-ambiResolByManualResol' :: [PhraCate] -> [OverPair] -> (PhraCate, PhraCate) -> IO [OverPair]
-ambiResolByManualResol' nPCs overPairs (lp, rp) = do
+ambiResolByManualResol' :: [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
+ambiResolByManualResol' nPCs (lp, rp) = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
     if (ambi_resol_model == "ambi_resol1")
       then do
-        context = [x | x <- nPCs, x /= lp, x /= rp]        -- Get context of the pair of overlapping phrases
-        ot = getOverType nPCs lp rp                        -- Get overlapping type
+        let context = [x | x <- nPCs, x /= lp, x /= rp]        -- Get context of the pair of overlapping phrases
+        let ot = getOverType nPCs lp rp                        -- Get overlapping type
 
         putStr "Find a fragment of No.1 ambiguity model: "
         showAmbiModel1Frag lp rp context ot
@@ -828,15 +821,15 @@ ambiResolByManualResol' nPCs overPairs (lp, rp) = do
         putStr "please input priority [Lp/Rp]: (RETURN for 'Lp') "
         prior <- getLine
         if (prior == "" || prior == "Rp")                  -- Set prior as "Rp".
-          then return ((lp, rp, read "Rp"::Prior):overPairs)
+          then return (lp, rp, (read "Rp"::Prior))
           else if prior == "Lp"                            -- Set prior as "Lp".
-            then return ((lp, rp, read "Rp"::Prior):overPairs)
-            else do
-              putStrLn "ambiResolByManualResol': Illegal priority"
-              ambiResolByManualResol' nPCs overPairs (lp, rp)                   -- Calling the function itself again.
-      else do
-        putStrLn "ambiResolByManualResol': Manual resolution of other models."
-        return []
+            then return (lp, rp, (read "Lp"::Prior))
+            else if prior == "Noth"
+                   then return (lp, rp, (read "Noth"::Prior))
+                   else do
+                     putStrLn "ambiResolByManualResol': Illegal priority"
+                     ambiResolByManualResol' nPCs (lp, rp)                       -- Calling the function itself again.
+      else error "ambiResolByManualResol': ambi_resol_model is set wrongly."
 
 {- Insert new ambiguity resolution fragments or update old ambiguity resolution fragments in databse table.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
@@ -856,11 +849,11 @@ updateAmbiResol' nPCs overPair = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
     if (ambi_resol_model == "ambi_resol1")
-      then
+      then do
         let lp = fst3 overPair                                   -- Get left overlapping phrase.
         let rp = snd3 overPair                                   -- Get right overlapping phrase.
-        let context =  sortPhraCateBySpan [x | x <- nPCs, x /= leftPhrase, x/= rightPhrase]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
-        let ot = getOverType nPCs leftPhrase rightPhrase         -- Get overlapping type
+        let context =  sortPhraCateBySpan [x | x <- nPCs, x /= lp, x /= rp]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
+        let ot = getOverType nPCs lp rp                          -- Get overlapping type
         let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
 
         putStrLn $ "updateAmbiResol1': Inquire ambiguity resolution fragment: leftPhrase = '" ++ show lp ++ "' && " ++

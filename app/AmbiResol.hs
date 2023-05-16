@@ -1,3 +1,6 @@
+-- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
+-- All rights reserved.
+
 module AmbiResol (
     LeftExtend,          -- [(Category,Tag,PhraStru)]
     LeftOver,            -- (Category,Tag,PhraStru)

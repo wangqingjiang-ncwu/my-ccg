@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Parse (
@@ -1068,10 +1068,11 @@ getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, p
    not overlapping, one possible reason of which is both A and C are inactive. One phrase has the lowest priority means
    its priority is lower than that of its every overlapping phrases.
    For a list of overlapping-phrasal tuples,
-   (1) If there is not any overlapping phrase, return ((-1,-1),[],-1), namely 'nilPhra';
+   (1) If there is not any overlapping phrase, return ((-1,-1),[],-1), namely 'nilPhra'.
    (2) From the first pair of overlapping phrases, select the lower-priority phrase by GeneBase, get the phrase's
        related overlapping pairs from all unChecked pairs. If there is no related pair, return the phrase; otherwise
        recursively call this function on all unChecked Overlapping pairs and the low priority phrase-related overlapping pairs.
+   (3) If prior value is Noth, the further processing is same as that for prior value Lp.
  -}
 
 findPhraWithLowestPrio :: [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO PhraCate
@@ -1086,7 +1087,7 @@ findPhraWithLowestPrio unCheckedOps ops overPairs = do
         pri <- getPrior overPairs pc1 pc2                              -- Find priority from a list of 'OverPair'
         let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1
         let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
-        if pri == Lp && pcps2 /= []
+        if (pri == Lp || pri == Noth) && pcps2 /= []                   -- Prior value Noth means the pair of phrases should be removed.
           then findPhraWithLowestPrio xs pcps2 overPairs
           else if pri == Lp && pcps2 == []
                  then return pc2

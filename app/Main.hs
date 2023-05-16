@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 -- All rights reserved.
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -331,37 +331,15 @@ doParseSentByHumanMind username = do
         putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
         doParseSent username
 
-{- 8_2. According to the previously created script, parse the sentence indicated by serial_num, here 'username' MUST
- - be the intellectual property creator (ipc) of the row indicated by serial_num.
+{- 8_2. According to the previously created script, parse the sentence indicated by serial_num.
  -}
 doParseSentByScript :: String -> IO ()
 doParseSentByScript username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
-
-    confInfo <- readFile "Configuration"
-    let tree_target = getConfProperty "tree_target" confInfo
-
-    conn <- getConn
-    let query = DS.fromString ("select tree_check from " ++ tree_target ++ " where serial_num = ?")       -- Query is instance of IsString.
-    stmt <- prepareStmt conn query
-    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
-    record <- S.read is
-    let record' = case record of
-                    Just x -> x
-                    Nothing -> [(MySQLInt8 (-1))]
-    skipToEof is                                                                -- Go to the end of the stream.
-    let tree_check = fromMySQLInt8 (record'!!0)
-    if (tree_check /= 0)
-      then do
-        putStrLn $ "Parsing failed because tree_check = " ++ (show tree_check)
-        doParseSent username
-      else do
-        let script_source = getConfProperty "script_source" confInfo
-        putStrLn $ "tree_check = " ++ (show tree_check) ++ "script_source = " ++ (show script_source)
-        doParseSent username
-
+    getSentFromDB sn >>= getSent >>= parseSentWithScript sn
+    doParseSent username
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()

@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Output (
@@ -16,6 +16,7 @@ module Output (
     showNPhraCateWithoutNewLine,    -- [PhraCate] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
+    showAmbiModel1Frag,    -- PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO ()
     showAllSplitCate, -- [[(PhraCate, PhraCate)]] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
@@ -160,6 +161,16 @@ showStruFrag leftExtend leftOver rightOver rightExtend overType = do
     showPhraCate rightOver
     putStr ", rightExtend = "
     showNPhraCateWithoutNewLine rightExtend
+    putStrLn $ ", overType = " ++ show overType
+
+showAmbiModel1Frag :: PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
+showAmbiModel1Frag leftPhrase rightPhrase context overType = do
+    putStr "leftOver = "
+    showPhraCate leftOver
+    putStr ", rightOver = "
+    showPhraCate rightOver
+    putStr ", context = "
+    showNPhraCateWithoutNewLine context
     putStrLn $ ", overType = " ++ show overType
 
 getNPhraCate_String :: [PhraCate] -> String

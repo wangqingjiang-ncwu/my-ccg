@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
--- Copyright (c) 2019-2022 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module SentParse (
@@ -18,7 +18,15 @@ module SentParse (
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
     parseSentByScript,    -- Int -> [String] -> IO ()
-    parseSentByScript',   -- Int -> Int -> [String] -> IO ()
+    parseSentByScript',   -- Int -> [String] -> IO Bool
+    parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
+    doTransWithScript,    -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+    doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+    ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO (OverPair)
+    ambiResolByManualResol',          -- (PhraCate, PhraCate, [PhraCate], OverType) -> [OverPair] -> IO [OverPair]
+    updateAmbiResol,      -- [PhraCate] -> [OverPair] -> IO ()
+    updateAmbiResol',     -- [PhraCate] -> OverPair -> IO ()
+    storeClauseParsingToTreebank,     -- Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
     storeTree,            -- Int -> String -> IO ()
     readTree_String,      -- Int -> IO String
     sentToClauses,        -- String -> IO [String]
@@ -409,9 +417,7 @@ doTrans onOff nPCs banPCs = do
                putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
                transOk <- getLine                           -- Get user decision of whether to do next transition
                if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
-                 then do
-                     updateAmbiResol nPCs2 overPairs        -- Record ambiguity resolution fragments.
-                     return (onOff,(fst nbPCs),(snd nbPCs))
+                 then return (onOff,(fst nbPCs),(snd nbPCs))
                  else if transOk == "n"
                         then doTrans onOff nPCs banPCs      -- Redo this trip of transition.
                         else if transOk == "e"
@@ -573,83 +579,370 @@ updateStruGene' gene overPairs = do
 parseSentByScript :: Int -> [String] -> IO ()
 parseSentByScript sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
-    putStr $ " There are " ++ show (length cs) ++ " clauses in total. Press RETURN to start and press other key to cancel parsing:"
+    putStr $ " There are " ++ show (length cs) ++ " clauses in total. Press Y to start, press other key to cancel parsing:"
     clauIdx <- getLine
-    if clauIdx == ""                                   -- Press RETURN key.
+    if clauIdx == "Y"                                  -- Press key 'Y'.
       then do
-        let finFlag = parseSentByScript' sn 0 cs
+        let finFlag = parseSentByScript' sn cs
         if finFlag
           then putStrLn "parseSentByScript: Finished parsing."
           else putStrLn "parseSentByScript: Not finished parsing."
-      else putStrLn "parseSent: Parsing was cancelled."             -- Press other key.
+      else putStrLn "parseSent: Parsing was cancelled."              -- Press other key.
 
 {- Re-parse a sentence according the previously created parsing script.
- - Here every clause is a String, and parsing starts from the first clause.
- - The first parameter is the value of 'serial_num' in database Table 'corpus'.
+ - Here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
+ - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
  -}
-parseSentByScript' :: Int -> Int -> [String] -> Bool
-parseSentByScript' sn clauIdx cs = True
+parseSentByScript' :: Int -> [String] -> IO Bool
+parseSentByScript' _ [] = return True
+parseSentByScript' sn cs = do
+    confInfo <- readFile "Configuration"
+    let script_source = getConfProperty "script_source" confInfo
+    conn <- getConn
+    let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
+    record <- S.read is
+    let record' = case record of
+                    Just x -> x
+                    Nothing -> [MySQLText "NULL"]
+    skipToEof is                                                                -- Go to the end of the stream.
+    let scripts = fromMySQLText (record'!!0)
+    if (scripts == "NULL")
+      then error "parseSentByScript': No script was read."
+      else putStrLn $ show scripts
+    closeStmt conn stmt
 
-{- Insert new ambiguity resolution fragments into or update old ambiguity resolution fragments in table ambi_resol.
+    let scripts' = readScripts $ fromMySQLText scripts                          -- [Script]
+    finFlag <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts')
+    let clauIdx = length cs
+    putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
+    if finFlag                                                                  -- True means sentential parsing has been finished.
+      then do
+        let nPCs = initPhraCate $ getNCate $ words (last cs)
+        putStr "Before parsing: "
+        showNPhraCate nPCs
+        putStr "Word semantic sequence: "
+        showNSeman nPCs
+
+        rtbPCs' <- parseClauseWithScript [] nPCs [] (last scripts)              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        if rtbPCs' == ([],[],[])
+          then return False                                                     -- False means the current clause is terminated manually.
+          else do
+            storeClauseParsingToTreebank sn clauIdx rtbPCs'
+            return True
+
+{- Parsing a clause is a recursive transition process.
+   Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, and a parsing script;
+   Algo.:
+   (1) Do one trip of transition;
+   (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
+ -}
+parseClauseWithScript :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithScript rules nPCs banPCs script = do
+    rtbPCs <- doTransWithScript [] nPCs banPCs script                           -- Every trip of transition begins with empty rule set.
+                                               -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
+                                               -- [Rule] is the set of rules used in this trip of transition.
+    if rtbPCs == ([],[],[])
+      then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
+      else if nPCs /= (snd3 rtbPCs)
+        then do
+          let scriptTail = (fst3 script, tail (snd3 script), thd3 script)       -- Remove the head element of OnOff list in parsing script.
+          parseClauseWithScript (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail         -- Do the next trip of transition
+                                               -- with appended rules, resultant PCs, and accumulated banned PCs.
+        else do                                -- Phrasal closure has been formed.
+          putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
+          showNPhraCate (sortPhraCateBySpan nPCs)
+          let spls = divPhraCateBySpan (nPCs)
+          putStrLn "  ##### Parsing Tree #####"
+          showTreeStru spls spls
+          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+
+{- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
+ - rules used in this trip, the resultant phrases, and the banned phrases.
+ - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
+ -}
+doTransWithScript :: [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithScript onOff nPCs banPCs script = do
+    let rws = map ("+" ++) $ head $ snd3 script                                 -- Get rule switch series
+    let updateOnOff [] rws                                                      -- Set [Rule] for this trip of transition
+
+    let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
+    let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
+    overPairs <- ambiResolByScript nPCs2 [] pcps script    -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    let pcpsWithPrior = map (\x->(fst3 x, snd3 x)) overPairs
+    let pcps' = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior]                  -- [(PhraCate, PhraCate)] not resolved by script.
+
+    if pcps' /= []
+      then do
+        putStrLn "Ambiguities are resolved by script ... [Failed]"
+        let overPairs' = ambiResolByManualResol nPCs2 overPairs pcps'           -- Continue resolving ambiguities but by human mind.
+      else
+        putStrLn "Ambiguities are resolved by script ... [OK]"
+        let overPairs' = overPairs
+
+    nbPCs <- transWithPruning onOff nPCs banPCs overPairs'    -- Get transitive result with pruning.
+    putStr "Transitive result after pruning: "
+    showNPhraCate (sortPhraCateBySpan (fst nbPCs))
+    putStr "Banned phrases: "
+    showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
+
+    putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
+    transOk <- getLine                           -- Get user decision of whether to do next transition
+    if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
+      then do
+          updateAmbiResol (fst nbPCs) overPairs'                                -- Record ambiguity resolution fragments.
+          return (onOff,(fst nbPCs),(snd nbPCs))
+      else if transOk == "n"
+             then doTransWithManualResol onOff nPCs banPCs      -- do this trip of transition by manually resolving ambiguities.
+             else if transOk == "e"
+                    then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
+                    else do
+                      putStrLn "Please input 'y', 'n', or 'e'!"
+                      doTrans onOff nPCs banPCs
+  else if ruleSwitchOk == "e"
+         then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
+         else do
+           putStrLn "Please input 'y', 'n', or 'e'!"
+           doTrans onOff nPCs banPCs
+
+{- Resolve ambiguities by parsing script. Let banPCs be the set of banned phrases, which can be obtained from parsing script. For (lp, rp),
+ - if lp belongs to banPCs but rp does not, then we get (lp, rp, Rp).
+ - if rp belongs to banPCs but lp does not, then we get (lp, rp, Lp).
+ - if both lp and rp belong to banPCs, then we get (lp, rp, Noth).
+ - if both lp and rp do not belong to banPCs, then the ambiguity resolution for this pair of phrases is skipped.
+ -}
+ambiResolByScript :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> Script -> [OverPair]
+ambiResolByScript _ overPairs [] _ = overPairs
+ambiResolByScript nPCs overPairs (pcp:pcps) script
+    | notElem lp banPCs && elem rp banPcs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
+    | elem lp banPCs && notElem rp banPcs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
+    | elem lp banPCs && elem rp banPCs = ambiResolByScript nPCs ((lp, rp, Noth):overPairs) pcps script
+    | otherwise = ambiResolByScript nPCs overPairs pcps script
+    where
+    banPCs = thd3 script
+    lp = fst pcp
+    rp = snd pcp
+
+{- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
+ - rules used in this trip, the resultant phrases, and the banned phrases.
+ - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
+ -}
+doTransWithManualResol :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
+    showOnOff onOff
+    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) "
+    ruleSwitchOk <- getLine
+    if ruleSwitchOk == "n"                          -- Press key 'n'
+      then do
+        putStrLn "Enable or disable rules among"
+        putStrLn "  S/s, P/s, O/s, A/s, Hn/s, N/s,"
+        putStrLn "  S/v, O/v, A/v, Hn/v, D/v, Cn/v, Cv/v, N/v, P/vt, OE/vt, Vt/vi, A/vd,"
+        putStrLn "  S/a, P/a, V/a, O/a, D/a, Da/a, Cn/a, Cv/a, Ca/a, Hn/a, N/a,"
+        putStrLn "  P/n, V/n, A/n, Cn/n, Cv/n, D/n, Da/n, ADJ/n, S/nd, O/nd, Hn/nd,"
+        putStrLn "  S/d, O/d, A/d, Hn/d, Cv/d, N/d, ADJ/d, Da/d, Ds/d, Dx/d, Doe/d,"
+        putStrLn "  D/p,"
+        putStrLn "  O/oe, Hn/oe, N/oe,"
+        putStrLn "  N/pe,"
+        putStrLn "  A/q,"
+        putStrLn "  Jf/c, Jb/c"
+        putStrLn "  and U3d/u3,"
+        putStr "  for instance, +O/s, -A/v: (RETURN for skip) "
+        ruleSwitchStr <- getLine                              -- Get new onOff from input, such as "+O/s,-A/v"
+        let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
+        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) [
+          "S/s", "P/s", "O/s", "A/s", "Hn/s", "N/s",
+          "S/v", "O/v", "A/v", "Hn/v", "D/v", "Cn/v", "Cv/v", "N/v", "P/vt", "OE/vt", "Vt/vi", "A/vd",
+          "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Da/a", "Cv/a", "Cn/a", "Ca/a",
+          "P/n", "V/n", "A/n", "Cn/n", "Cv/n", "D/n", "Da/n", "ADJ/n", "S/nd", "O/nd", "Hn/nd",
+          "S/d", "O/d", "A/d", "Hn/d", "Cv/d", "N/d", "ADJ/d", "Da/d", "Ds/d", "Dx/d", "Doe/d",
+          "D/p",
+          "O/oe", "Hn/oe", "N/oe",
+          "N/pe",
+          "A/q",
+          "Jf/c", "Jb/c",
+          "U3d/u3"]]
+           then do
+             let newOnOff = updateOnOff onOff rws
+             doTransWithManualResol newOnOff nPCs banPCs                        -- Redo this trip of transition by modifying rule switches.
+           else do
+             putStrLn "Rule switch expression error. Consider again!"
+             doTransWithManualResol onOff nPCs banPCs
+      else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
+             then do
+               let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
+               putStr "Transitive result before pruning: "
+               showNPhraCate (sortPhraCateBySpan nPCs2)
+               putStr "Banned phrases: "
+               showNPhraCate (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
+
+               let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
+               overPairs <- ambiResolByManualResol nPCs2 [] pcps                -- [OverPair], record overlapping pairs for pruning.
+               nbPCs <- transWithPruning onOff nPCs banPCs overPairs            -- Get transitive result with pruning.
+               putStr "Transitive result after pruning: "
+               showNPhraCate (sortPhraCateBySpan (fst nbPCs))
+               putStr "Banned phrases: "
+               showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
+
+               putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
+               transOk <- getLine                           -- Get user decision of whether to do next transition
+               if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
+                 then do
+                     updateAmbiResol (fst nbPCs) overPairs        -- Record ambiguity resolution fragments.
+                     return (onOff,(fst nbPCs),(snd nbPCs))
+                 else if transOk == "n"
+                        then doTransWithManualResol onOff nPCs banPCs           -- Redo this trip of transition.
+                        else if transOk == "e"
+                               then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
+                               else do
+                                 putStrLn "Please input 'y', 'n', or 'e'!"
+                                 doTrans onOff nPCs banPCs
+             else if ruleSwitchOk == "e"
+                    then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
+                    else do
+                      putStrLn "Please input 'y', 'n', or 'e'!"
+                      doTransWithManualResol onOff nPCs banPCs
+
+{- Manually resolve ambiguities but not insert or update ambiguity resolution records.
+ - MySQL table storing ambiguity resolution fragments is dictated by configuration file 'Configuration'.
+ -}
+ambiResolByManualResol [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+ambiResolByManualResol _ overPairs [] = return overPairs                        -- No overlapping phrases need to be resolved.
+ambiResolByManualResol nPCs overPairs (pcp:pcps) = do
+    newOverPairs <- ambiResolByManualResol' nPCs overPairs pcp                  -- Update structural gene in Table stru_gene
+    ambiResolByManualResol nPCs newOverPairs pcps
+
+{- Mannually resolve a pair of overlapping phrases, and add the resolving result into the input list of OverPair(s), then return the new OverPair list.
+ -}
+ambiResolByManualResol' :: [PhraCate] -> [OverPair] -> (PhraCate, PhraCate) -> IO [OverPair]
+ambiResolByManualResol' nPCs overPairs (lp, rp) = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    if (ambi_resol_model == "ambi_resol1")
+      then do
+        context = [x | x <- nPCs, x /= lp, x /= rp]        -- Get context of the pair of overlapping phrases
+        ot = getOverType nPCs lp rp                        -- Get overlapping type
+
+        putStr "Find a fragment of No.1 ambiguity model: "
+        showAmbiModel1Frag lp rp context ot
+
+        putStr "please input priority [Lp/Rp]: (RETURN for 'Lp') "
+        prior <- getLine
+        if (prior == "" || prior == "Rp")                  -- Set prior as "Rp".
+          then return ((lp, rp, read "Rp"::Prior):overPairs)
+          else if prior == "Lp"                            -- Set prior as "Lp".
+            then return ((lp, rp, read "Rp"::Prior):overPairs)
+            else do
+              putStrLn "ambiResolByManualResol': Illegal priority"
+              ambiResolByManualResol' nPCs overPairs (lp, rp)                   -- Calling the function itself again.
+      else do
+        putStrLn "ambiResolByManualResol': Manual resolution of other models."
+        return []
+
+{- Insert new ambiguity resolution fragments or update old ambiguity resolution fragments in databse table.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
+ - Ambiguity resolution model, such as stru_gene and ambi_resol1, also is the name of MySQL table storing the samples of that model.
  -}
 updateAmbiResol :: [PhraCate] -> [OverPair] -> IO ()
 updateAmbiResol _ [] = do
-    putStrLn "updateAmbiResol: Update finshed."                      -- To make output easy to read.
+    putStrLn "updateAmbiResol: Update finshed."              -- To make output easy to read.
 updateAmbiResol nPCs (op:ops) = do
     updateAmbiResol' nPCs op
     updateAmbiResol nPCs ops
 
-{- Insert a new ambiguity resolution fragment into or update an old ambiguity resolution fragment in table ambi_resol.
+{- Insert or update an ambiguity resolution fragment in MySQL table storing ambiguity resolution samples.
  -}
 updateAmbiResol' :: [PhraCate] -> OverPair -> IO ()
 updateAmbiResol' nPCs overPair = do
-    let lop = fst3 overPair                                   -- Get left overlapping phrase.
-    let rop = snd3 overPair                                   -- Get right overlapping phrase.
-    let context =  sortPhraCateBySpan [x | x <- nPCs, x /= lop, x/= rop]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
-    let ot = getOverType nPCs lop rop                         -- Get overlapping type
-    let prior = thd3 overPair                                 -- Get prior selection of the two overlapping phrases.
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    if (ambi_resol_model == "ambi_resol1")
+      then
+        let lp = fst3 overPair                                   -- Get left overlapping phrase.
+        let rp = snd3 overPair                                   -- Get right overlapping phrase.
+        let context =  sortPhraCateBySpan [x | x <- nPCs, x /= leftPhrase, x/= rightPhrase]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
+        let ot = getOverType nPCs leftPhrase rightPhrase         -- Get overlapping type
+        let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
 
-    putStrLn $ "updateAmbiResol': Inquire ambiguity resolution fragment: leftOver = '" ++ show lop ++ "' && " ++
-                                          "rightOver = '" ++ show rop ++ "' && " ++
+        putStrLn $ "updateAmbiResol1': Inquire ambiguity resolution fragment: leftPhrase = '" ++ show lp ++ "' && " ++
+                                          "rightPhrase = '" ++ show rp ++ "' && " ++
                                           "context = '" ++ show context ++ "' && " ++
                                           "overType = " ++ show ot ++ " && " ++
                                           "prior = '" ++ show prior ++ "'"
 
-    let lopv = doubleBackSlash (show lop)                     -- Get values to insert them into MySql Table
-    let ropv = doubleBackSlash (show rop)
-    let contextv = doubleBackSlash (show context)
-    let otv = show ot
-    let priorv = show prior
+        let lpv = doubleBackSlash (show lp)                     -- Get values to insert them into MySql Table
+        let rpv = doubleBackSlash (show rp)
+        let contextv = doubleBackSlash (show context)
+        let otv = show ot
+        let priorv = show prior
+
+        conn <- getConn
+        let sqlstat = read (show ("select id, hitCount from ambi_resol1 where leftOver = '" ++ lpv ++ "' && " ++ "rightOver = '" ++ rpv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "' && " ++ "prior = " ++ priorv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                              -- Close MySQL connection.
+                error "updateAmbiResol': Find duplicate ambiguity resolution fragments, which is impossible."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let hitCount = fromMySQLInt32U ((rows!!0)!!1)
+                putStrLn $ "updateAmbiResol': (" ++ show id ++ ") hitCount: " ++ show hitCount
+                resetStmt conn stmt
+                let sqlstat = read (show ("update ambi_resol1 set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                stmt <- prepareStmt conn sqlstat
+                executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]                -- Add column 'hitCount' by 1 of structural gene.
+                close conn                               -- Close MySQL connection.
+          else do
+            putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
+            let sqlstat = read (show ("insert ambi_resol1 (leftPhrase,rightRight,context,overType,prior) values ('" ++ lpv ++ "','" ++ rpv ++ "','" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
+      else putStrLn "updateAmbiResol': Processing for other model is not done."
+
+{- Add the parsing result of a clause into treebank designated by <Configuration>.
+ - Now, parameter <clauIdx> has not been used for checking.
+ -}
+storeClauseParsingToTreebank :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+storeClauseParsingToTreebank sn clauIdx rtbPCs = do
+    confInfo <- readFile "Configuration"
+    let tree_target = getConfProperty "tree_target" confInfo
 
     conn <- getConn
-    let sqlstat = read (show ("select id, hitCount from ambi_resol where leftOver = '" ++ lopv ++ "' && " ++ "rightOver = '" ++ ropv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "' && " ++ "prior = " ++ priorv)) :: Query
-    stmt <- prepareStmt conn sqlstat
-    (defs, is) <- queryStmt conn stmt []
+    let query = DS.fromString ("select tree, script from " ++ tree_target ++ " where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    row <- S.read is                                                            -- Maybe [MySQLText, MySQLText]
+    let row' = case row of
+                 Just x -> x                                                    -- [MySQLText, MySQLText]
+                 Nothing -> error "storeClauseParsingToTreebank: No row was read."
+    S.skipToEof is                                                              -- Skip to end-of-stream.
+    closeStmt conn stmt
 
-    rows <- S.toList is
-    if rows /= []
-      then
-        if length rows > 1
-          then do
-            close conn                              -- Close MySQL connection.
-            error "updateAmbiResol': Find duplicate ambiguity resolution fragments, which is impossible."
-          else do
-            let id = fromMySQLInt32U ((rows!!0)!!0)
-            let hitCount = fromMySQLInt32U ((rows!!0)!!1)
-            putStrLn $ "updateAmbiResol': (" ++ show id ++ ") hitCount: " ++ show hitCount
-            resetStmt conn stmt
-            let sqlstat = read (show ("update ambi_resol set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
-            stmt <- prepareStmt conn sqlstat
-            executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
-            close conn                               -- Close MySQL connection.
-      else do
-        putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
-        let sqlstat = read (show ("insert ambi_resol (leftOver,rightOver,context,overType,prior,hitCount) values ('" ++ lopv ++ "','" ++ ropv ++ "','" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
-        stmt1 <- prepareStmt conn sqlstat
-        oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
-        putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
-        close conn                                   -- Close MySQL connection.
+    let trees = readTrees $ fromMySQLText (head row')
+    let scripts = readScripts $ fromMySQLText (last row')
+    putStrLn $ "storeClauseParsing: trees: " ++ (show trees)
+    putStrLn $ "storeClauseParsing: scripts: " ++ (show scripts)
+
+    let trees' = trees ++ [snd3 rtbPCs]
+    let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+
+    putStrLn $ "storeClauseParsing: trees': " ++ (nTreeToString trees')
+    putStrLn $ "storeClauseParsing: scripts': " ++ (nScriptToString scripts')
+
+    let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")     -- Query is instance of IsString.
+    stmt' <- prepareStmt conn query'
+    ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
+    let rn = getOkAffectedRows ok
+    close conn
+    if (rn /= 0)
+      then putStrLn $ "storeClauseParsingToTreebank: " ++ show rn ++ " row(s) were modified."
+      else error "storeClauseParsingToTreebank: update failed!"
 
 {- Store the parsing tree of a clause into database. Actually, here is an append operation.
    The function is obsoleted, and replaced with Function storeClauseParsing.

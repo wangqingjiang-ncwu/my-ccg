@@ -16,5 +16,5 @@ script_target:treebank1
 # Storage position of parsing trees, such as 'corpus', 'treebank1'.
 tree_target:treebank1
 
-# Ambiguity resolution model, such as 'stru_gene', 'ambi_resol1'.
+# Ambiguity resolution model, such as 'stru_gene' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
 ambi_resol_model:ambi_resol1

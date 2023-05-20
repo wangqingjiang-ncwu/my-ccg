@@ -10,15 +10,21 @@ module Output (
     showNSeman,       -- [PhraCate] -> IO ()
     showNSeman2,      -- [(Category, Seman)] -> IO ()
     showPhraCate,     -- PhraCate -> IO ()
-    putCtsca,         -- [(Category, Tag, Seman, PhraStru, Act)] -> IO ()
+    putNCtsca,        -- [(Category, Tag, Seman, PhraStru, Act)] -> IO ()
     getNCtsca_String, -- [(Category, Tag, Seman, PhraStru, Act)] -> String
-    showNPhraCate,    -- [PhraCate] -> IO ()
+    getPhraCate_String,  -- PharCate -> string
+    showNPhraCateLn,     -- [PhraCate] -> IO ()
+    showNPhraCate,       -- [PhraCate] -> IO ()
     showNPhraCateWithoutNewLine,    -- [PhraCate] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     showAmbiModel1Frag,    -- PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
-    showNSplitCate,   -- [(PhraCate, PhraCate)] -> IO ()
-    showAllSplitCate, -- [[(PhraCate, PhraCate)]] -> IO ()
+    getNPhraCate_String,   -- [PhraCate] -> String
+    showNPhraCatePair,     -- [(PhraCate, PhraCate)] -> IO ()
+    showNPhraCatePairList, -- [[(PhraCate, PhraCate)]] -> IO ()
+    showOverPair,     -- OverPair -> IO ()
+    showNOverPair,    -- [OverPair] -> IO ()
+    showScript,       -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
     showTree,         -- [[PhraCate]] -> IO ()
     showATree,        -- Int -> [[PhraCate]] -> IO ()
@@ -42,7 +48,7 @@ import Rule
 import Phrase
 import Parse
 import Corpus
-import AmbiResol (OverType)
+import AmbiResol (OverPair, OverType, Prior)
 import Utils
 import Data.Char
 import Data.List
@@ -108,29 +114,48 @@ showPhraCate :: PhraCate -> IO ()
 showPhraCate pc = do
 --  putStr (show pc)       -- Function 'show' converts Chinese characters to [char].
     putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
-    putCtsca (ctspaOfCate pc)
+    putNCtsca (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
-putCtsca :: [(Category,Tag,Seman,PhraStru,Act)] -> IO ()
-putCtsca [] = putStr ""
-putCtsca [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
-putCtsca (x:xs) = do
+putNCtsca :: [(Category,Tag,Seman,PhraStru,Act)] -> IO ()
+putNCtsca [] = putStr ""
+putNCtsca [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
+putNCtsca (x:xs) = do
     putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ "),"
-    putCtsca xs
+    putNCtsca xs
 
 getNCtsca_String :: [(Category, Tag, Seman, PhraStru, Act)] -> String
-getNCtsca_String ctspa = show ctspa
+getNCtsca_String ctsca_list = "[" ++ getNCtsca_String' ctsca_list ++ "]"
 
-showNPhraCate :: [PhraCate] -> IO ()
-showNPhraCate [] = putStrLn "[]"
-showNPhraCate [x] = do
+getNCtsca_String' :: [(Category, Tag, Seman, PhraStru, Act)] -> String
+getNCtsca_String' [] = ""
+getNCtsca_String' [x] = "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
+getNCtsca_String' (x:xs) = getNCtsca_String' [x] ++ ", " ++ getNCtsca_String xs
+
+getPhraCate_String :: PhraCate -> String
+getPhraCate_String ((st, sp), nCtsca, ss) = "((" ++ show st ++ ", " ++ show sp ++ "), " ++ getNCtsca_String nCtsca ++ ", " ++ show ss ++ ")"
+
+showNPhraCateLn :: [PhraCate] -> IO ()
+showNPhraCateLn [] = putStrLn "[]"
+showNPhraCateLn [x] = do
     putStr "["
     showPhraCate x
     putStrLn "]"
-showNPhraCate (x:xs) = do
+showNPhraCateLn (x:xs) = do
     putStr "["
     putNPC (x:xs)
     putStrLn "]"
+
+showNPhraCate :: [PhraCate] -> IO ()
+showNPhraCate [] = putStr "[]"
+showNPhraCate [x] = do
+    putStr "["
+    showPhraCate x
+    putStr "]"
+showNPhraCate (x:xs) = do
+    putStr "["
+    putNPC (x:xs)
+    putStr "]"
 
 showNPhraCateWithoutNewLine :: [PhraCate] -> IO ()
 showNPhraCateWithoutNewLine [] = putStr "[]"
@@ -174,23 +199,91 @@ showAmbiModel1Frag leftPhrase rightPhrase context overType = do
     putStrLn $ ", overType = " ++ show overType
 
 getNPhraCate_String :: [PhraCate] -> String
-getNPhraCate_String xs = show xs
+getNPhraCate_String xs = "[" ++ getNPhraCate_String' xs ++ "]"
 
-showNSplitCate :: [(PhraCate, PhraCate)] -> IO ()
-showNSplitCate [] = putStrLn ""
-showNSplitCate xs = do
+getNPhraCate_String' :: [PhraCate] -> String
+getNPhraCate_String' [] = ""
+getNPhraCate_String' [x] = getPhraCate_String x
+getNPhraCate_String' (x:xs) = getNPhraCate_String' [x] ++ ", " ++ getNPhraCate_String' xs
+
+showNPhraCatePair :: [(PhraCate, PhraCate)] -> IO ()
+showNPhraCatePair pcps = do
+    putStr "["
+    showNPhraCatePair' pcps
+    putStrLn "]"
+
+showNPhraCatePair' :: [(PhraCate, PhraCate)] -> IO ()
+showNPhraCatePair' [] = putStr ""
+showNPhraCatePair' [pcp] = do
     putStr "("
-    putStr (show (fst (head xs)))
+    showPhraCate (fst pcp)
     putStr ","
-    putStr (show (snd (head xs)))
-    putStr ") "
-    showNSplitCate (tail xs)
+    showPhraCate (snd pcp)
+    putStr ")"
+showNPhraCatePair' (pcp:pcps) = do
+    showNPhraCatePair' [pcp]
+    putStr ","
+    showNPhraCatePair' pcps
 
-showAllSplitCate :: [[(PhraCate, PhraCate)]] -> IO ()
-showAllSplitCate [] = putStrLn ""
-showAllSplitCate xs = do
-    showNSplitCate (head xs)
-    showAllSplitCate (tail xs)
+showNPhraCatePairList :: [[(PhraCate, PhraCate)]] -> IO ()
+showNPhraCatePairList pcpsl = do
+    putStr "["
+    showNPhraCatePairList' pcpsl
+    putStrLn "]"
+
+showNPhraCatePairList' :: [[(PhraCate, PhraCate)]] -> IO ()
+showNPhraCatePairList' [] = putStr ""
+showNPhraCatePairList' [pcps] = showNPhraCatePair pcps
+showNPhraCatePairList' (pcps:pcpsl) = do
+    showNPhraCatePair pcps
+    putStr ","
+    showNPhraCatePairList' pcpsl
+
+showOverPair :: OverPair -> IO ()
+showOverPair (lp, rp, prior) = do
+    putStr "("
+    showPhraCate lp
+    putStr ", "
+    showPhraCate rp
+    putStr ", "
+    putStr $ show prior
+    putStr ")"
+
+showNOverPair :: [OverPair] -> IO ()
+showNOverPair ops = do
+    putStr "["
+    showNOverPair' ops
+    putStrLn "]"
+
+showNOverPair' :: [OverPair] -> IO ()
+showNOverPair' [] = putStr ""
+showNOverPair' [op] = showOverPair op
+showNOverPair' (op:ops) = do
+    showOverPair op
+    putStr ", "
+    showNOverPair' ops
+
+showScript :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
+showScript [] = putStrLn ""
+showScript (s:ss) = do
+    putStr "["
+    showScript' (s:ss)
+    putStrLn "]"
+
+showScript' :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
+showScript' [] = putStr ""
+showScript' [s] = do
+    putStr "("
+    putStr $ show (fst3 s)
+    putStr ","
+    putStr $ show (snd3 s)
+    putStr ",["
+    putNPC (thd3 s)
+    putStr "])"
+showScript' (s:ss) = do
+    showScript' [s]
+    putStr ","
+    showScript' ss
 
 showForest :: [[PhraCate]] -> IO ()
 showForest [] = putStrLn ""

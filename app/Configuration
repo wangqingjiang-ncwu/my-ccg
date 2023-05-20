@@ -8,7 +8,7 @@ Database:ccg4c
 script_source:corpus
 
 # Source of parsing trees, such as 'corpus', 'treebank1'.
-tree_source:corpus
+tree_source:treebank1
 
 # Storage position of parsing scripts, such as 'corpus', 'treebank1'.
 script_target:treebank1

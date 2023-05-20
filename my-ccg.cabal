@@ -15,7 +15,7 @@ homepage:       https://github.com/wangqingjiang-ncwu/my-ccg#readme
 bug-reports:    https://github.com/wangqingjiang-ncwu/my-ccg/issues
 author:         China University of Water Resources and Electric Power
 maintainer:     wangqingjiang@ncwu.edu.cn
-copyright:      Copyright (c) 2019-2022 China University of Water Resources and Electric Power
+copyright:      Copyright (c) 2019-2023 China University of Water Resources and Electric Power
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -41,6 +41,7 @@ library
     , io-streams
     , mysql-haskell
     , text
+    , directory
   default-language: Haskell2010
 
 executable my-ccg-exe
@@ -72,6 +73,7 @@ executable my-ccg-exe
     , my-ccg
     , mysql-haskell
     , text
+    , directory
   default-language: Haskell2010
 
 test-suite my-ccg-test
@@ -112,4 +114,5 @@ test-suite my-ccg-test
     , my-ccg
     , mysql-haskell
     , text
+    , directory
   default-language: Haskell2010

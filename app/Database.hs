@@ -165,7 +165,7 @@ getConn = do
     let user = getConfProperty "User" confInfo
     let password = getConfProperty "Password" confInfo
     let database = getConfProperty "Database" confInfo
-    putStrLn $ "host:" ++ host ++ ", user:" ++ user ++ ", password:" ++ password ++ ", database:" ++ database
+--  putStrLn $ "host:" ++ host ++ ", user:" ++ user ++ ", password:" ++ password ++ ", database:" ++ database
 
     connect defaultConnectInfo {
       ciHost = host,

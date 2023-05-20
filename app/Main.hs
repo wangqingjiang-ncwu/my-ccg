@@ -30,6 +30,7 @@ import Utils
     9   Display parsing result of the sentence given by value of column 'serial_num'.
     A   Statistically analyze the database table 'corpus' and 'stru_gene'.
     B   Experiments.
+    C   Maintenance tools.
     0   Quit from this program.
  -}
 main :: IO ()
@@ -40,8 +41,8 @@ main = do
     hSetEncoding stdout utf8                       -- Set encoding for stdout as UTF8
     hFlush stdout                                  -- Flush buffered data to assure changing the encoding.
 
-    putStrLn " Chinese CCG parser (build 0.2.6.0)"
-    putStrLn " Copyright (c) 2019-2022 China University of Water Resources and Electric Power, All rights reserved."
+    putStrLn " Chinese CCG parser (build 0.2.7.0)"
+    putStrLn " Copyright (c) 2019-2023 China University of Water Resources and Electric Power, All rights reserved."
 
     (username, ok) <- login 1
     if ok
@@ -110,10 +111,11 @@ interpreter username = do
     putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num"
     putStrLn " A -> Statistically analyze the database table corpus and stru_gene"
     putStrLn " B -> Experiments"
+    putStrLn " C -> Maintenance tools"
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","0"]
       then do
              putStrLn "Invalid input."
              interpreter username
@@ -130,6 +132,7 @@ interpreter username = do
              "9" -> doDisplayTreesForASent username
              "A" -> doStatisticalAnalysis username
              "B" -> doExperiments username
+             "C" -> doMaintenance username
              "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
@@ -570,6 +573,29 @@ doParseSentWithAllLexRules username = do
       else do
              getSentFromDB sn >>= getSent >>= parseSentWithAllLexRules sn
              interpreter username
+
+-- C. Various maintenance tools.
+doMaintenance :: String -> IO ()
+doMaintenance username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Rearrange auto-increment values of 'id' in Table stru_gene"
+    putStrLn " 2 -> Rearrange auto-increment values of 'id' in Table ambi_resol1"
+    putStrLn " 0 -> Go back to the upper layer"
+    putStr "Please input command: "
+    line <- getLine
+    if notElem line ["?","1","2","0"]
+      then do
+        putStrLn "Invalid input."
+        doMaintenance username
+      else case line of
+        "?" -> doMaintenance username
+        "1" -> do
+                 putStrLn $ "Function " ++ line ++ " has not been implemented."
+                 doMaintenance username
+        "2" -> do
+                 putStrLn $ "Function " ++ line ++ " has not been implemented."
+                 doMaintenance username
+        "0" -> interpreter username
 
 -- 0. Quit from this program.
 doQuit :: IO ()

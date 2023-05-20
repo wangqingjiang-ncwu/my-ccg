@@ -1089,13 +1089,13 @@ findPhraWithLowestPrio unCheckedOps ops overPairs = do
         let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
         if (pri == Lp || pri == Noth) && pcps2 /= []                   -- Prior value Noth means the pair of phrases should be removed.
           then findPhraWithLowestPrio xs pcps2 overPairs
-          else if pri == Lp && pcps2 == []
+          else if (pri == Lp || pri == Noth) && pcps2 == []
                  then return pc2
                  else if pri == Rp && pcps1 /= []
                         then findPhraWithLowestPrio xs pcps1 overPairs
                         else if pri == Rp && pcps1 == []
                                then return pc1
-                               else error "findPhraWithLowestPrio: pri == Noth."
+                               else error $ "findPhraWithLowestPrio: Impossible situation: pri=" ++ show pri
 
 {- Select <prior> from a list of 'OverPair' where matching given an overlapping pair of phrases.
    <Just Lp> means <leftOver> should remains while <rightOver> should be abandoned, and <Just Rp> means the contrary.
@@ -1319,12 +1319,12 @@ showPhraCate' :: PhraCate -> IO ()
 showPhraCate' pc = do
 --  putStr (show pc)           -- Function 'show' converts Chinese characters to [char].
     putStr $ "((" ++ show (stOfCate pc) ++ "," ++ show (spOfCate pc) ++ "),["
-    putCtsca' (ctspaOfCate pc)
+    putNCtsca' (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
-putCtsca' :: [(Category,Tag,Seman,PhraStru,Act)] -> IO ()
-putCtsca' [] = putStr ""
-putCtsca' [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
-putCtsca' (x:xs) = do
+putNCtsca' :: [(Category,Tag,Seman,PhraStru,Act)] -> IO ()
+putNCtsca' [] = putStr ""
+putNCtsca' [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
+putNCtsca' (x:xs) = do
     putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ "),"
-    putCtsca' xs
+    putNCtsca' xs

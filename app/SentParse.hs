@@ -38,6 +38,7 @@ module SentParse (
     ) where
 
 import Control.Monad
+import System.Directory
 import System.IO
 import qualified System.IO.Streams as S
 import qualified Data.ByteString.Char8 as C
@@ -118,46 +119,54 @@ parseSent sn cs = do
               else putStrLn "parseSent: Not finished parsing."
           else putStrLn "parseSent: Parsing was cancelled."                     -- goBackTo failed, return upper layer calling.
 
--- To be ready for parsing from clause <ci>, modify attribute <tree> and <script> of entry <sn> in Table corpus.
+{- To be ready for parsing from clause <ci>, parsing trees and scripts of clauses with index bigger than or equal to <ci> are deleted in treebank.
+ - The treebank is designated by property 'tree_target' in file Configuration.
+ - For skip success, return True; otherwise return False.
+ -}
 goBackTo :: Int -> Int -> IO Bool
 goBackTo sn ci = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_target = getConfProperty "tree_target" confInfo
+
     conn <- getConn
-    stmt <- prepareStmt conn "select tree, script from corpus where serial_num = ?"
+    let sqlstat = DS.fromString $ "select tree, script from " ++ tree_target ++ " where serial_num = ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
     row <- S.read is                                   -- Maybe [MySQLText, MySQLText]
     let row' = case row of
                  Just x -> x                           -- [MySQLText, MySQLText]
-                 Nothing -> error "goBackTo: No row was read."
+                 Nothing -> [MySQLText "[]", MySQLText "[]"]                    -- Both "tree" and "script" in treebank will be initialized as '[]'.
     S.skipToEof is                                     -- Consume result set.
 
 --  putStrLn $ "goBackTo: tree: " ++ (fromMySQLText (head row'))
 
-    let trees = readTrees $ fromMySQLText (head row')
-    let scripts = readScripts $ fromMySQLText (last row')
+    let tree = readTrees $ fromMySQLText (row'!!0)
+    let script = readScripts $ fromMySQLText (row'!!1)
 
-    if length trees + 1 < ci
+    if length tree + 1 < ci
       then do
-        putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip failed."
+        putStrLn $ "goBackTo: " ++ show (length tree) ++ " clauses were parsed, skip failed."
         return False
-      else if length trees + 1 == ci
+      else if length tree + 1 == ci
              then do
-               putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+               putStrLn $ "goBackTo: " ++ show (length tree) ++ " clauses were parsed, skip succeeded."
                return True
              else do
-               let trees' = take (ci - 1) trees
-               let scripts' = take (ci - 1) scripts
-               stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
-               ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
+               let tree' = take (ci - 1) tree
+               let script' = take (ci - 1) script
+               let sqlstat = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
+               stmt' <- prepareStmt conn sqlstat
+               ok <- executeStmt conn stmt' [toMySQLText (nTreeToString tree'), toMySQLText (nScriptToString script'), toMySQLInt32 sn]
                if (getOkAffectedRows ok == 1)
                then do
-                 putStrLn $ "goBackTo: " ++ show (length trees) ++ " clause(s) was(were) parsed, skip succeeded."
+                 putStrLn $ "goBackTo: " ++ show (length tree') ++ " clauses were parsed, skip succeeded."
                  return True
                else do
                  putStrLn $ "goBackTo: skip failed!"
                  return False
 
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', and parameter 'skn' is the number of skipped clauses.
- - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
+ - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
 parseSent' :: Int -> Int -> [String] -> IO Bool
 parseSent' _ _ [] = return True
@@ -169,7 +178,7 @@ parseSent' sn skn cs = do
       then do
         let nPCs = initPhraCate $ getNCate $ words (last cs)
         putStr "Before parsing: "
-        showNPhraCate nPCs
+        showNPhraCateLn nPCs
         putStr "Word semantic sequence: "
         showNSeman nPCs
         rtbPCs' <- parseClause [] nPCs []                                       -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
@@ -195,19 +204,19 @@ storeClauseParsing sn clauIdx rtbPCs = do
     S.skipToEof is                                     -- Skip to end-of-stream.
     closeStmt conn stmt
 
-    let trees = readTrees $ fromMySQLText (head row')
-    let scripts = readScripts $ fromMySQLText (last row')
-    putStrLn $ "storeClauseParsing: trees: " ++ (show trees)
-    putStrLn $ "storeClauseParsing: scripts: " ++ (show scripts)
+    let tree = readTrees $ fromMySQLText (head row')
+    let script = readScripts $ fromMySQLText (last row')
+    putStrLn $ "storeClauseParsing: tree: " ++ (nTreeToString tree)
+    putStrLn $ "storeClauseParsing: script: " ++ (nScriptToString script)
 
-    let trees' = trees ++ [snd3 rtbPCs]
-    let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+    let tree' = tree ++ [snd3 rtbPCs]
+    let script' = script ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
 
-    putStrLn $ "storeClauseParsing: trees': " ++ (nTreeToString trees')
-    putStrLn $ "storeClauseParsing: scripts': " ++ (nScriptToString scripts')
+    putStrLn $ "storeClauseParsing: tree': " ++ (nTreeToString tree')
+    putStrLn $ "storeClauseParsing: script': " ++ (nScriptToString script')
 
     stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
-    ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
+    ok <- executeStmt conn stmt' [toMySQLText (nTreeToString tree'), toMySQLText (nScriptToString script'), toMySQLInt32 sn]
     let rn = getOkAffectedRows ok
     close conn
     if (rn /= 0)
@@ -233,7 +242,7 @@ parseClause rules nPCs banPCs = do
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
           putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
-          showNPhraCate (sortPhraCateBySpan nPCs)
+          showNPhraCateLn (sortPhraCateBySpan nPCs)
           let spls = divPhraCateBySpan (nPCs)
           putStrLn "  ##### Parsing Tree #####"
           showTreeStru spls spls
@@ -320,13 +329,13 @@ parseSentWithAllLexRules' sn cis cs = do
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
     let nPCs = initPhraCate $ getNCate $ words (last cs)
     putStr "Before parsing: "
-    showNPhraCate nPCs
+    showNPhraCateLn nPCs
     putStr "Word semantic sequence: "
     showNSeman nPCs
 
     pcClo <- parseClauseWithAllLexRules 1 nPCs                      -- pcClo is the closure under LexRule(nPCs).
     putStrLn $ "The forest closure includes " ++ show (length pcClo) ++ " phrasal categoires, which are:"
-    showNPhraCate pcClo
+    showNPhraCateLn pcClo
 
     let sp = getNuOfInputCates pcClo - 1
     putStrLn $ "Maximal span is " ++ show sp
@@ -351,7 +360,7 @@ parseClauseWithAllLexRules transIdx nPCs = do
                                                                     -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                                     -- [Rule] is the set of rules used in this trip of transition.
     putStrLn $ "The result after " ++ show transIdx ++ "th transtion contains " ++ show (length nPCs2) ++ " phrasal categories, which are:"
-    showNPhraCate nPCs2
+    showNPhraCateLn nPCs2
     if nPCs2 /= nPCs
       then parseClauseWithAllLexRules (transIdx + 1) nPCs2          -- Do the next trip of transition with resultant PCs.
       else return nPCs
@@ -362,8 +371,7 @@ parseClauseWithAllLexRules transIdx nPCs = do
 doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTrans onOff nPCs banPCs = do
     showOnOff onOff
-    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) "
-    ruleSwitchOk <- getLine
+    ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e",""]
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
         putStrLn "Enable or disable rules among"
@@ -403,17 +411,17 @@ doTrans onOff nPCs banPCs = do
              then do
                let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
                putStr "Transitive result before pruning: "
-               showNPhraCate (sortPhraCateBySpan nPCs2)
+               showNPhraCateLn (sortPhraCateBySpan nPCs2)
                putStr "Banned phrases: "
-               showNPhraCate (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
+               showNPhraCateLn (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
                overPairs <- updateStruGene nPCs2 [] pcps    -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
                nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result with pruning.
                putStr "Transitive result after pruning: "
-               showNPhraCate (sortPhraCateBySpan (fst nbPCs))
+               showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
                putStr "Banned phrases: "
-               showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
+               showNPhraCateLn (snd nbPCs)                  -- The banned phrases after updated.
 
                putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
                transOk <- getLine                           -- Get user decision of whether to do next transition
@@ -428,9 +436,7 @@ doTrans onOff nPCs banPCs = do
                                  doTrans onOff nPCs banPCs
              else if ruleSwitchOk == "e"
                     then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
-                    else do
-                      putStrLn "Please input 'y', 'n', or 'e'!"
-                      doTrans onOff nPCs banPCs
+                    else error "doTrans: Impossible input error!"
 
 {- Insert or update related structural genes in Table stru_gene, and recursively create overlapping pairs.
    For every pair of overlapping phrases, its overlap type, left- and right-extend phrases are found in a given set
@@ -580,62 +586,82 @@ updateStruGene' gene overPairs = do
 parseSentByScript :: Int -> [String] -> IO ()
 parseSentByScript sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
-    putStr $ " There are " ++ show (length cs) ++ " clauses in total. Press Y to start, press other key to cancel parsing:"
+    confInfo <- readFile "Configuration"
+    let script_source = getConfProperty "script_source" confInfo
+    conn <- getConn
+    let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                     --([ColumnDef], InputStream [MySQLValue])
+    record <- S.read is
+    let record' = case record of
+                    Just x -> x
+                    Nothing -> [MySQLText "[]"]
+    let script = fromMySQLText (record'!!0)
+    skipToEof is                                                            -- Go to the end of the stream.
+    closeStmt conn stmt
+
+    let script' = readScripts $ script
+    putStr "Parsing script: "
+    showScript script'
+
+    putStr $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
     clauIdx <- getLine
-    if clauIdx == "Y"                                  -- Press key 'Y'.
+    if clauIdx /= ""                                   -- Not RETURN
       then do
-        confInfo <- readFile "Configuration"
-        let script_source = getConfProperty "script_source" confInfo
-        conn <- getConn
-        let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
-        stmt <- prepareStmt conn query
-        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
-        record <- S.read is
-        let record' = case record of
-                        Just x -> x
-                        Nothing -> [MySQLText "NULL"]
-        let scripts = fromMySQLText (record'!!0)
-        skipToEof is                                                                -- Go to the end of the stream.
-
-        if (scripts == "NULL")
-          then error "parseSentByScript': No script was read."
-          else putStrLn $ show scripts
-        closeStmt conn stmt
-
-        let scripts' = readScripts $ scripts
-
-        finFlag <- parseSentByScript' sn cs scripts'
-        if finFlag
-          then putStrLn "parseSentByScript: Finished parsing."
-          else putStrLn "parseSentByScript: Not finished parsing."
-      else putStrLn "parseSent: Parsing was cancelled."              -- Press other key.
+        let ci = read clauIdx :: Int
+        if ci < 1 || ci > length cs
+          then putStrLn $ "Clause " ++ show ci ++ " does not exist!"
+          else do
+            gbtFlag <- goBackTo sn ci                  -- Drop trees and scripts of clause <ci> and its subsequents.
+            if gbtFlag
+              then do
+                let skn = ci - 1                       -- Number of clauses to be Skipped, namely the index of first clause to be parsed.
+                finFlag <- parseSentByScript' sn skn (drop skn cs) (drop skn script')
+                if finFlag
+                  then putStrLn "parseSentByScript: Finished parsing."
+                  else putStrLn "parseSentByScript: Not finished parsing."
+              else putStrLn "parseSentByScript: Parsing was cancelled."         -- goBackTo failed, return upper layer calling.
+      else do
+        gbtFlag <- goBackTo sn 1
+        if gbtFlag
+          then do
+            finFlag <- parseSentByScript' sn 0 cs script'
+            if finFlag
+              then putStrLn "parseSentByScript: Finished parsing."
+              else putStrLn "parseSentByScript: Not finished parsing."
+          else putStrLn "parseSentByScript: Parsing was cancelled."             -- goBackTo failed, return upper layer calling.
 
 {- Re-parse a sentence according the previously created parsing script.
- - Here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
- - If the last clause is not finished in parsing process, return False to skip the remaining clauses.
+ - Here every clause is a String.
+ - Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
+ - Table 'corpus', 'treebank1', and some other tables are associated with field 'serial_num'.
+ - 'skn' is the number of clauses to be skipped, namely the index of clause to be parsed.
+ - 'cs' is clausal strings to be parsed.
+ - 'script' is parsing scripts for these clauses.
+ - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
-parseSentByScript' :: Int -> [String] -> [Script] -> IO Bool
-parseSentByScript' _ [] _ = return True
-parseSentByScript' sn cs scripts = do
-    let clauIdx = length cs
+parseSentByScript' :: Int -> Int -> [String] -> [Script] -> IO Bool
+parseSentByScript' _ _ [] _ = return True
+parseSentByScript' sn skn cs script = do
+    finFlag <- parseSentByScript' sn skn (take (length cs - 1) cs) (take (length cs - 1) script)
+    let clauIdx = skn + length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
-    finFlag <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts)
     if finFlag                                                                  -- True means sentential parsing has been finished.
       then do
         let nPCs = initPhraCate $ getNCate $ words (last cs)
         putStr "Before parsing: "
-        showNPhraCate nPCs
+        showNPhraCateLn nPCs
         putStr "Word semantic sequence: "
         showNSeman nPCs
 
-        rtbPCs <- parseClauseWithScript [] nPCs [] (last scripts)               -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        rtbPCs <- parseClauseWithScript [] nPCs [] (last script)                -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
         if rtbPCs == ([],[],[])
           then return False                                                     -- False means the current clause is terminated manually.
           else do
-            storeClauseParsingToTreebank sn clauIdx rtbPCs
+            storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
             return True
       else do
-        putStrLn "  Skip!"
+        putStrLn $ "Skip clause " ++ show clauIdx
         return False
 
 {- Parsing a clause is a recursive transition process.
@@ -659,7 +685,7 @@ parseClauseWithScript rules nPCs banPCs script = do
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
           putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
-          showNPhraCate (sortPhraCateBySpan nPCs)
+          showNPhraCateLn (sortPhraCateBySpan nPCs)
           let spls = divPhraCateBySpan (nPCs)
           putStrLn "  ##### Parsing Tree #####"
           showTreeStru spls spls
@@ -671,33 +697,57 @@ parseClauseWithScript rules nPCs banPCs script = do
  -}
 doTransWithScript :: [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
 doTransWithScript nPCs banPCs script = do
-    let onOff = head $ snd3 script                                 -- Get rule switch series
+    let onOff = head $ snd3 script               -- Get rule switches of this trip of transition
+    putStr "Rule switches: "
+    showOnOff onOff                              -- Display rule switches
     let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
-    let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
-    let overPairs = ambiResolByScript nPCs2 [] pcps script    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+
+--    putStr "Transitive result before pruning: "
+--    showNPhraCateLn (sortPhraCateBySpan nPCs2)
+    putStr "New phrases before pruning: "
+    showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
+--    putStr "Banned phrases: "
+--    showNPhraCateLn (banPCs)                     -- Can't use <sortPhraCateBySpan> on <banPCs>.
+
+    let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+    let overPairsByScript = ambiResolByScript nPCs2 [] pcps script    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    putStr "ambiResolByScript: overPairs: "
+    showNOverPair overPairsByScript
+
+    result <- acceptOrNot overPairsByScript "Is the script-resolving result OK? [y/n]: (RETURN for 'y')"
+    let overPairs = case result of
+                      Just x -> x
+                      Nothing -> [] :: [OverPair]
+
     let pcpsWithPrior = map (\x->(fst3 x, snd3 x)) overPairs
     let pcps' = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior]                  -- [(PhraCate, PhraCate)] not resolved by script.
+    putStr "doTransWithScript: Manually resolve: "
+    showNPhraCatePair pcps'
+
     overPairs' <- ambiResolByManualResol nPCs2 [] pcps'       -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    putStr "ambiResolByManualResol: overPairs': "
+    showNOverPair overPairs'
+
     let overPairs'' = overPairs ++ overPairs'
     nbPCs <- transWithPruning onOff nPCs banPCs overPairs''                     -- Get transitive result with pruning.
-    putStr "Transitive result after pruning: "
-    showNPhraCate (sortPhraCateBySpan (fst nbPCs))
-    putStr "Banned phrases: "
-    showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
 
-    putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
-    transOk <- getLine                           -- Get user decision of whether to do next transition
-    if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
+--    putStr "Transitive result after pruning: "
+--    showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
+    putStr "New phrases after pruning: "
+    showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
+    putStr "Banned phrases: "
+    showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+
+    transOk <- getLineUntil "This trip of transition is ok? [y/n/e]: (RETURN for 'y')" ["y","n","e",""]    -- Get user decision of whether to do next transition
+    if transOk == "y" || transOk == ""             -- Press key 'y' or directly press RETURN
       then do
-          updateAmbiResol (fst nbPCs) overPairs                                 -- Record ambiguity resolution fragments.
+          updateAmbiResol (fst nbPCs) overPairs''                               -- Record ambiguity resolution fragments.
           return (onOff,(fst nbPCs),(snd nbPCs))
       else if transOk == "n"
              then doTransWithManualResol onOff nPCs banPCs      -- do this trip of transition by manually resolving ambiguities.
              else if transOk == "e"
                     then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
-                    else do
-                      putStrLn "Please input 'y', 'n', or 'e'!"
-                      doTrans onOff nPCs banPCs
+                    else error "doTransWithScript: Impossible input error!"
 
 {- Resolve ambiguities by parsing script. Let banPCs be the set of banned phrases, which can be obtained from parsing script. For (lp, rp),
  - if lp belongs to banPCs but rp does not, then we get (lp, rp, Rp).
@@ -723,9 +773,9 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
  -}
 doTransWithManualResol :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
 doTransWithManualResol onOff nPCs banPCs = do
+    putStr "Rule switches: "
     showOnOff onOff
-    putStr "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) "
-    ruleSwitchOk <- getLine
+    ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e",""]
     if ruleSwitchOk == "n"                          -- Press key 'n'
       then do
         putStrLn "Enable or disable rules among"
@@ -764,21 +814,24 @@ doTransWithManualResol onOff nPCs banPCs = do
       else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
              then do
                let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
-               putStr "Transitive result before pruning: "
-               showNPhraCate (sortPhraCateBySpan nPCs2)
-               putStr "Banned phrases: "
-               showNPhraCate (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
+--               putStr "Transitive result before pruning: "
+--               showNPhraCateLn (sortPhraCateBySpan nPCs2)
+               putStr "New phrases before pruning: "
+               showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
+--               putStr "Banned phrases: "
+--               showNPhraCateLn (banPCs)                     -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
                overPairs <- ambiResolByManualResol nPCs2 [] pcps                -- [OverPair], record overlapping pairs for pruning.
                nbPCs <- transWithPruning onOff nPCs banPCs overPairs            -- Get transitive result with pruning.
-               putStr "Transitive result after pruning: "
-               showNPhraCate (sortPhraCateBySpan (fst nbPCs))
+--               putStr "Transitive result after pruning: "
+--               showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
+               putStr "New phrases after pruning: "
+               showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
                putStr "Banned phrases: "
-               showNPhraCate (snd nbPCs)                    -- The banned phrases after updated.
+               showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
 
-               putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
-               transOk <- getLine                           -- Get user decision of whether to do next transition
+               transOk <- getLineUntil "This trip of transition is ok? [y/n/e]: (RETURN for 'y')" ["y","n","e",""]   -- Get user decision of whether to do next transition
                if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
                  then do
                      updateAmbiResol (fst nbPCs) overPairs        -- Record ambiguity resolution fragments.
@@ -787,14 +840,10 @@ doTransWithManualResol onOff nPCs banPCs = do
                         then doTransWithManualResol onOff nPCs banPCs           -- Redo this trip of transition.
                         else if transOk == "e"
                                then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
-                               else do
-                                 putStrLn "Please input 'y', 'n', or 'e'!"
-                                 doTrans onOff nPCs banPCs
+                               else error "doTransWithManualResol: Impossible input error!"
              else if ruleSwitchOk == "e"
                     then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
-                    else do
-                      putStrLn "Please input 'y', 'n', or 'e'!"
-                      doTransWithManualResol onOff nPCs banPCs
+                    else error "doTransWithManualResol: Impossible input error!"
 
 {- Mannually resolve a set of overlapping phrases, and return the list of OverPair(s).
  -}
@@ -816,19 +865,21 @@ ambiResolByManualResol' nPCs (lp, rp) = do
         let ot = getOverType nPCs lp rp                        -- Get overlapping type
 
         putStr "Find a fragment of No.1 ambiguity model: "
-        showAmbiModel1Frag lp rp context ot
+--        showAmbiModel1Frag lp rp context ot
+        putStr "leftPhrase = "
+        showPhraCate lp
+        putStr ", rightPhrase = "
+        showPhraCate rp
+        putStrLn ""
 
-        putStr "please input priority [Lp/Rp]: (RETURN for 'Lp') "
-        prior <- getLine
-        if (prior == "" || prior == "Rp")                  -- Set prior as "Rp".
-          then return (lp, rp, (read "Rp"::Prior))
-          else if prior == "Lp"                            -- Set prior as "Lp".
-            then return (lp, rp, (read "Lp"::Prior))
+        prior <- getLineUntil "Please input priority [Lp/Rp/Noth]: (RETURN for 'Lp') " ["Lp","Rp","Noth",""]
+        if (prior == "" || prior == "Lp")                  -- Set prior as "Lp".
+          then return (lp, rp, (read "Lp"::Prior))
+          else if prior == "Rp"                            -- Set prior as "Rp".
+            then return (lp, rp, (read "Rp"::Prior))
             else if prior == "Noth"
                    then return (lp, rp, (read "Noth"::Prior))
-                   else do
-                     putStrLn "ambiResolByManualResol': Illegal priority"
-                     ambiResolByManualResol' nPCs (lp, rp)                       -- Calling the function itself again.
+                   else error "ambiResolByManualResol': Impossible input!"
       else error "ambiResolByManualResol': ambi_resol_model is set wrongly."
 
 {- Insert new ambiguity resolution fragments or update old ambiguity resolution fragments in databse table.
@@ -856,20 +907,25 @@ updateAmbiResol' nPCs overPair = do
         let ot = getOverType nPCs lp rp                          -- Get overlapping type
         let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
 
-        putStrLn $ "updateAmbiResol1': Inquire ambiguity resolution fragment: leftPhrase = '" ++ show lp ++ "' && " ++
-                                          "rightPhrase = '" ++ show rp ++ "' && " ++
-                                          "context = '" ++ show context ++ "' && " ++
-                                          "overType = " ++ show ot ++ " && " ++
-                                          "prior = '" ++ show prior ++ "'"
+        putStr "updateAmbiResol1': Inquire ambiguity fragment: leftPhrase = "
+        showPhraCate lp
+        putStr ", rightPhrase = "
+        showPhraCate rp
+--        putStr ", context = "
+--        showNPhraCate context
+--        putStr ", overType = "
+--        putStr $ show ot
+        putStrLn ""
 
-        let lpv = doubleBackSlash (show lp)                     -- Get values to insert them into MySql Table
-        let rpv = doubleBackSlash (show rp)
-        let contextv = doubleBackSlash (show context)
+        let lpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String lp)           -- Get values to insert them into MySql Table
+        let rpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String rp)
+        let contextv = replace "'" "''" $ doubleBackSlash (getNPhraCate_String context)
         let otv = show ot
         let priorv = show prior
 
         conn <- getConn
-        let sqlstat = read (show ("select id, hitCount from ambi_resol1 where leftOver = '" ++ lpv ++ "' && " ++ "rightOver = '" ++ rpv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "' && " ++ "prior = " ++ priorv)) :: Query
+--        let sqlstat = read (show ("select id, prior from ambi_resol1 where leftPhrase = _utf8mb4'" ++ lpv ++ "' && " ++ "rightPhrase = _utf8mb4'" ++ rpv ++ "' && " ++ "context = _utf8mb4'" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'")) :: Query
+        let sqlstat = DS.fromString $ "select id, prior from ambi_resol1 where leftPhrase = '" ++ lpv ++ "' && " ++ "rightPhrase = '" ++ rpv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'"
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
 
@@ -879,19 +935,26 @@ updateAmbiResol' nPCs overPair = do
             if length rows > 1
               then do
                 close conn                              -- Close MySQL connection.
-                error "updateAmbiResol': Find duplicate ambiguity resolution fragments, which is impossible."
+                error "updateAmbiResol': Find duplicate ambiguity fragments, which is impossible."
               else do
                 let id = fromMySQLInt32U ((rows!!0)!!0)
-                let hitCount = fromMySQLInt32U ((rows!!0)!!1)
-                putStrLn $ "updateAmbiResol': (" ++ show id ++ ") hitCount: " ++ show hitCount
-                resetStmt conn stmt
-                let sqlstat = read (show ("update ambi_resol1 set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
-                stmt <- prepareStmt conn sqlstat
-                executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]                -- Add column 'hitCount' by 1 of structural gene.
-                close conn                               -- Close MySQL connection.
+                let priorOrig = fromMySQLText ((rows!!0)!!1)
+                putStr $ "updateAmbiResol': (" ++ show id ++ ") original prior: " ++ priorOrig ++ ", new prior: " ++ priorv
+                if priorOrig /= priorv
+                  then do
+                    resetStmt conn stmt
+                    let sqlstat = DS.fromString $ "update ambi_resol1 set prior = ? where id = " ++ show id
+                    stmt <- prepareStmt conn sqlstat
+                    executeStmt conn stmt [toMySQLText priorv]                      -- Add column 'hitCount' by 1.
+                    close conn                           -- Close MySQL connection.
+                    putStrLn ", modification is done."
+                  else do
+                    close conn
+                    putStrLn ", no modification is to do."
           else do
             putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
-            let sqlstat = read (show ("insert ambi_resol1 (leftPhrase,rightRight,context,overType,prior) values ('" ++ lpv ++ "','" ++ rpv ++ "','" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
+--            let sqlstat = read (show ("insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values (_utf8mb4'" ++ lpv ++ "', _utf8mb4'" ++ rpv ++ "', _utf8mb4'" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
+            let sqlstat = DS.fromString $ "insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values ('" ++ lpv ++ "', '" ++ rpv ++ "', '" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')"
             stmt1 <- prepareStmt conn sqlstat
             oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
             putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
@@ -910,32 +973,45 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     let query = DS.fromString ("select tree, script from " ++ tree_target ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
-    row <- S.read is                                                            -- Maybe [MySQLText, MySQLText]
-    let row' = case row of
-                 Just x -> x                                                    -- [MySQLText, MySQLText]
-                 Nothing -> error "storeClauseParsingToTreebank: No row was read."
-    S.skipToEof is                                                              -- Skip to end-of-stream.
+    rows <- S.toList is                                                         -- [[MySQLText, MySQLText]]
     closeStmt conn stmt
 
-    let trees = readTrees $ fromMySQLText (head row')
-    let scripts = readScripts $ fromMySQLText (last row')
-    putStrLn $ "storeClauseParsing: trees: " ++ (show trees)
-    putStrLn $ "storeClauseParsing: scripts: " ++ (show scripts)
+    if rows == []
+      then do
+        let trees' = [snd3 rtbPCs]
+        let scripts' = [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
 
-    let trees' = trees ++ [snd3 rtbPCs]
-    let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+        putStrLn $ "storeClauseParsingToTreebank: trees': " ++ (nTreeToString trees')
+        putStrLn $ "storeClauseParsingToTreebank: scripts': " ++ (nScriptToString scripts')
 
-    putStrLn $ "storeClauseParsing: trees': " ++ (nTreeToString trees')
-    putStrLn $ "storeClauseParsing: scripts': " ++ (nScriptToString scripts')
+        let query' = DS.fromString ("insert into " ++ tree_target ++ " set tree = ?, script = ?, serial_num = ?")     -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "storeClauseParsingToTreebank: " ++ show rn ++ " row(s) were modified."
+          else error "storeClauseParsingToTreebank: update failed!"
+      else do
+        let trees = readTrees $ fromMySQLText ((rows!!0)!!0)
+        let scripts = readScripts $ fromMySQLText ((rows!!0)!!1)
+        putStrLn $ "storeClauseParsingToTreebank: trees: " ++ (nTreeToString trees)
+        putStrLn $ "storeClauseParsingToTreebank: scripts: " ++ (nScriptToString scripts)
 
-    let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")     -- Query is instance of IsString.
-    stmt' <- prepareStmt conn query'
-    ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
-    let rn = getOkAffectedRows ok
-    close conn
-    if (rn /= 0)
-      then putStrLn $ "storeClauseParsingToTreebank: " ++ show rn ++ " row(s) were modified."
-      else error "storeClauseParsingToTreebank: update failed!"
+        let trees' = trees ++ [snd3 rtbPCs]
+        let scripts' = scripts ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+
+        putStrLn $ "storeClauseParsingToTreebank: trees': " ++ (nTreeToString trees')
+        putStrLn $ "storeClauseParsingToTreebank: scripts': " ++ (nScriptToString scripts')
+
+        let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")   -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "storeClauseParsingToTreebank: " ++ show rn ++ " row(s) were modified."
+          else error "storeClauseParsingToTreebank: update failed!"
 
 {- Store the parsing tree of a clause into database. Actually, here is an append operation.
    The function is obsoleted, and replaced with Function storeClauseParsing.
@@ -952,11 +1028,21 @@ storeTree sn treeStr = do
       then putStrLn "storeTree: succeeded."
       else error "storeTree: failed!"
 
--- Read the tree String of designated sentence in Table corpus.
+{- Read the tree String of designated sentence in treebank.
+ - There are several treebanks stored in database, their table names are corpus, treebank1, and so on.
+ -}
 readTree_String :: Int -> IO String
 readTree_String sn = do
+--    dfe <- doesFileExist "Configuration"
+--    if dfe
+--      then putStrLn $ "readTree_String: Configuration exists."
+--      else putStrLn $ "readTree_String: Configuration does not exist."
+    confInfo <- readFile "Configuration"               -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+
     conn <- getConn
-    stmt <- prepareStmt conn "select tree from corpus where serial_num = ?"
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num = ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
     row <- S.read is                                --Get [<tree>]
     let row' = case row of
@@ -1038,7 +1124,7 @@ parseClauseWithoutPruning :: Int -> Int -> [Rule] -> [PhraCate] -> IO ()
 parseClauseWithoutPruning sn transIdx rules nPCs = do
     let nPCs2 = trans rules nPCs []
     putStrLn $ "After " ++ show transIdx ++ "th transition, num. of phrasal categories = " ++ show (length nPCs2)
---  showNPhraCate (sortPhraCateBySpan nPCs2)
+--  showNPhraCateLn (sortPhraCateBySpan nPCs2)
     if ([pc| pc <- nPCs, notElem' pc nPCs2] /= [])||([pc| pc <- nPCs2, notElem' pc nPCs] /= [])
 --  if (equalSortedPhraList (quickSort nPCs) (quickSort nPCs2))
       then parseClauseWithoutPruning sn (transIdx+1) rules nPCs2

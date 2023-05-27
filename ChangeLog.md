@@ -27,3 +27,5 @@ Rename configuration file 'mysql_config' to 'Configuration', because some new co
 
 According to parsing scripts of evert sentence, the process of constructive treebank becomes iterable. To study ambiguity resolution, several models for
 ambiguity resolution fragments are designed successively. For every ambiguity resolution model, a same set of sentences should be parsed again.
+
+2023-5-28 Add module clusering, which is used to analyze ambiguity resolution sampels.

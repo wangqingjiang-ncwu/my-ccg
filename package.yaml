@@ -28,6 +28,7 @@ dependencies:
 - io-streams
 - bytestring
 - text
+- directory
 
 library:
   source-dirs: src

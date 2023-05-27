@@ -10,6 +10,7 @@ import Phrase
 import Parse
 import Output
 import Utils
+import Clustering
 
 outputTest :: IO()
 outputTest = do
@@ -324,4 +325,14 @@ outputTest = do
     let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
     let pc32 = createPhraCate 0 2 [(c32,"<", "(loves' Mary') Frank'" , "SP", True)] 2
     showForestCateStartPos [[pc11,pc12,pc13,pc21,pc32], [pc11,pc12,pc13,pc22,pc31]]
+    putStrLn ""
+
+    putStrLn "The result of distPhraSyn (getCateFromString \"np\", \">\", \"AHn\")) (getCateFromString \"(s\\.np)/.np\", \"<B\", \"AHn\") is"
+    let c1 = getCateFromString "np"
+    let c2 = getCateFromString "(s\\.np)/.np"
+    let t1 = ">"
+    let t2 = "<B"
+    let p1 = "AHn"
+    let p2 = "AHn"
+    putStrLn $ show $ distPhraSyn (c1,t1,p1) (c2,t2,p2)
     putStrLn ""

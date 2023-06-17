@@ -29,3 +29,9 @@ According to parsing scripts of evert sentence, the process of constructive tree
 ambiguity resolution fragments are designed successively. For every ambiguity resolution model, a same set of sentences should be parsed again.
 
 2023-5-28 Add module clusering, which is used to analyze ambiguity resolution sampels.
+
+2023-6-12 When ambiguity resolved results are not same as the anticipated, that is, some phrases bringing ambiguous overlaps are not removed because they are not banned phrases in previous parsing script, the manually resolving ambiguities are needed. This situation means the grammar used now is not same as the grammar used before. To keep different ambiguity resolved models are always for identical grammar, when grammar changes, ambiguity resolved fragment databases for different resolving models should be updated simultaneously.
+
+In configuration file "Configuration", add the attribute "ambi_resol_models" to store all model names. For now, that is
+ambi_resol_models:[ambi_resol0, ambi_resol1]
+The model "ambi_resol0" is alias of original model "stru_gene".

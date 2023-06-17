@@ -52,7 +52,7 @@ import Data.String.Utils
 import Phrase
 import Rule
 import Corpus
-import AmbiResol (OverType,Prior(..),OverPair)
+import AmbiResol (OverType, Prior(..), OverPair)
 import Parse
 import Output
 import Utils
@@ -711,7 +711,7 @@ doTransWithScript nPCs banPCs script = do
 
     let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
     let overPairsByScript = ambiResolByScript nPCs2 [] pcps script    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
-    putStr "ambiResolByScript: overPairs: "
+    putStr "ambiResolByScript: overPairsByScript: "
     showNOverPair overPairsByScript
 
     result <- acceptOrNot overPairsByScript "Is the script-resolving result OK? [y/n]: (RETURN for 'y')"
@@ -882,84 +882,81 @@ ambiResolByManualResol' nPCs (lp, rp) = do
                    else error "ambiResolByManualResol': Impossible input!"
       else error "ambiResolByManualResol': ambi_resol_model is set wrongly."
 
-{- Insert new ambiguity resolution fragments or update old ambiguity resolution fragments in databse table.
+{- Insert new or update old ambiguity resolution fragments in ambiguity resolution database 'ambi_resol1'.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
- - Ambiguity resolution model, such as stru_gene and ambi_resol1, also is the name of MySQL table storing the samples of that model.
+ - Ambiguity resolution model, ambi_resol1, also is the name of MySQL table storing the samples of that model.
  -}
 updateAmbiResol :: [PhraCate] -> [OverPair] -> IO ()
 updateAmbiResol _ [] = do
     putStrLn "updateAmbiResol: Update finshed."              -- To make output easy to read.
 updateAmbiResol nPCs (op:ops) = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = stringToList $ getConfProperty "ambi_resol_model" confInfo
     updateAmbiResol' nPCs op
     updateAmbiResol nPCs ops
 
-{- Insert or update an ambiguity resolution fragment in MySQL table storing ambiguity resolution samples.
+{- Insert or update one ambiguity resolution fragment in MySQL tables storing ambiguity resolution samples.
  -}
 updateAmbiResol' :: [PhraCate] -> OverPair -> IO ()
 updateAmbiResol' nPCs overPair = do
-    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
-    if (ambi_resol_model == "ambi_resol1")
-      then do
-        let lp = fst3 overPair                                   -- Get left overlapping phrase.
-        let rp = snd3 overPair                                   -- Get right overlapping phrase.
-        let context =  sortPhraCateBySpan [x | x <- nPCs, x /= lp, x /= rp]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
-        let ot = getOverType nPCs lp rp                          -- Get overlapping type
-        let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
+    let lp = fst3 overPair                                   -- Get left overlapping phrase.
+    let rp = snd3 overPair                                   -- Get right overlapping phrase.
+    let context =  sortPhraCateBySpan [x | x <- nPCs, x /= lp, x /= rp]        -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
+    let ot = getOverType nPCs lp rp                          -- Get overlapping type
+    let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
 
-        putStr "updateAmbiResol1': Inquire ambiguity fragment: leftPhrase = "
-        showPhraCate lp
-        putStr ", rightPhrase = "
-        showPhraCate rp
---        putStr ", context = "
---        showNPhraCate context
---        putStr ", overType = "
---        putStr $ show ot
-        putStrLn ""
+    putStr "updateAmbiResol': Inquire ambiguity fragment: leftPhrase = "
+    showPhraCate lp
+    putStr ", rightPhrase = "
+    showPhraCate rp
+--    putStr ", context = "
+--    showNPhraCate context
+--    putStr ", overType = "
+--    putStr $ show ot
+    putStrLn ""
 
-        let lpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String lp)           -- Get values to insert them into MySql Table
-        let rpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String rp)
-        let contextv = replace "'" "''" $ doubleBackSlash (getNPhraCate_String context)
-        let otv = show ot
-        let priorv = show prior
+    let lpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String lp)           -- Get values to insert them into MySql Table
+    let rpv = replace "'" "''" $ doubleBackSlash (getPhraCate_String rp)
+    let contextv = replace "'" "''" $ doubleBackSlash (getNPhraCate_String context)
+    let otv = show ot
+    let priorv = show prior
 
-        conn <- getConn
---        let sqlstat = read (show ("select id, prior from ambi_resol1 where leftPhrase = _utf8mb4'" ++ lpv ++ "' && " ++ "rightPhrase = _utf8mb4'" ++ rpv ++ "' && " ++ "context = _utf8mb4'" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'")) :: Query
-        let sqlstat = DS.fromString $ "select id, prior from ambi_resol1 where leftPhrase = '" ++ lpv ++ "' && " ++ "rightPhrase = '" ++ rpv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'"
-        stmt <- prepareStmt conn sqlstat
-        (defs, is) <- queryStmt conn stmt []
+    conn <- getConn
+--    let sqlstat = read (show ("select id, prior from ambi_resol1 where leftPhrase = _utf8mb4'" ++ lpv ++ "' && " ++ "rightPhrase = _utf8mb4'" ++ rpv ++ "' && " ++ "context = _utf8mb4'" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'")) :: Query
+    let sqlstat = DS.fromString $ "select id, prior from ambi_resol1 where leftPhrase = '" ++ lpv ++ "' && " ++ "rightPhrase = '" ++ rpv ++ "' && " ++ "context = '" ++ contextv ++ "' && " ++ "overType = '" ++ otv ++ "'"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt []
 
-        rows <- S.toList is
-        if rows /= []
-          then
-            if length rows > 1
-              then do
-                close conn                              -- Close MySQL connection.
-                error "updateAmbiResol': Find duplicate ambiguity fragments, which is impossible."
-              else do
-                let id = fromMySQLInt32U ((rows!!0)!!0)
-                let priorOrig = fromMySQLText ((rows!!0)!!1)
-                putStr $ "updateAmbiResol': (" ++ show id ++ ") original prior: " ++ priorOrig ++ ", new prior: " ++ priorv
-                if priorOrig /= priorv
-                  then do
-                    resetStmt conn stmt
-                    let sqlstat = DS.fromString $ "update ambi_resol1 set prior = ? where id = " ++ show id
-                    stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText priorv]                      -- Add column 'hitCount' by 1.
-                    close conn                           -- Close MySQL connection.
-                    putStrLn ", modification is done."
-                  else do
-                    close conn
-                    putStrLn ", no modification is to do."
+    rows <- S.toList is
+    if rows /= []
+      then
+        if length rows > 1
+          then do
+            close conn                              -- Close MySQL connection.
+            error "updateAmbiResol': Find duplicate ambiguity fragments, which is impossible."
           else do
-            putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
---            let sqlstat = read (show ("insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values (_utf8mb4'" ++ lpv ++ "', _utf8mb4'" ++ rpv ++ "', _utf8mb4'" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
-            let sqlstat = DS.fromString $ "insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values ('" ++ lpv ++ "', '" ++ rpv ++ "', '" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')"
-            stmt1 <- prepareStmt conn sqlstat
-            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
-            putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
-            close conn                                   -- Close MySQL connection.
-      else putStrLn "updateAmbiResol': Processing for other model is not done."
+            let id = fromMySQLInt32U ((rows!!0)!!0)
+            let priorOrig = fromMySQLText ((rows!!0)!!1)
+            putStr $ "updateAmbiResol': (" ++ show id ++ ") original prior: " ++ priorOrig ++ ", new prior: " ++ priorv
+            if priorOrig /= priorv
+              then do
+                resetStmt conn stmt
+                let sqlstat = DS.fromString $ "update ambi_resol1 set prior = ? where id = " ++ show id
+                stmt <- prepareStmt conn sqlstat
+                executeStmt conn stmt [toMySQLText priorv]                      -- Add column 'hitCount' by 1.
+                close conn                           -- Close MySQL connection.
+                putStrLn ", modification is done."
+              else do
+                close conn
+                putStrLn ", no modification is to do."
+      else do
+        putStr "Inquire failed. Insert the ambiguity resolution fragment ..."
+--        let sqlstat = read (show ("insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values (_utf8mb4'" ++ lpv ++ "', _utf8mb4'" ++ rpv ++ "', _utf8mb4'" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
+        let sqlstat = DS.fromString $ "insert ambi_resol1 (leftPhrase, rightPhrase, context, overType, prior) values ('" ++ lpv ++ "', '" ++ rpv ++ "', '" ++ contextv ++ "'," ++ otv ++ ",'" ++ priorv ++ "')"
+        stmt1 <- prepareStmt conn sqlstat
+        oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+        putStrLn $ " [OK], and its id is " ++ show (getOkLastInsertID oks)
+        close conn                                   -- Close MySQL connection.
 
 {- Add the parsing result of a clause into treebank designated by <Configuration>.
  - Now, parameter <clauIdx> has not been used for checking.

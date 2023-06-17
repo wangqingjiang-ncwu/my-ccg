@@ -1057,7 +1057,8 @@ prune' pcs banPCs = do
  -}
 
 {- Get all pairs of overlapping phrases. In every pair, there is no blood relation, and at least one phrase is active.
-   Using pclt to avoid (a,b) and (b,a) concurrent, only considering 'a' is left of 'b'. Here, phrases' spans > 0.
+ - If a phrase is active, the attribute Act is True; Otherwise, False.
+ - Using pclt to avoid (a,b) and (b,a) concurrent, only considering 'a' is left of 'b'. Here, phrases' spans > 0.
  -}
 getOverlap :: [PhraCate] -> [(PhraCate, PhraCate)]
 getOverlap [] = []

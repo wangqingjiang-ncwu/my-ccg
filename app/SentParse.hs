@@ -642,8 +642,8 @@ parseSentByScript sn cs = do
  -}
 parseSentByScript' :: Int -> Int -> [String] -> [Script] -> IO Bool
 parseSentByScript' _ _ [] _ = return True
-parseSentByScript' sn skn cs script = do
-    finFlag <- parseSentByScript' sn skn (take (length cs - 1) cs) (take (length cs - 1) script)
+parseSentByScript' sn skn cs scripts = do
+    finFlag <- parseSentByScript' sn skn (take (length cs - 1) cs) (take (length cs - 1) scripts)
     let clauIdx = skn + length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
     if finFlag                                                                  -- True means sentential parsing has been finished.
@@ -654,7 +654,11 @@ parseSentByScript' sn skn cs script = do
         putStr "Word semantic sequence: "
         showNSeman nPCs
 
-        rtbPCs <- parseClauseWithScript [] nPCs [] (last script)                -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        let lastScript = case scripts of                                        -- It's possible of no script to use.
+                           [] -> (clauIdx, [], [])                              -- Null script for clause 'clauIdx'
+                           [x] -> x
+                           (x:xs) -> last xs
+        rtbPCs <- parseClauseWithScript [] nPCs [] lastScript                   -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
         if rtbPCs == ([],[],[])
           then return False                                                     -- False means the current clause is terminated manually.
           else do
@@ -680,7 +684,11 @@ parseClauseWithScript rules nPCs banPCs script = do
       then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
       else if nPCs /= (snd3 rtbPCs)
         then do
-          let scriptTail = (fst3 script, tail (snd3 script), thd3 script)       -- Remove the head element of OnOff list in parsing script.
+          let scriptTail = case script of
+                              (clauIdx, [], banPCs) -> (clauIdx, [], banPCs)        -- Null script
+                              (clauIdx, [x], banPCs) -> (clauIdx, [], banPCs)       -- Remove the head element of OnOff list in parsing script.
+                              (clauIdx, (x:xs), banPCs) -> (clauIdx, xs, banPCs)
+
           parseClauseWithScript (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail         -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
@@ -697,7 +705,11 @@ parseClauseWithScript rules nPCs banPCs script = do
  -}
 doTransWithScript :: [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
 doTransWithScript nPCs banPCs script = do
-    let onOff = head $ snd3 script               -- Get rule switches of this trip of transition
+    let onOffs = snd3 script
+    let onOff = case onOffs of                      -- Get rule switches of this trip of transition
+                      [] -> [] :: OnOff             -- No script of rule switches to use
+                      (x:_) -> x :: OnOff           -- There is a script of rule switches to use
+
     putStr "Rule switches: "
     showOnOff onOff                              -- Display rule switches
     let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.

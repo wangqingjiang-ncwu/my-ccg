@@ -16,6 +16,7 @@ module Statistics (
 
 import Control.Monad
 import qualified System.IO.Streams as S
+import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List.Utils
 import Data.Tuple.Utils
@@ -64,13 +65,18 @@ import SentParse (sentToClauses, dispTree')
 
  -}
 
-{- Get statistics about field 'tree' in Table 'corpus' whose serial numbers are less than 'topSn' and
+{- Get statistics about field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ - <tree_source> is the value of attribute "tree_source" in file Configuration.
  -}
 countInTree :: Int -> Int -> Int -> IO ()
 countInTree bottomSn topSn funcIndex = do
     conn <- getConn
-    stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+    putStrLn $ "The source of parsing trees is set as: " ++ tree_source         -- Display the source of parsing trees
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num >= ? and serial_num < ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
 
     sentStrList <- readStreamByText [] is                           -- [String], here a string is the parsing result of a sentence.
@@ -108,6 +114,7 @@ countInTree bottomSn topSn funcIndex = do
          let clauseLengthTotal = foldl (+) 0 $ map (foldl (+) 0) sentClauLengthList
          let averageClauseLength = (fromIntegral clauseLengthTotal :: Float) / (fromIntegral clauseTotalNum :: Float)
          putStrLn $ "countInTree: Length of every clause in every sentence: " ++ show sentClauLengthList
+         putStrLn $ "countInTree: Total of clause lengths: " ++ show clauseLengthTotal
          putStrLn $ "countInTree: Average clause length: " ++ (printf "%.04f" averageClauseLength)
 
          let clauLength2LengthListMap = toClauLength2CerParaListMap sentClauLengthList sentClauLengthList Map.empty               -- Map Int [Int]
@@ -120,7 +127,9 @@ countInTree bottomSn topSn funcIndex = do
     if funcIndex == 5                                          -- To get phrase number of every clause in every sentence. Actually, phrase number can be obtained from clause length.
        then do
          let sentClauPhraNumList = map (map length) sentClauPhraList                    -- [[Int]], here every integer is the phrase number of a clause.
+         let sentPhraTotal = foldl (+) 0 $ map (foldl (+) 0) sentClauPhraNumList
          putStrLn $ "countInTree: Phrase number of every clause in every sentence: " ++ show sentClauPhraNumList
+         putStrLn $ "countInTree: Phrasal total in all sentences: " ++ show sentPhraTotal
        else putStr ""
 
     if funcIndex == 6                                          -- To get the number of clauses with different lengths.
@@ -135,11 +144,12 @@ countInTree bottomSn topSn funcIndex = do
          let sentClauDepthList = toSentClauDepthList sentClauPhraList           -- [[Int]], here every integer is the depth of a clause.
          let clauDepth2NumMap = toClauDepth2NumMap sentClauDepthList Map.empty
                                                                 -- Map Int Int, namely Map <clauDepth> <clauNum>, and 'empty' return null Map.
-         putStrLn $ "countInTree: The list of depth of clauses with different lengths: " ++ show sentClauDepthList
-         putStrLn $ "countInTree: The list of number of clauses with different depths: " ++ show clauDepth2NumMap
+         putStrLn $ "countInTree: The height of parsing tree of every clause in every senetence: " ++ show sentClauDepthList
+         putStrLn $ "countInTree: The list of number of clauses with different parsing tree heights: " ++ show clauDepth2NumMap
 
---       let clauseTotalDepth = foldl (+) 0 (concat sentClauDepthList)          -- The total number of clauses.
---       putStrLn $ "countInTree: The averge depth for all clauses: " ++ show (fromIntegral clauseTotalDepth / fromIntegral clauseTotalNum)
+         let clauseTotalDepth = foldl (+) 0 (concat sentClauDepthList)          -- The total number of clauses.
+         let averDepth = (fromIntegral clauseTotalDepth :: Float) / (fromIntegral clauseTotalNum :: Float)
+         putStrLn $ "countInTree: The average height of parsing trees of all clauses: " ++ printf "%.04f" averDepth
        else putStr ""
 
     if funcIndex == 8                                           -- To get the frequency of every CCG tag in all sentences.
@@ -243,13 +253,18 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show (formatMapListWithFloatValue typeTagStruNormFreqDescList 4)
        else putStr ""
 
-{- Get statistics about field 'script' in Table 'corpus' whose serial numbers are less than 'topSn' and
+{- Get statistics about field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ - <script_source> is the value of attribute 'script_source' in file Configuration.
  -}
 countInScript :: Int -> Int -> Int -> IO ()
 countInScript bottomSn topSn funcIndex = do
     conn <- getConn
-    stmt <- prepareStmt conn "select script from corpus where serial_num >= ? and serial_num < ?"
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let script_source = getConfProperty "script_source" confInfo
+    putStrLn $ "The source of parsing scripts is set as: " ++ script_source       -- Display the source of parsing trees
+    let sqlstat = DS.fromString $ "select script from " ++ script_source ++ " where serial_num >= ? and serial_num < ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
 
     sentStrList <- readStreamByText [] is                           -- [String], here a string is the parsing script of a sentence.
@@ -276,7 +291,7 @@ countInScript bottomSn topSn funcIndex = do
          putStrLn $ "countInScript: The descending list of frequencies of different transitive times: " ++ show descListOfTT2FreqByValue
 
          let transTimesTotal = fromIntegral $ foldl (+) 0 $ map snd descListOfTT2FreqByValue         -- The total number of transtive times for all clauses.
-         let descListOfTT2NormalizedFreqByValue = map (\x -> (fst x, ((/ transTimesTotal) . fromIntegral. snd) x)) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
+         let descListOfTT2NormalizedFreqByValue = map (\x -> (fst x, ((/ transTimesTotal) . fromIntegral . snd) x)) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
          putStrLn $ "countInScript: Transitive times total for all clauses: " ++ show transTimesTotal
          putStrLn $ "countInScript: The descending list of normalized frequencies of different transitive times: " ++ show (formatMapListWithFloatValue descListOfTT2NormalizedFreqByValue 4)
        else putStr ""
@@ -456,17 +471,20 @@ countInStruGene funcIndex = do
          putStrLn $ "countInStruGene: The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
        else putStr ""
 
-{- Get search result in field 'tree' in Table 'corpus' whose serial numbers are less than 'topSn' and
+{- Get search result in field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ - <tree_source> is the value of attribue 'tree_source' in file Configuration.
  -}
 searchInTree :: Int -> Int -> Int -> IO ()
 searchInTree bottomSn topSn funcIndex = do
     conn <- getConn
-    stmt <- prepareStmt conn "select serial_num, tree from corpus where serial_num >= ? and serial_num < ?"
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+    putStrLn $ "The source of parsing trees is set as: " ++ tree_source           -- Display the source of parsing trees
+    let sqlstat = DS.fromString $ "select serial_num, tree from " ++ tree_source ++ " where serial_num >= ? and serial_num < ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
-
-    snTreeList <- readStreamByInt32Text [] is                          -- [(Int, String)], storing serial_num and parsing tree of every sentence.
-
+    snTreeList <- readStreamByInt32Text [] is                           -- [(Int, String)], storing serial_num and parsing tree of every sentence.
     if funcIndex == 1                                                   -- To get serial_num list indicating those parsing trees which include given CCG tags.
        then do
          putStr "Please input the C2CCG tag used in parsing sentence: "
@@ -485,8 +503,9 @@ searchInTree bottomSn topSn funcIndex = do
         putStr "To do."
       else putStr ""
  -}
-{- Get search result in field 'script' in Table 'corpus' whose serial numbers are less than 'topSn' and
+{- Get search result in field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
+ - <script_source> is the value of attribue "script_source" in file Configuration.
  -}
 searchInScript :: Int -> Int -> Int -> IO ()
 searchInScript bottomSn topSn funcIndex = putStrLn "searchInScript: to do."
@@ -780,7 +799,7 @@ toListOfClauLength2CerParaMinMaxMeanList (s:ss) = toListOfClauLength2CerParaMinM
  -}
 showListOfClauLength2CerParaMinMaxMeanList :: [(Int, (Int, Int, Float))] -> String
 showListOfClauLength2CerParaMinMaxMeanList [] = ""
-showListOfClauLength2CerParaMinMaxMeanList [(l, (max, min, mean))] = "(" ++ show l ++ ", (" ++ show max ++ ", " ++ show min ++ ", " ++ printf "%.02f" mean ++ ")"
+showListOfClauLength2CerParaMinMaxMeanList [(l, (max, min, mean))] = "(" ++ show l ++ ", (" ++ show max ++ ", " ++ show min ++ ", " ++ printf "%.02f" mean ++ "))"
 showListOfClauLength2CerParaMinMaxMeanList (l:ls) = showListOfClauLength2CerParaMinMaxMeanList [l] ++ ", " ++ showListOfClauLength2CerParaMinMaxMeanList ls
 
 {- Get the string of list 'ascenListOfClauLength2FreqRate'.

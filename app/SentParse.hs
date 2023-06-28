@@ -685,9 +685,9 @@ parseClauseWithScript rules nPCs banPCs script = do
       else if nPCs /= (snd3 rtbPCs)
         then do
           let scriptTail = case script of
-                              (clauIdx, [], banPCs) -> (clauIdx, [], banPCs)        -- Null script
-                              (clauIdx, [x], banPCs) -> (clauIdx, [], banPCs)       -- Remove the head element of OnOff list in parsing script.
-                              (clauIdx, (x:xs), banPCs) -> (clauIdx, xs, banPCs)
+                              (clauIdx, [], bPCs) -> (clauIdx, [], bPCs)        -- Null script
+                              (clauIdx, [x], bPCs) -> (clauIdx, [], bPCs)       -- Remove the head element of OnOff list in parsing script.
+                              (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, bPCs)
 
           parseClauseWithScript (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail         -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.

@@ -109,7 +109,7 @@ interpreter username = do
     putStrLn " 7 -> Get revised CCG-marked sentence indicated by serial_num"
     putStrLn " 8 -> Parse the sentence indicated by serial_num"
     putStrLn " 9 -> Display parsing Trees of the sentence indicated by serial_num"
-    putStrLn " A -> Statistically analyze the database table corpus and stru_gene"
+    putStrLn " A -> Statistically analyze treebank and ambiguity resolution database stru_gene"
     putStrLn " B -> Experiments"
     putStrLn " C -> Maintenance tools"
     putStrLn " 0 -> doQuit"
@@ -357,9 +357,9 @@ doDisplayTreesForASent username = do
 doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
     putStrLn " ? -> Display command list"
-    putStrLn " 1 -> Count in table 'corpus'"
+    putStrLn " 1 -> Count in treebank"
     putStrLn " 2 -> Count in table 'stru_gene'"
-    putStrLn " 3 -> Search in table 'corpus'"
+    putStrLn " 3 -> Search in treebank"
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
@@ -369,14 +369,14 @@ doStatisticalAnalysis username = do
          doStatisticalAnalysis username
     else case line of
          "?" -> doStatisticalAnalysis username
-         "1" -> doCountInCorpus username
+         "1" -> doCountInTreebank username
          "2" -> doCountInStruGene username
-         "3" -> doSearchInCorpus username
+         "3" -> doSearchInTreebank username
          "0" -> interpreter username
 
--- A1. Do count in corpus and display results. 't' means from field 'tree', and 's' means from 'script'.
-doCountInCorpus :: String -> IO ()
-doCountInCorpus username = do
+-- A1. Do count in treebank and display results. 't' means from field 'tree', and 's' means from 'script'.
+doCountInTreebank :: String -> IO ()
+doCountInTreebank username = do
     putStrLn " ? -> Display command list"
     putStrLn " t1 -> Get total number of sentences"
     putStrLn " t2 -> Get clausal number in every sentence"
@@ -404,9 +404,9 @@ doCountInCorpus username = do
     if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","s1","s2","s3","s4","s5","s6","s7","s8","0"]
        then do
          putStrLn "Invalid input."
-         doCountInCorpus username
+         doCountInTreebank username
        else case line of
-         "?" -> doCountInCorpus username
+         "?" -> doCountInTreebank username
          "t1" -> doCountInTree username 1
          "t2" -> doCountInTree username 2
          "t3" -> doCountInTree username 3
@@ -438,7 +438,7 @@ doCountInTree username funcIndex = do
     line <- getLine
     let topSn = (read line :: Int) + 1
     countInTree bottomSn topSn funcIndex
-    doCountInCorpus username
+    doCountInTreebank username
 
 -- A1_2. Display statistical results from field 'script' in table 'corpus'.
 doCountInScript :: String -> Int -> IO ()
@@ -450,7 +450,7 @@ doCountInScript username funcIndex = do
     line <- getLine
     let topSn = (read line :: Int) + 1
     countInScript bottomSn topSn funcIndex
-    doCountInCorpus username
+    doCountInTreebank username
 
 -- A2. Display statistical results from table 'struGene'.
 doCountInStruGene :: String  -> IO ()
@@ -482,9 +482,9 @@ doCountInStruGene' username funcIndex = do
     countInStruGene funcIndex
     doCountInStruGene username
 
--- A3. Display search result in table 'corpus'. 't' means from field 'tree', and 's' means from 'script'.
-doSearchInCorpus :: String -> IO ()
-doSearchInCorpus username = do
+-- A3. Display search result in treebank. 't' means from field 'tree', and 's' means from 'script'.
+doSearchInTreebank :: String -> IO ()
+doSearchInTreebank username = do
     putStrLn " ? -> Display command list"
     putStrLn " t1 -> Get serial_num list indicating those parsing trees which include given C2CCG calculus tags"
     putStrLn " t2 -> Display parsing trees of all clauses of all sentences."
@@ -498,9 +498,9 @@ doSearchInCorpus username = do
     if notElem line ["?","t1","t2","s1","s2","0"]
       then do
         putStrLn "Invalid input."
-        doSearchInCorpus username
+        doSearchInTreebank username
       else case line of
-        "?" -> doSearchInCorpus username
+        "?" -> doSearchInTreebank username
         "t1" -> doSearchInTree username 1
         "t2" -> doSearchInTree username 2
         "t3" -> doSearchInTree username 3
@@ -518,7 +518,7 @@ doSearchInTree username funcIndex = do
     line <- getLine
     let topSn = (read line :: Int) + 1
     searchInTree bottomSn topSn funcIndex
-    doSearchInCorpus username
+    doSearchInTreebank username
 
 -- A3_2. Display search results from field 'script' in table 'corpus'.
 doSearchInScript :: String -> Int -> IO ()
@@ -530,7 +530,7 @@ doSearchInScript username funcIndex = do
     line <- getLine
     let topSn = (read line :: Int) + 1
     searchInScript bottomSn topSn funcIndex
-    doSearchInCorpus username
+    doSearchInTreebank username
 
 -- B. Do experiments.
 doExperiments :: String -> IO ()

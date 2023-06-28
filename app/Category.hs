@@ -42,6 +42,7 @@ module Category (
     advCate4Sent,  -- Category, "s/*s"
     advCate4DirecVerb, -- Category, "(s\.np)/x(s\.np)"
     advCate4OE,    -- Category, "(s/.np)/*(s/.np)"
+    advCompCate,   -- ((s\.np)/#(s\.np))\*((s\.np)/#(s\.np))
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
     prep4BaCate,          -- Category, "((s/.np)\#np)/#((s\.np)/.np)"
@@ -299,6 +300,9 @@ advCate4DirecVerb = getCateFromString "(s\\.np)/x(s\\.np)"
 
 advCate4OE :: Category
 advCate4OE = getCateFromString "(s/.np)/*(s/.np)"
+
+advCompCate :: Category
+advCompCate = getCateFromString "((s\\.np)/#(s\\.np))\\*((s\\.np)/#(s\\.np))"
 
 -- Category of preposition which combines one following object to construct a adverbial, such as "走v 到p 华水n"
 prep2AdvCate :: Category

@@ -35,3 +35,10 @@ ambiguity resolution fragments are designed successively. For every ambiguity re
 In configuration file "Configuration", add the attribute "ambi_resol_models" to store all model names. For now, that is
 ambi_resol_models:[ambi_resol0, ambi_resol1]
 The model "ambi_resol0" is alias of original model "stru_gene".
+
+2023-6-26 Add category conversion N/s for
+    "s np\*np", where the phrase with category np\*np has structure XX.
+The resultant category has still structure XX. That is not same with "np np\*np" with structure HnC.
+
+2023-6-28 Make clear again that pronoun-quantifier phrase uses conversion ADJ/n to create.
+    In statistical mudolue, functions 'countInTree', 'countInScript', 'SearchInTree', and 'searchInScript' read tree or script and perform various statistical tasks. In the past, these functions read from Table corpus. Now, the source of tree and script are set by the value of attribute 'tree_source' and 'script_source' in file Configuration. Thus, these statistical tasks can be performed on different treebanks and different scriptbanks.

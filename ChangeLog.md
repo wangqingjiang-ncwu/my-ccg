@@ -42,3 +42,11 @@ The resultant category has still structure XX. That is not same with "np np\*np"
 
 2023-6-28 Make clear again that pronoun-quantifier phrase uses conversion ADJ/n to create.
     In statistical mudolue, functions 'countInTree', 'countInScript', 'SearchInTree', and 'searchInScript' read tree or script and perform various statistical tasks. In the past, these functions read from Table corpus. Now, the source of tree and script are set by the value of attribute 'tree_source' and 'script_source' in file Configuration. Thus, these statistical tasks can be performed on different treebanks and different scriptbanks.
+
+2023-8-3 Substantially developed module clustering.hs, which implemented clustering algorithm on ambiguity resolution samples. Now, only ambiguity
+resolution model 'StruGene' was considered, and the distances between samples or between samples and clustering modes were designed for this model.
+Besides, the distance fomula allowed assigning weights to different StruGene attribute, including LeftExtend, LeftOver, RightOver, RightExtend, overType
+and Prior. Actually, Prior should be assigned weight 0 so that the attribute didn't contribute to the distance between StruGene samples.
+
+Function parseSentByStruGene and related functions were designed, which resolved lexical ambiguities by the previous parsing script, and resolved
+syntactic ambiguities by the clustering result on StruGene samples. Thus, one kind of semi-automatic machine parsing has been implemented. 

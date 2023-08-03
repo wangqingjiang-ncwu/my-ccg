@@ -17,6 +17,13 @@ module Utils (
     fth6,          -- (a,b,c,d,e,f) -> d
     fif6,          -- (a,b,c,d,e,f) -> e
     sth6,          -- (a,b,c,d,e,f) -> f
+    fst7,          -- (a,b,c,d,e,f,g) -> a
+    snd7,          -- (a,b,c,d,e,f,g) -> b
+    thd7,          -- (a,b,c,d,e,f,g) -> c
+    fth7,          -- (a,b,c,d,e,f,g) -> d
+    fif7,          -- (a,b,c,d,e,f,g) -> e
+    sth7,          -- (a,b,c,d,e,f,g) -> f
+    svt7,          -- (a,b,c,d,e,f,g) -> g
     removeDup,     -- Eq a => [a] -> [a]
     removeTuple,   -- Eq a => [(a,a)] -> [(a,a)]
     tupToList,     -- Eq a => [(a,a)] -> [a]
@@ -46,6 +53,7 @@ module Utils (
     stringToList,      -- String -> [String]
     listToString,      -- [String] -> String
     stringToTriple,    -- String -> (String,String,String)
+    stringToSixTuple,  -- String -> (String,String,String,String,String,String)
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
     rewriteBackSlash,  -- String -> string
     quickSortForInt,   -- [Int] -> [Int]
@@ -55,7 +63,7 @@ module Utils (
     txt2csv4WordEmbed, -- String -> IO ()
     getConfProperty,   -- String -> String -> String
     getLineUntil,      -- [String] -> IO String
-    acceptOrNot        -- a -> String -> IO Maybe a
+    acceptOrNot,        -- a -> String -> IO Maybe a
     ) where
 
 import Data.Tuple
@@ -115,6 +123,29 @@ fif6 (_,_,_,_,e,_) = e
 
 sth6 :: (a,b,c,d,e,f) -> f
 sth6 (_,_,_,_,_,f) = f
+
+-- Functions on seven tuple.
+
+fst7 :: (a,b,c,d,e,f,g) -> a
+fst7 (a,_,_,_,_,_,_) = a
+
+snd7 :: (a,b,c,d,e,f,g) -> b
+snd7 (_,b,_,_,_,_,_) = b
+
+thd7 :: (a,b,c,d,e,f,g) -> c
+thd7 (_,_,c,_,_,_,_) = c
+
+fth7 :: (a,b,c,d,e,f,g) -> d
+fth7 (_,_,_,d,_,_,_) = d
+
+fif7 :: (a,b,c,d,e,f,g) -> e
+fif7 (_,_,_,_,e,_,_) = e
+
+sth7 :: (a,b,c,d,e,f,g) -> f
+sth7 (_,_,_,_,_,f,_) = f
+
+svt7 :: (a,b,c,d,e,f,g) -> g
+svt7 (_,_,_,_,_,_,g) = g
 
 -- Remove duplicate elements in a list.
 
@@ -369,6 +400,18 @@ stringToTriple str = (first, second, third)
       first = listHead str'
       second = listHead (listDrop 1 str')
       third = listLast str'
+
+-- Get (String, String, String, String, String, String) from the String of a six-tuple.
+stringToSixTuple :: String -> (String, String, String, String, String, String)
+stringToSixTuple str = (first, second, third, fourth, fifth, sixth)
+    where
+      str' = "[" ++ init (tail (throwHTSpace str)) ++ "]"
+      first = listHead str'
+      second = listHead (listDrop 1 str')
+      third = listHead (listDrop 2 str')
+      fourth = listHead (listDrop 3 str')
+      fifth = listHead (listDrop 4 str')
+      sixth = listLast str'
 
 {- Get the index of first toppest delimiter such ',' or ';'. Toppest delimiters are those which don't be embedded
    in any list element. The index is initialized as 0, and will be -1 when meeting an empty list. To remember how

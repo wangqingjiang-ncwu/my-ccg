@@ -5,7 +5,9 @@
 注：分析树部分为纯文本，用记事本打开，才能看到正确的树结构。
 
 一、树库简介
-    为应对汉语词类多功能与非形态，在组合范畴语法（Combinatory Categorial Grammar，CCG）中引入句法类型转换，形成带有句法类型（也称范畴）转换的组合范畴语法（Combinatory Categorial Grammar with Category Conversions, CCG-C2）。
+
+为应对汉语词类多功能与非形态，在组合范畴语法（Combinatory Categorial Grammar，CCG）中引入句法类型转换，形成带有句法类型（也称范畴）转换的组合范畴语法（Combinatory Categorial Grammar with Category Conversions, CCG-C2）。
+
 假设汉语句法的基本范畴只有np和s，分别对应名词性语言单位和主谓结构小句。基本范畴是范畴，两个范畴通过斜线拼接得到的仍是范畴，称为衍生范畴。衍生范畴中的前向或后向斜线也有类型，类型包括.、◇、×、★四种。
 范畴分为函数和参数两种，规定函数应用（>和<）、函数结合（>B、>B2、<B、<B2、>Bx、<Bx、>T、<T）得到一个新范畴的规则有
 	X/★Y:f  Y:a ⇒ X:fa 	    	(>)
@@ -18,7 +20,7 @@
 	Y/×Z:g  X\×Y:f ⇒ X/×Z:λz.f(gz) 		(<B×)
 	X:a ⇒ T/i(T\iX):λf.fa		(>T, i∈{., ◇, ×, ★})
 	X:a ⇒ T\i(T/iX):λf.fa		(<T, i∈{., ◇, ×, ★})
-    提升规则（>T或<T）总是和范畴结合规则连用，如
+提升规则（>T或<T）总是和范畴结合规则连用，如
 	Y:a  (X\◇Y)/◇Z:f ⇒ X/◇Z:fa	  	(>T->B)
 	(X/◇Y)\◇Z:f  Y:a ⇒ X\◇Z:fa           	(<T-<B)
 
@@ -41,6 +43,44 @@
 谓语提取s/◇(s\.np)
 
 汉语词类缺乏语法性质的形态标记，相对于英语词类有更多的语法功能，是造成汉语句法歧义的主要原因。按使用频次最高和次之，可把词类的句法功能（即CCG句法类型）分为典型和非典型两类。按是否通过CCG规则得到，短语的句法类型也可分为典型和非典型。词类或短语根据句法需要选择其非典型句法类型，例如主语位置上的形容词（短语）选用其非典型句法类型np，或定语位置上的名词（短语）选用其非典型句法类型np/.np，这可被看作是源自其典型句法类型的转换。
+
+保留语言学普遍接受的短语结构类型，新增一些短语结构类型，形成下面的短语结构类型，其中NR是不被目前版本的CCG-C2语法认识的短语结构类型，这样的短语结构会被语法拒绝。
+   MQ: Numeral Quantifier phrase
+   PQ: Pronoun Quantifier phrase, such as "这r 个q", "这r 筐q"
+   XX: Conjunction phrase
+   CC: Clause Coordination
+   DHv: Adverbial-verb (headword) phrase
+   HvC: Verb (headword)-complement phrase
+   DHa: Adverbial-adjective (headword) phrase
+   DHs: Adervbial-sentence phrase
+   DHd: Adverbial-adverb (headword) phrase
+   DHx: Adverbial-directioanl verb phrase
+   DHoe: Adverbial-object extraction phrase, such as "最近d 他说oe 的 话"
+   HaC: Adjective (headword)-complement phrase
+   AHn: Attribute-noun (headword) phrase
+   HnC: Noun (headword)-complement phrase
+   HmC: Numeral (headword)-complement phrase
+   VO: Verb-object phrase
+   OE: Object extraction phrase
+   PE: Predicate extraction phrase, such as "我在力所能及的范围内，做好自己的工作。"
+   U1P: 1-auxiliary word phrase, namely with '的' as end
+   U2P: 2-auxiliary word phrase, namely with '地' as end
+   U3P: 3-auxiliary word phrase, namely with '得' as end
+   U3Pv: U3P phrase for verb complement, such as "干 得 好"
+   U3Pa: U3P phrase for adjective complement, such as "好 得 很"
+   U4P: 4-auxiliary word phrase, namely with '着|了|过' as end, identical to HvC.
+   U5P: 5-auxiliary word phrase, namely with '等|似的|一样' as end
+   U6P: 6-auxiliary word phrase, namely with '所' as head
+   PO: Preposition object phrase
+   MOv: Move object before verb, namely '把'字结构, which is one kind of PO.
+   MOs: Move object before subject, namely '被'字结构 which is not same as traditional '被'字结构, and is also one kind of PO.
+   SP: Subject-predicate phrase
+   TP: Tone Phrase
+   EM: Exclamation mood
+   HP: Prefix phrase, such as "老 三", "第 一", and "初 一".
+   KP: Postfix phrase, such as "工作 者", "我 们", and "中 式".
+   DE: Word, also considered as primitive phrase. "DE" means artificial designation.
+   NR: Not recognizable phrase
 
 国家语委现代汉语平衡语料库（http://corpus.zhonghuayuwen.org/CnCindex.aspx）所提供的词性标注语料基本可认为是按典型句法功能标注词性的语料。按沈家煊（2009）实词间包含模式，凡动词皆名词，凡形容词皆动词，存在名词亦动词，存在名词亦形容词，存在动词亦形容词，名、动、形相互间有从各自典型句法类型向其它词类典型句法类型的转换，其中一些转换适用整个词类，而另一些只适用词类里的部分词。由此出发，对国家标准《信息处理用现代汉语词类标记规范》（GB/T20532-2006）中的每个词类，分析词类的典型句法功能和非典型句法功能，并在对平衡语料库200句（含729小句）的CCG-C2分析中，不断调整、归结，逐渐形成了词类或短语的句法类型转换体系。
 

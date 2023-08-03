@@ -1,6 +1,7 @@
 -- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
 -- All rights reserved.
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Main (
     main      -- IO()
@@ -8,7 +9,9 @@ module Main (
 
 import Control.Monad
 import qualified System.IO.Streams as S
+import qualified Data.Map as Map
 import System.IO
+import Data.Time.Clock
 import qualified Data.String as DS
 import Database.MySQL.Base
 import Corpus
@@ -16,6 +19,9 @@ import SentParse
 import Database
 import Statistics
 import Utils
+import AmbiResol
+import Clustering
+import Text.Printf
 
 {- This program create syntactic and semantic parsing results for Chinese sentences. Please run MySQL Workbench or other similiar tools, connecting MySQL database 'ccg4c', and querying table 'corpus' for revising parts of speech as well as CCG syntactic types, and the MySQL server is running on a certain compute in Hua-shui campus. The program includes commands for parsing sentences and storing results in database 'ccg4c', as following.
     ?   Display this message.
@@ -31,6 +37,7 @@ import Utils
     A   Statistically analyze the database table 'corpus' and 'stru_gene'.
     B   Experiments.
     C   Maintenance tools.
+    D   Clustering analysis.
     0   Quit from this program.
  -}
 main :: IO ()
@@ -112,10 +119,11 @@ interpreter username = do
     putStrLn " A -> Statistically analyze treebank and ambiguity resolution database stru_gene"
     putStrLn " B -> Experiments"
     putStrLn " C -> Maintenance tools"
+    putStrLn " D -> Clustering analysis"
     putStrLn " 0 -> doQuit"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"]
       then do
              putStrLn "Invalid input."
              interpreter username
@@ -133,6 +141,7 @@ interpreter username = do
              "A" -> doStatisticalAnalysis username
              "B" -> doExperiments username
              "C" -> doMaintenance username
+             "D" -> doClustering username
              "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
@@ -596,6 +605,238 @@ doMaintenance username = do
                  putStrLn $ "Function " ++ line ++ " has not been implemented."
                  doMaintenance username
         "0" -> interpreter username
+
+-- D. 测试聚类模块的相关函数.
+doClustering :: String -> IO ()
+doClustering username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Test function maxminPoint "
+    putStrLn " 2 -> Test function updateCentre4ACluster"
+    putStrLn " 3 -> Test function doOnceClustering"
+    putStrLn " 4 -> Test function doClustering4DiffKValSNum"
+    putStrLn " 0 -> Go back to the upper layer"
+    putStr "Please input command: "
+    line <- getLine
+    if notElem line ["?","1","2","3","4","5","0"]
+      then do
+        putStrLn "Invalid input."
+        doClustering username
+    else case line of
+        "?" -> doClustering username
+        "1" -> doTestfunctionOfMaxminPoint
+--        "2" -> doTestfunctionOfUpdateCentre4ACluster
+        "3" -> doOnceClustering
+        "4" -> doClustering4DiffKValSNum
+        "5" -> storeAmbiResolAccuracy4AllClustRes
+        "0" -> interpreter username
+
+-- D_1.测试求初始点函数
+doTestfunctionOfMaxminPoint :: IO ()
+doTestfunctionOfMaxminPoint = do
+    putStr "Please input the value of 'K': "
+    line <- getLine
+    let kVal = read line :: Int
+    putStr "Please input start value of 'id' in stru_gene: "
+    line <- getLine
+    let startId = read line :: Int
+    putStr "Please input end value of 'id' in stru_gene: "
+    line <- getLine
+    let endId = read line :: Int
+    confInfo <- readFile "Configuration"
+    let wle = read (getConfProperty "wle" confInfo) :: Int
+    let wlo = read (getConfProperty "wlo" confInfo) :: Int
+    let wro = read (getConfProperty "wro" confInfo) :: Int
+    let wre = read (getConfProperty "wre" confInfo) :: Int
+    let wot = read (getConfProperty "wot" confInfo) :: Int
+    let wpr = read (getConfProperty "wpr" confInfo) :: Int
+    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+
+    conn <- getConn
+    stmt <- prepareStmt conn "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from stru_gene where id >= ? and id <= ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
+    struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+    putStrLn $ "doTestfunctionOfMaxminPoint: " ++ show (length struGeneSampleList)
+    let m1 = head struGeneSampleList
+    let sgs = tail struGeneSampleList
+    let initialKPoints = getKModeByMaxMinPoint sgs [m1] Map.empty kVal distWeiRatioList
+    putStrLn $ "The inital k points are " ++ show initialKPoints
+    closeStmt conn stmt
+
+{-- D_2.测试求众心函数
+doTestfunctionOfUpdateCentre4ACluster :: IO ()
+doTestfunctionOfUpdateCentre4ACluster = do
+    putStr "Please input start value of 'id' in stru_gene: "
+    line <- getLine
+    let startId = read line :: Int
+    putStr "Please input end value of 'id' in stru_gene: "
+    line <- getLine
+    let endId = read line :: Int
+
+    conn <- getConn
+    stmt <- prepareStmt conn "select leftExtend, leftOver, rightOver, rightExtend, overType, prior from stru_gene where id >= ? and id <= ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
+    struGeneList <- readStreamBy4TextInt8Text [] is
+--  putStrLn $ show struGeneList
+    let aMode = updateCentre4ACluster struGeneList ([],[],[],[],[],[])
+--    putStrLn $ "The mode in rows from " ++ show startId ++ " to " ++ show endId ++ " of the stru_gene is " ++ show aMode
+    closeStmt conn stmt
+-}
+
+--  scml = sample cluster mark list
+
+-- D_3. Given kVal and sNum, do clustering.
+doOnceClustering :: IO ()
+doOnceClustering = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let distDef = getConfProperty "distDef" confInfo
+    let kVal = read (getConfProperty "kVal" confInfo) :: Int
+    let sNum = read (getConfProperty "sNum" confInfo) :: Int
+    let wle = read (getConfProperty "wle" confInfo) :: Int
+    let wlo = read (getConfProperty "wlo" confInfo) :: Int
+    let wro = read (getConfProperty "wro" confInfo) :: Int
+    let wre = read (getConfProperty "wre" confInfo) :: Int
+    let wot = read (getConfProperty "wot" confInfo) :: Int
+    let wpr = read (getConfProperty "wpr" confInfo) :: Int
+    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+
+    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+               ++ ", distDef = " ++ distDef ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum
+               ++ ", distWeiRatioList = " ++ show distWeiRatioList
+    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
+                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+                 | otherwise -> "Nothing"
+    let df = if | distDef == "arithAdd" -> "AA"
+                | distDef == "normArithMean" -> "NAM"
+                | otherwise -> "Nothing"
+
+    putStrLn $ "doOnceClustering: arm = " ++ arm ++ ", df = " ++ df
+    autoRunClustByChangeKValSNum arm df kVal (kVal, 0, kVal) (sNum, 0, sNum) distWeiRatioList
+
+{-    if | arm == "Nothing" -> putStrLn "doTestfunctionOfIteration: 'ambi_resol_model' is not correct."
+       | df == "Nothing" -> putStrLn "doTestfunctionOfIteration: 'distDef' is not correct."
+       | otherwise -> do
+           t1 <- getCurrentTime
+           putStrLn $ "doTestfunctionOfIteration: arm = " ++ arm ++ ", df = " ++ df
+           let tblName = "clust_res_k" ++ kValStr ++ "_" ++ "s" ++ sNumStr ++ "_" ++ arm ++ "_" ++ df
+           let timeTblName = "clust_time_" ++ arm ++ "_" ++ df
+           let sqlstat = DS.fromString $ "drop table if exists " ++ tblName
+           stmt <- prepareStmt conn sqlstat
+           executeStmt conn stmt []
+
+           let sqlstat = DS.fromString $ "create table " ++ tblName ++ " (iNo tinyint primary key, sampleClustInfo mediumtext, modes mediumtext, distMean float)"
+           stmt <- prepareStmt conn sqlstat
+           executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering result.
+
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id >= ? and id <= ? "
+           stmt <- prepareStmt conn sqlstat
+           (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 sNum]
+
+           struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+           let m1 = head struGeneSampleList
+           let sps = tail struGeneSampleList
+           let initialKPoints = getKModeByMaxMinPoint sps [m1] Map.empty kVal
+           let scml = findCluster4AllSamplesByArithAdd struGeneSampleList initialKPoints kVal 0 []
+           let clusterMap = divideSameCluster scml Map.empty
+           let origDistTotal = distTotalByClust scml 0.0
+           let distMean = origDistTotal / fromIntegral sNum
+           storeOneIterationResult tblName 0 scml initialKPoints distMean       -- Store the first clustering result.
+           ti1 <- getCurrentTime                                                -- Start time of iteration
+           finalINoDistMean <- findFinalCluster4AllSamplesByArithAdd tblName clusterMap initialKPoints kVal 1 origDistTotal
+           ti2 <- getCurrentTime                                                -- End time of iteration
+--         forM_ scml' $ \scm -> putStrLn $ "doTestfunctionOfIteration: " ++ show scm
+           closeStmt conn stmt
+
+           putStrLn $ "doTestfunctionOfIteration: " ++ " final iNo and distMean are " ++  show finalINoDistMean
+           t2 <- getCurrentTime
+           let totalRunTime = diffUTCTime t2 t1
+--           let its = fif5 (scml'!!0)                                            -- times of iteration.
+           let its = fst finalINoDistMean                                       -- times of iteration.
+           let finalDistMean = snd finalINoDistMean
+           let iterMeanTime = (diffUTCTime ti2 ti1) / fromIntegral its
+           putStrLn $ "doTestfunctionOfIteration: totalRunTime = " ++ show totalRunTime ++ ", iterMeanTime = " ++ show iterMeanTime ++ ", times of iterations = " ++ show (its + 1)
+
+           let sqlstat = DS.fromString $ "create table if not exists " ++ timeTblName ++ " (kVal int, sNum int, totalTime float, iterMeanTime float, iNo tinyint, finalDistMean float, primary key (kVal, sNum))"
+           stmt <- prepareStmt conn sqlstat
+           ok <- executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering time.
+           putStrLn $ "doTestfunctionOfIteration: okStatus = " ++ show (getOkStatus ok)
+           close conn
+           storeClusterTime timeTblName kVal sNum totalRunTime iterMeanTime its finalDistMean
+-}
+
+{- D_4. From bottomKVal to topKVal, kVal increases every time by deltaKVal.
+ - From bottomSNum to topSNum, sNum increases every time by deltaSNum.
+ - For every (kVal, sNum), do clustering.
+ -}
+doClustering4DiffKValSNum :: IO ()
+doClustering4DiffKValSNum = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let distDef = getConfProperty "distDef" confInfo
+    let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
+    let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
+    let topKVal = read (getConfProperty "topKVal" confInfo) :: Int
+    let bottomSNum = read (getConfProperty "bottomSNum" confInfo) :: Int
+    let deltaSNum = read (getConfProperty "deltaSNum" confInfo) :: Int
+    let topSNum = read (getConfProperty "topSNum" confInfo) :: Int
+    let wle = read (getConfProperty "wle" confInfo) :: Int
+    let wlo = read (getConfProperty "wlo" confInfo) :: Int
+    let wro = read (getConfProperty "wro" confInfo) :: Int
+    let wre = read (getConfProperty "wre" confInfo) :: Int
+    let wot = read (getConfProperty "wot" confInfo) :: Int
+    let wpr = read (getConfProperty "wpr" confInfo) :: Int
+    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+
+    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+               ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
+               ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
+               ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
+               ++ ", distWeiRatioList = " ++ show distWeiRatioList
+
+    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
+                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+                 | otherwise -> "Nothing"
+    let df = if | distDef == "arithAdd" -> "AA"
+                | distDef == "normArithMean" -> "NAM"
+                | otherwise -> "Nothing"
+
+    putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
+    autoRunClustByChangeKValSNum arm df bottomKVal (bottomKVal, deltaKVal, topKVal) (bottomSNum, deltaSNum, topSNum) distWeiRatioList
+--    autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum []
+
+{- D_5. Store all ambiguity resolution accuracy for all cluster results.
+ -}
+storeAmbiResolAccuracy4AllClustRes :: IO ()
+storeAmbiResolAccuracy4AllClustRes = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let distDef = getConfProperty "distDef" confInfo
+    let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
+    let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
+    let topKVal = read (getConfProperty "topKVal" confInfo) :: Int
+    let bottomSNum = read (getConfProperty "bottomSNum" confInfo) :: Int
+    let deltaSNum = read (getConfProperty "deltaSNum" confInfo) :: Int
+    let topSNum = read (getConfProperty "topSNum" confInfo) :: Int
+
+    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+               ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
+               ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
+               ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
+
+    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
+                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+                 | otherwise -> "Nothing"
+    let df = if | distDef == "arithAdd" -> "AA"
+                | distDef == "normArithMean" -> "NAM"
+                | otherwise -> "Nothing"
+
+
+    putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
+    autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum
+
 
 -- 0. Quit from this program.
 doQuit :: IO ()

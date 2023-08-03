@@ -12,6 +12,7 @@ module Database (
   fromMySQLText,               -- MySQLValue (MySQLText) -> String
   fromMySQLNullText,           -- MySQLValue (MySQLNull)-> String
   fromMySQLNullVarchar,        -- MySQLValue (MySQLNull) -> String
+  fromMySQLFloat,              -- MySQLValue (MySQLFloat) -> Float
   toMySQLInt8,                 -- Int -> MySQLValue (MySQLInt8)
   toMySQLInt16U,               -- Int -> MySQLValue (MySQLInt16U)
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
@@ -21,6 +22,7 @@ module Database (
   toMySQLText,                 -- String -> MySQLValue (MySQLText)
   toMySQLNullText,             -- MySQLValue (MySQLNull)
   toMySQLNullVarchar,          -- MySQLValue (MySQLNull)
+  toMySQLFloat,                -- Float -> MySQLValue (MySQLFloat)
   getColumnDB,                 -- ColumnDef -> ByteString
   getColumnTable,              -- ColumnDef -> ByteString
   getColumnOrigTable,          -- ColumnDef -> ByteString
@@ -35,6 +37,11 @@ module Database (
   getOkLastInsertID,           -- OK -> Int
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
+  readStreamByText,                --[String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByInt,                 -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
+  readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+  readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   getConn,                     -- IO MySQLConn
   getConnByUserWqj             -- IO MySQLConn
   ) where
@@ -88,6 +95,11 @@ fromMySQLNullVarchar :: MySQLValue -> String
 fromMySQLNullVarchar MySQLNull = ""
 fromMySQLNullVarchar _ = error "fromMySQLNullVarchar: Parameter error."
 
+fromMySQLFloat :: MySQLValue -> Float
+fromMySQLFloat (MySQLFloat a) = read (show a) :: Float
+fromMySQLFloat _ = error "fromMySQLFloat: Parameter error."
+
+
 toMySQLInt8 :: Int -> MySQLValue
 toMySQLInt8 v = MySQLInt8 (read (show v) :: Int8)
 
@@ -114,6 +126,9 @@ toMySQLNullText = MySQLNull
 
 toMySQLNullVarchar :: MySQLValue
 toMySQLNullVarchar = MySQLNull
+
+toMySQLFloat :: Float -> MySQLValue
+toMySQLFloat v = MySQLFloat (read (show v) :: Float)
 
 getColumnDB :: ColumnDef -> ByteString
 getColumnDB (ColumnDef db _ _ _ _ _ _ _ _ _) = read (show db) :: ByteString
@@ -157,10 +172,58 @@ getOkStatus (OK _ _ okStatus _) = okStatus
 getOkWarningCnt :: OK -> Word16
 getOkWarningCnt (OK _ _ _ okWarningCnt) = okWarningCnt
 
+{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
+ - until read Nothing.
+ -}
+readStreamByText :: [String] -> S.InputStream [MySQLValue] -> IO [String]
+readStreamByText es is = do
+    S.read is >>= \x -> case x of                                       -- Dumb element 'case' is an array with type [MySQLValue]
+        Just [MySQLText v] -> readStreamByText (es ++ [fromMySQLText (MySQLText v)]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
+ - until read Nothing.
+ -}
+readStreamByInt :: [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
+readStreamByInt es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt (es ++ [[fromMySQLInt8 (x!!0), fromMySQLInt64 (x!!1)]]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText].
+ -}
+readStreamByInt32Text :: [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+readStreamByInt32Text es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32Text (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8].
+ -}
+readStreamByTextTextInt8 :: [String] -> S.InputStream [MySQLValue] -> IO [String]
+readStreamByTextTextInt8 es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByTextTextInt8 (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8, MySQLText].
+ -}
+readStreamByTextTextInt8Text :: [String] -> S.InputStream [MySQLValue] -> IO [String]
+readStreamByTextTextInt8Text es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByTextTextInt8Text (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2)) ++ "_" ++ fromMySQLText (x!!3)]) is
+        Nothing -> return es
+
 -- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
 getConn = do
-    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    confInfo <- readFile "C:\\Users\\dd\\Desktop\\my-ccg-master\\app\\Configuration"                                        -- Read the local configuration file
     let host = getConfProperty "Host" confInfo
     let user = getConfProperty "User" confInfo
     let password = getConfProperty "Password" confInfo

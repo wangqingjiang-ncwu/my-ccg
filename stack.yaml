@@ -67,9 +67,9 @@ arch: x86_64
 #
 # Extra directories used by stack for building
 extra-include-dirs:
-  - C:\Program Files\MySQL\MySQL Server 8.0\include
+  - D:\Download\Programming Soft\mysql\MySQL\MySQL Server 8.0\include
 extra-lib-dirs:
-  - C:\Program Files\MySQL\MySQL Server 8.0\lib
+  - D:\Download\Programming Soft\mysql\MySQL\MySQL Server 8.0\lib
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor

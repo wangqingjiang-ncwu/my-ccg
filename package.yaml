@@ -29,6 +29,8 @@ dependencies:
 - bytestring
 - text
 - directory
+- time
+- random
 
 library:
   source-dirs: src

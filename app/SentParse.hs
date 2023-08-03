@@ -21,6 +21,7 @@ module SentParse (
     parseSentByScript',   -- Int -> [String] -> [Script] -> IO Bool
     parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
     doTransWithScript,    -- [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+    parseSentByStruGene,  -- Int -> [String] -> IO ()
     doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
     ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
     ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
@@ -52,7 +53,8 @@ import Data.String.Utils
 import Phrase
 import Rule
 import Corpus
-import AmbiResol (OverType, Prior(..), OverPair)
+import AmbiResol (OverType, Prior(..), OverPair, StruGene)
+import Clustering
 import Parse
 import Output
 import Utils
@@ -778,6 +780,207 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
     banPCs = thd3 script
     lp = fst pcp
     rp = snd pcp
+
+{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
+ - and syntactic ambiguities are resolved by clustering result.
+ - Here every clause is a String, and parsing starts from the first clause.
+ - sn: The value of 'serial_num' in database Table 'corpus'.
+ - cs: The list of clausal strings.
+ -}
+parseSentByStruGene :: Int -> [String] -> IO ()
+parseSentByStruGene sn cs = do
+    confInfo <- readFile "Configuration"
+    let script_source = getConfProperty "script_source" confInfo
+    let tree_target = getConfProperty "tree_target" confInfo
+    let wle = read (getConfProperty "wle" confInfo) :: Int
+    let wlo = read (getConfProperty "wlo" confInfo) :: Int
+    let wro = read (getConfProperty "wro" confInfo) :: Int
+    let wre = read (getConfProperty "wre" confInfo) :: Int
+    let wot = read (getConfProperty "wot" confInfo) :: Int
+    let wpr = read (getConfProperty "wpr" confInfo) :: Int
+    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+
+    conn <- getConn
+    let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                     --([ColumnDef], InputStream [MySQLValue])
+    record <- S.read is
+    let record' = case record of
+                    Just x -> x
+                    Nothing -> [MySQLText "[]"]
+    let script = fromMySQLText (record'!!0)
+    skipToEof is                                                            -- Go to the end of the stream.
+    closeStmt conn stmt
+
+    let script' = readScripts $ script
+    putStr "Parsing script: "
+    showScript script'
+
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint)"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []                          -- Create a new MySQL table for storing parsing result.
+
+    struGeneSamples <- getAmbiResolSamples
+    if struGeneSamples /= []
+      then do
+        let struGenes = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGeneSamples
+
+        putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
+        parseSentByStruGene' sn cs script' struGenes distWeiRatioList
+        putStrLn "parseSentByStruGene: Finished parsing."
+      else error "parseSentByStruGene: struGeneSamples is Null."
+
+{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
+ - and syntactic ambiguities are resolved by clustering result.
+ - Here every clause is a String.
+ - Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
+ - Table 'corpus', 'treebank1', and some other tables are associated with field 'serial_num'.
+ - 'cs' is clausal strings to be parsed.
+ - 'scripts' is parsing scripts for these clauses.
+ - 'struGenes' is a list of modes or StruGene samples.
+ - 'distWeiRatioList' is a list of distance weigth ratios.
+ - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
+ -}
+parseSentByStruGene' :: Int -> [String] -> [Script] -> [StruGene] -> DistWeiRatioList -> IO ()
+parseSentByStruGene' _ [] _ _ _ = return ()
+parseSentByStruGene' sn cs scripts struGenes distWeiRatioList = do
+    parseSentByStruGene' sn (take (length cs - 1) cs) (take (length cs - 1) scripts) struGenes distWeiRatioList
+
+    let clauIdx = length cs
+    putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
+    let nPCs = initPhraCate $ getNCate $ words (last cs)
+    putStr "Before parsing: "
+    showNPhraCateLn nPCs
+    putStr "Word semantic sequence: "
+    showNSeman nPCs
+
+    let lastScript = case scripts of                                        -- It's possible of no script to use.
+                       [] -> (clauIdx, [], [])                              -- Null script for clause 'clauIdx'
+                       [x] -> x
+                       (x:xs) -> last xs
+    rtbPCs <- parseClauseWithStruGene [] nPCs [] lastScript struGenes distWeiRatioList
+                                             -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+    storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
+
+{- Parsing a clause is a recursive transition process.
+ - Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, a parsing script of this clause,
+          a sequence of modes and a sequence of distance weigths.
+ - Algo.:
+ - (1) Do one trip of transition;
+ - (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned
+ -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
+ - Syntax ambiguity resolution is done by machine.
+ -}
+parseClauseWithStruGene :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> DistWeiRatioList -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithStruGene rules nPCs banPCs script struGenes distWeiRatioList = do
+    rtbPCs <- doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList
+                                               -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
+                                               -- [Rule] is the set of rules used in this trip of transition.
+    if rtbPCs == ([],[],[])
+      then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
+      else if nPCs /= (snd3 rtbPCs)
+        then do
+          let scriptTail = case script of
+                              (clauIdx, [], bPCs) -> (clauIdx, [], bPCs)        -- Null script
+                              (clauIdx, [x], bPCs) -> (clauIdx, [], bPCs)       -- Remove the head element of OnOff list in parsing script.
+                              (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, bPCs)
+
+          parseClauseWithStruGene (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGenes distWeiRatioList
+                                               -- Do the next trip of transition
+                                               -- with appended rules, resultant PCs, and accumulated banned PCs.
+        else do                                -- Phrasal closure has been formed.
+          putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
+          showNPhraCateLn (sortPhraCateBySpan nPCs)
+          let spls = divPhraCateBySpan (nPCs)
+          putStrLn "  ##### Parsing Tree #####"
+          showTreeStru spls spls
+          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+
+{- Do a trip of transition, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
+ - nPCs: The current phrase set
+ - banPCs: The set of banned phrases
+ - script: The parsing script of this clause
+ - struGenes: The list of modes or StruGene values
+ - distWeiRatioList: The distance weigth ratio list [wle, wlo, wro, wre, wot, wpr]
+ - onOff: The category conversion list for this transition
+ - nbPCs: The tuple (phrase set, banned set) after this transition
+ - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
+ -}
+doTransWithStruGene :: [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
+    let onOffs = snd3 script
+    let onOff = case onOffs of                      -- Get rule switches of this trip of transition
+                      [] -> [] :: OnOff             -- No script of rule switches to use
+                      (x:_) -> x :: OnOff           -- There is a script of rule switches to use
+
+    putStr "Rule switches: "
+    showOnOff onOff                              -- Display rule switches
+    let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
+
+--    putStr "Transitive result before pruning: "
+--    showNPhraCateLn (sortPhraCateBySpan nPCs2)
+    putStr "New phrases before pruning: "
+    showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
+--    putStr "Banned phrases: "
+--    showNPhraCateLn (banPCs)                     -- Can't use <sortPhraCateBySpan> on <banPCs>.
+
+    let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+    let overPairs = ambiResolByStruGene nPCs2 [] pcps struGenes distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    putStr "doTransWithStruGene: overPairs: "
+    showNOverPair overPairs
+
+    nbPCs <- transWithPruning onOff nPCs banPCs overPairs                     -- Get transitive result with pruning.
+
+--    putStr "Transitive result after pruning: "
+--    showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
+    putStr "New phrases after pruning: "
+    showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
+    putStr "Banned phrases: "
+    showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+
+    return (onOff,(fst nbPCs),(snd nbPCs))
+
+{- Resolve ambiguities by StruGene samples.
+ - nPCs: The current phrase set
+ - overPairs: The overlap phrase pair set
+ - (pcp:pcps): The overlap phrase pair set
+ - struGenes: The list of modes or StruGene values
+ - distWeiRatioList: The distance weigth ratio list [wle, wlo, wro, wre, wot, wpr]
+ - overPairs: The returned overlap phrase pair set
+ - Algo.:
+ -   (1) get the first overlap phrase pair, create the ambiguous context for the phrasal pair,
+ -       that is, a StruGene value in which component 'prior' is invalid. The StruGene value is noted 'sgv';
+ -   (2) find the clustering mode closest to this the ambiguous context, set the resolution policy
+ -       of 'sgv' as that of the clustering mode;
+ -   (3) if there remain overlap phrase pairs, go (1); otherwise, return phrase pairs with their resolution policies.
+ -}
+ambiResolByStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> [StruGene] -> DistWeiRatioList -> [OverPair]
+ambiResolByStruGene _ overPairs [] _ _ = overPairs
+ambiResolByStruGene nPCs overPairs (pcp:pcps) struGenes distWeiRatioList
+    = ambiResolByStruGene nPCs overPairs' pcps struGenes distWeiRatioList
+    where
+    lop = fst pcp
+    rop = snd pcp
+    ot = getOverType nPCs lop rop                      -- Get overlapping type
+    leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
+    reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
+    pri = Noth
+
+    le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
+    lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+    ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
+    re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+                                                 -- The value is not used, just acted as place holder.
+    struGene = (le,lo,ro,re,ot,pri)
+    distWeiRatioList' = init distWeiRatioList ++ [0]
+    distList = map (\x -> dist4StruGeneByArithAdd struGene x distWeiRatioList') struGenes
+    minDist = minimum distList
+    idx = elemIndex minDist distList
+    idx' = case idx of
+             Just x -> x
+             Nothing -> -1                     -- Impossible position
+    pri' = sth6 (struGenes!!idx')
+    overPairs' = (lop, rop, pri'):overPairs
 
 {- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
  - rules used in this trip, the resultant phrases, and the banned phrases.

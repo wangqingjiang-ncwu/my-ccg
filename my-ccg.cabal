@@ -41,7 +41,9 @@ library
     , hspec
     , io-streams
     , mysql-haskell
+    , random
     , text
+    , time
   default-language: Haskell2010
 
 executable my-ccg-exe
@@ -74,7 +76,9 @@ executable my-ccg-exe
     , io-streams
     , my-ccg
     , mysql-haskell
+    , random
     , text
+    , time
   default-language: Haskell2010
 
 test-suite my-ccg-test
@@ -117,5 +121,7 @@ test-suite my-ccg-test
     , io-streams
     , my-ccg
     , mysql-haskell
+    , random
     , text
+    , time
   default-language: Haskell2010

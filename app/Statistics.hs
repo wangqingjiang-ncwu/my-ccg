@@ -11,7 +11,7 @@ module Statistics (
     searchInScript,                 -- Int -> Int -> Int -> IO ()
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
     truncDescListByProportion,      -- Float -> [(String, Int)] -> [(String, Int)]
-    filterByString                  -- [(Int, String)] -> String -> [(Int, String)]
+    filterByString,                 -- [(Int, String)] -> String -> [(Int, String)]
     ) where
 
 import Control.Monad
@@ -509,54 +509,6 @@ searchInTree bottomSn topSn funcIndex = do
  -}
 searchInScript :: Int -> Int -> Int -> IO ()
 searchInScript bottomSn topSn funcIndex = putStrLn "searchInScript: to do."
-
-{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
- - until read Nothing.
- -}
-readStreamByText :: [String] -> S.InputStream [MySQLValue] -> IO [String]
-readStreamByText es is = do
-    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just [MySQLText v] -> readStreamByText (es ++ [fromMySQLText (MySQLText v)]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
- - until read Nothing.
- -}
-readStreamByInt :: [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
-readStreamByInt es is = do
-    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByInt (es ++ [[fromMySQLInt8 (x!!0), fromMySQLInt64 (x!!1)]]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,
- - until read Nothing.
- - Here [MySQLValue] is [MySQLInt32U, MySQLText].
- -}
-readStreamByInt32Text :: [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
-readStreamByInt32Text es is = do
-    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByInt32Text (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1))]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
- - until read Nothing.
- - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8].
- -}
-readStreamByTextTextInt8 :: [String] -> S.InputStream [MySQLValue] -> IO [String]
-readStreamByTextTextInt8 es is = do
-    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByTextTextInt8 (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2))]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
- - until read Nothing.
- - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8, MySQLText].
- -}
-readStreamByTextTextInt8Text :: [String] -> S.InputStream [MySQLValue] -> IO [String]
-readStreamByTextTextInt8Text es is = do
-    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByTextTextInt8Text (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2)) ++ "_" ++ fromMySQLText (x!!3)]) is
-        Nothing -> return es
 
 {- Get representations in memory of parsing results of sentences.
  - <sentsResult> ::= [<sentResult>], a <sentResult> is the parsing result for a sentence.

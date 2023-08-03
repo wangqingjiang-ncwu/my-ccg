@@ -102,9 +102,17 @@ instance Ord Category where
     Nil <= X = False
     Nil <= Primitive _ = False
     Nil <= Derivative _ _ _ = False
+    X <= Nil = False
     X <= Primitive _ = False
     X <= Derivative _ _ _ = False
+    Primitive _ <= Nil = False
+    Primitive _ <= X = False
+    Primitive a <= Primitive c = (a < c)||(a==c)
     Primitive _ <= Derivative _ _ _ = False
+    Derivative _ _ _ <= Nil = False
+    Derivative _ _ _ <= X = False
+    Derivative _ _ _ <= Primitive _ = False
+    Derivative a s1 b <= Derivative c s2 d = (a < c)||((a==c)&&(b<d))||((a==c)&&(b==d)&&(s1==s2))
 
 -- Define how a category shows as a letter string.
 instance Show Category where

@@ -34,6 +34,7 @@ module Output (
     dispWidth,        -- String -> Int
     dispWidth2,       -- Category -> Seman -> Int
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
+    getCateWidth',    -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO ()
     showNSemanSymb,   -- Int -> [PhraCate] -> [[PhraCate]] -> IO ()
     findPhraStartPos, -- PhraCate -> [[PhraCate]] -> Int
@@ -339,16 +340,46 @@ dispWidth2 cate sem
       lc = length $ show cate
       ls = dispWidth sem + 1       -- Adding 1, is for colon symbol.
 
--- Compute the width of a phrasal category with letter number as unit.
--- For the initial phrasal (word) category in each line,
--- its width = upper rounding of ((category string length / 8) + 1) * 8 - 1.
--- For other categories, width = (sum of two parent categories) + 1
--- Here the original result 'ospls' of divPhraCateBySpan is needed.
-
+{- The function is a wrapper of function getCateWidth'.
+ - Compute the display width of every phrasal category such that its syntactic type and semantic expression can be displayed completely.
+ - Once the display widths of initial phrases is determined,  other phrases determine their display widths by the display widths of their parents.
+ - For every initial phrase, its display width is firstly determined by its syntactic type and semantic expression, then added by an increment delta.
+ - Here input parameter 'ospls' is the result of function divPhraCateBySpan, in which every span has one list of PhraCate.
+ -}
 getCateWidth :: PhraCate -> [[PhraCate]] -> Int
 getCateWidth x ospls
-    | sp == 0 = (div (dispWidth2 (ca!!0) (se!!0)) 8 + 1) * 8 - 1
+    | sp == 0 = (div (dispWidth2 (ca!!0) (se!!0)) 8 + 1) * 8 - 1 + delta
     | otherwise = (getCateWidth pc1 ospls) + (getCateWidth pc2 ospls) + 1
+        where
+        st = stOfCate x
+        sp = spOfCate x
+        ca = caOfCate x
+        se = seOfCate x
+        ss = ssOfCate x
+        pst1 = st
+        pst2 = ss
+        psp1 = pst2 - pst1 - 1
+        psp2 = sp - psp1 - 1
+        pc1 = (getPhraBySS (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
+        pc2 = (getPhraBySS (pst2, psp2) (ospls!!psp2))!!0     -- In a tree, only one category
+        pcs = foldl (++) [] ospls                             -- All phrases in parsing tree
+        desc = getPhraByStart st pcs                          -- Phrase x's descendants with the same start position as that of phrase x
+        widthOfDesc1 = map (\y -> getCateWidth' y ospls) desc                                  -- Width determined by those of Parents.
+        widthOfDesc2 = map (\y -> (div (dispWidth2 ((caOfCate y)!!0) ((seOfCate y)!!0)) 8 + 1) * 8 - 1) desc             -- Width determined by themselves.
+        deltas = map (\y -> fst y - snd y) (zip widthOfDesc2 widthOfDesc1)
+        delta = case deltas of
+                  [] -> 0
+                  otherwise -> maximum deltas                 -- Usually delta = 0.
+
+{- Compute the width of every initial phrase (namely word) category, such that its syntactic type and semantic expression can be displayed completely.
+ - These widths will be upperly rounded as times of Tab.
+ - Once the width of every initial phrase is determined,  other phrases determine their widths by the widths of their parents.
+ - Here the result 'ospls' of divPhraCateBySpan is needed in every recursive calling.
+ -}
+getCateWidth' :: PhraCate -> [[PhraCate]] -> Int
+getCateWidth' x ospls
+    | sp == 0 = (div (dispWidth2 (ca!!0) (se!!0)) 8 + 1) * 8 - 1
+    | otherwise = (getCateWidth' pc1 ospls) + (getCateWidth' pc2 ospls) + 1
         where
         st = stOfCate x
         sp = spOfCate x

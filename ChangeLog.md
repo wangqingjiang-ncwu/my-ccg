@@ -49,4 +49,7 @@ Besides, the distance fomula allowed assigning weights to different StruGene att
 and Prior. Actually, Prior should be assigned weight 0 so that the attribute didn't contribute to the distance between StruGene samples.
 
 Function parseSentByStruGene and related functions were designed, which resolved lexical ambiguities by the previous parsing script, and resolved
-syntactic ambiguities by the clustering result on StruGene samples. Thus, one kind of semi-automatic machine parsing has been implemented. 
+syntactic ambiguities by the clustering result on StruGene samples. Thus, one kind of semi-automatic machine parsing has been implemented.
+
+2023-9-2 Fixed display algorithm of parsing tree. In the past, the width of initial phrase (namely word) is determined by itself. Now, the width is
+added by an increment delta which is needed for diplay the descendants of the word. See function getCateWidth.

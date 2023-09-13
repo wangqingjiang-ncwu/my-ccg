@@ -43,12 +43,14 @@ module Database (
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   getConn,                     -- IO MySQLConn
-  getConnByUserWqj             -- IO MySQLConn
+  getConnByUserWqj,            -- IO MySQLConn
+  recogOk                      -- IO ()
   ) where
 
 import           Control.Monad
 import           System.IO
 import qualified System.IO.Streams as S
+import qualified Data.String as DS
 import           Database.MySQL.Base
 import           Data.List.Utils
 import           Data.List as DL
@@ -223,7 +225,7 @@ readStreamByTextTextInt8Text es is = do
 -- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
 getConn = do
-    confInfo <- readFile "C:\\Users\\dd\\Desktop\\my-ccg-master\\app\\Configuration"                                        -- Read the local configuration file
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let host = getConfProperty "Host" confInfo
     let user = getConfProperty "User" confInfo
     let password = getConfProperty "Password" confInfo
@@ -245,3 +247,52 @@ getConnByUserWqj = connect defaultConnectInfo {
     ciPassword = "wqj",
     ciDatabase = "ccg4c"
     }
+
+-- Recognize type OK in module mysql-haskell.
+recogOk :: IO ()
+recogOk = do
+    conn <- getConnByUserWqj
+    let sqlstat = DS.fromString "create table if not exists test (id int, name char(8))"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt []
+    putStrLn "recogOk: create table test (id int, name char[8])."
+    putStrLn $ "recogOk: okAffectedRows = " ++ show (getOkAffectedRows ok)
+    putStrLn $ "recogOk: okLastInsertID = " ++ show (getOkLastInsertID ok)
+    putStrLn $ "recogOk: okStatus = " ++ show (getOkStatus ok)
+    putStrLn $ "recogOk: okWarningCnt = " ++ show (getOkWarningCnt ok)
+
+    let sqlstat = DS.fromString $ "insert into test set id = ?, name = ?"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt [toMySQLInt32 1, toMySQLText "QJWang"]
+    putStrLn "recogOk: insert into test set id=1, name=\"QJWang\""
+    putStrLn $ "recogOk: okAffectedRows = " ++ show (getOkAffectedRows ok)
+    putStrLn $ "recogOk: okLastInsertID = " ++ show (getOkLastInsertID ok)
+    putStrLn $ "recogOk: okStatus = " ++ show (getOkStatus ok)
+    putStrLn $ "recogOk: okWarningCnt = " ++ show (getOkWarningCnt ok)
+
+    let sqlstat = DS.fromString $ "insert into test set id = ?, name = ?"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt [toMySQLInt32 2, toMySQLText "HSSC"]
+    putStrLn "recogOk: insert into test set id=2, name=\"HSSC\""
+    putStrLn $ "recogOk: okAffectedRows = " ++ show (getOkAffectedRows ok)
+    putStrLn $ "recogOk: okLastInsertID = " ++ show (getOkLastInsertID ok)
+    putStrLn $ "recogOk: okStatus = " ++ show (getOkStatus ok)
+    putStrLn $ "recogOk: okWarningCnt = " ++ show (getOkWarningCnt ok)
+
+    let sqlstat = DS.fromString $ "update test set name = ? where id = ?"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt [toMySQLText "HuaShui", toMySQLInt32 1]
+    putStrLn "recogOk: update test set name=\"HuaShui\" where id = 1"
+    putStrLn $ "recogOk: okAffectedRows = " ++ show (getOkAffectedRows ok)
+    putStrLn $ "recogOk: okLastInsertID = " ++ show (getOkLastInsertID ok)
+    putStrLn $ "recogOk: okStatus = " ++ show (getOkStatus ok)
+    putStrLn $ "recogOk: okWarningCnt = " ++ show (getOkWarningCnt ok)
+
+    let sqlstat = DS.fromString $ "update test set name = ? where id = ?"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt [toMySQLText "HSSC", toMySQLInt32 2]
+    putStrLn "recogOk: update test set name=\"HSSC\" where id = 2"
+    putStrLn $ "recogOk: okAffectedRows = " ++ show (getOkAffectedRows ok)
+    putStrLn $ "recogOk: okLastInsertID = " ++ show (getOkLastInsertID ok)
+    putStrLn $ "recogOk: okStatus = " ++ show (getOkStatus ok)
+    putStrLn $ "recogOk: okWarningCnt = " ++ show (getOkWarningCnt ok)

@@ -88,6 +88,7 @@ test-suite my-ccg-test
       CategorySpec
       ClusteringSpec
       CorpusSpec
+      DatabaseSpec
       OutputSpec
       ParseSpec
       PhraseSpec

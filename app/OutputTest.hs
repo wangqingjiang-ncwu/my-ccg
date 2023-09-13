@@ -100,62 +100,62 @@ outputTest = do
     putStrLn "[Here line feed is added]"
     putStrLn ""
 
-    putStrLn "The result of getCateWidth ((0,0),[(np, \"Desig\", \"Frank'\", \"DE\",True)],0) [[((0,0),[(np, \"Desig\", \"Frank'\", \"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\"), \"Frank' loves'\",\"OE\",True],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is"
-    let c11 = getCateFromString "np"
-    let c12 = getCateFromString "(s\\.np)/.np"
-    let c13 = getCateFromString "np"
-    let c21 = getCateFromString "s/.np"
-    let c31 = getCateFromString "s"
-    let pc11 = createPhraCate 0 0 [(c11, "Desig", "Frank'", "DE", True)] 0
-    let pc12 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
-    let pc13 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
-    let pc21 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
-    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
-    let width = getCateWidth pc11 [[pc11,pc12,pc13],[pc21],[pc31]]
+    putStrLn "The result of getCateWidth ((0,0),[(np, \"Desig\", \"Frank'\", \"DE\",True)],0) [[((0,0),[(np, \"Desig\", \"Frank'\", \"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\"), \"Frank' loves'\",\"OE\",True],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is "
+    let c00 = getCateFromString "np"
+    let c10 = getCateFromString "(s\\.np)/.np"
+    let c20 = getCateFromString "np"
+    let c01 = getCateFromString "s/.np"
+    let c02 = getCateFromString "s"
+    let pc00 = createPhraCate 0 0 [(c11, "Desig", "Frank'", "DE", True)] 0
+    let pc10 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
+    let pc20 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
+    let pc01 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
+    let pc02 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 2
+    let width = getCateWidth pc00 [[pc00,pc10,pc20],[pc01],[pc02]]
     putStrLn (show width)
 
     putStrLn "The result of findPhraStartPos ((0,0),[(np, \"Desig\", \"Frank\",\"DE\",True)],0) [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\", \"Frank' loves'\",\"OE\",True)],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is"
-    let c11 = getCateFromString "np"
-    let c12 = getCateFromString "(s\\.np)/.np"
-    let c13 = getCateFromString "np"
-    let c21 = getCateFromString "s/.np"
-    let c31 = getCateFromString "s"
-    let pc11 = createPhraCate 0 0 [(c11, "Desig", "Frank'", "DE", True)] 0
-    let pc12 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
-    let pc13 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
-    let pc21 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
-    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
-    let pos = findPhraStartPos pc11 [[pc11,pc12,pc13],[pc21],[pc31]]
+    let c00 = getCateFromString "np"
+    let c10 = getCateFromString "(s\\.np)/.np"
+    let c20 = getCateFromString "np"
+    let c01 = getCateFromString "s/.np"
+    let c02 = getCateFromString "s"
+    let pc00 = createPhraCate 0 0 [(c00, "Desig", "Frank'", "DE", True)] 0
+    let pc10 = createPhraCate 1 0 [(c10, "Desig", "loves'", "DE", True)] 1
+    let pc20 = createPhraCate 2 0 [(c20, "Desig", "Mary'", "DE", True)] 2
+    let pc01 = createPhraCate 0 1 [(c01, ">T->B", "Frank' loves'" , "OE", True)] 1
+    let pc02 = createPhraCate 0 2 [(c02,">", "(Frank' loves') Mary'" , "NR", True)] 2
+    let pos = findPhraStartPos pc00 [[pc00,pc10,pc20],[pc01],[pc02]]
     putStrLn (show pos)
     putStrLn ""
 
     putStrLn "The result of findPhraStartPos ((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1) [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\", \"Frank' loves'\",\"OE\",True)],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is"
-    let c11 = getCateFromString "np"
-    let c12 = getCateFromString "(s\\.np)/.np"
-    let c13 = getCateFromString "np"
-    let c21 = getCateFromString "s/.np"
-    let c31 = getCateFromString "s"
-    let pc11 = createPhraCate 0 0 [(c11, "Desig", "Frank'", "DE", True)] 0
-    let pc12 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
-    let pc13 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
-    let pc21 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
-    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
-    let pos = findPhraStartPos pc12 [[pc11,pc12,pc13],[pc21],[pc31]]
+    let c00 = getCateFromString "np"
+    let c10 = getCateFromString "(s\\.np)/.np"
+    let c20 = getCateFromString "np"
+    let c01 = getCateFromString "s/.np"
+    let c02 = getCateFromString "s"
+    let pc00 = createPhraCate 0 0 [(c00, "Desig", "Frank'", "DE", True)] 0
+    let pc10 = createPhraCate 1 0 [(c10, "Desig", "loves'", "DE", True)] 1
+    let pc20 = createPhraCate 2 0 [(c20, "Desig", "Mary'", "DE", True)] 2
+    let pc01 = createPhraCate 0 1 [(c01, ">T->B", "Frank' loves'" , "OE", True)] 1
+    let pc02 = createPhraCate 0 2 [(c02,">", "(Frank' loves') Mary'" , "NR", True)] 2
+    let pos = findPhraStartPos pc10 [[pc00,pc10,pc20],[pc01],[pc02]]
     putStrLn (show pos)
     putStrLn ""
 
     putStrLn "The result of findPhraStartPos ((1,1),[(s\\.np, \">\", \"loves' Mary'\",\"VO\",True)],2) [[((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0),((1,0),[((s\\.np)/.np, \"Desig\", \"loves'\",\"DE\",True)],1), ((2,0),[(np, \"Desig\", \"Mary'\",\"DE\",True)],2)],[((0,1),[(s/.np, \">T->B\", \"Frank' loves'\",\"OE\",True)],1)],[((0,2),[(s, \">\", \"(Frank' loves') Mary'\",\"NR\",True)],2)]] is"
-    let c11 = getCateFromString "np"
-    let c12 = getCateFromString "(s\\.np)/.np"
-    let c13 = getCateFromString "np"
-    let c21 = getCateFromString "s\\.np"
-    let c31 = getCateFromString "s"
-    let pc11 = createPhraCate 0 0 [(c11, "Desig", "Frank'", "DE", True)] 0
-    let pc12 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
-    let pc13 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
-    let pc21 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
-    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
-    let pos = findPhraStartPos pc21 [[pc11,pc12,pc13],[pc21],[pc31]]
+    let c00 = getCateFromString "np"
+    let c10 = getCateFromString "(s\\.np)/.np"
+    let c20 = getCateFromString "np"
+    let c01 = getCateFromString "s/.np"
+    let c02 = getCateFromString "s"
+    let pc00 = createPhraCate 0 0 [(c00, "Desig", "Frank'", "DE", True)] 0
+    let pc10 = createPhraCate 1 0 [(c10, "Desig", "loves'", "DE", True)] 1
+    let pc20 = createPhraCate 2 0 [(c20, "Desig", "Mary'", "DE", True)] 2
+    let pc01 = createPhraCate 0 1 [(c01, ">T->B", "Frank' loves'" , "OE", True)] 1
+    let pc02 = createPhraCate 0 2 [(c02,">", "(Frank' loves') Mary'" , "NR", True)] 2
+    let pos = findPhraStartPos pc01 [[pc00,pc10,pc20],[pc01],[pc02]]
     putStrLn (show pos)
     putStrLn ""
 
@@ -305,7 +305,7 @@ outputTest = do
     let pc12 = createPhraCate 1 0 [(c12, "Desig", "loves'", "DE", True)] 1
     let pc13 = createPhraCate 2 0 [(c13, "Desig", "Mary'", "DE", True)] 2
     let pc21 = createPhraCate 0 1 [(c21, ">T->B", "Frank' loves'" , "OE", True)] 1
-    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 1
+    let pc31 = createPhraCate 0 2 [(c31,">", "(Frank' loves') Mary'" , "NR", True)] 2
     showCateStartPos [[pc11,pc12,pc13],[pc21],[pc31]] [[pc11,pc12,pc13],[pc21],[pc31]]
     putStrLn ""
 

@@ -36,7 +36,7 @@ spec = do
     it "The result of dist4StruGeneByArithAdd ([(getCateFromString \"np\", \">\", \"AHn\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"s\\.np\",\"<B\",\"AHn\") ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] is 9.0" $ do
       let sg1 = ([(getCateFromString "np", ">", "AHn")], (getCateFromString "s", ">", "DHv"), (getCateFromString "s\\.np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
-      let weigthList = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      let weigthList = [1, 1, 1, 1, 1, 1]
       dist4StruGeneByArithAdd sg1 sg2 weigthList `shouldBe` (9.0 :: Float)
 
     it "The result of dist4StruGeneByNormArithMean ([(getCateFromString \"np\", \">\", \"AHn\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"s\\.np\",\"<B\",\"AHn\"), [(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) is 11.0/18.0" $ do

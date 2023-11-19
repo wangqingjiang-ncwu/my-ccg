@@ -29,6 +29,7 @@ import Utils
 import Database
 import Corpus
 import SentParse (sentToClauses, dispTree')
+import Output(showScript, showScript')
 
 {- The following functions read field 'tree' of table 'corpus', then count all clauses according the input index.
  - 1. Get total number of sentences;
@@ -275,8 +276,10 @@ countInScript bottomSn topSn funcIndex = do
     let sentClauScriptList = toSentClauScriptList sentClauStrList               -- [[Script]], here a Script is the representation in memory of parsing script of a clause.
 
     -- Output the following for test.
-    putStrLn $ "countInScript: The script list of clauses in first sentence: " ++ show (sentClauScriptList!!0)
-    putStrLn $ "countInScript: The script of first clause in first sentence: " ++ show ((sentClauScriptList!!0)!!0)
+    putStr "countInScript: The script list of clauses in first sentence: "
+    showScript (sentClauScriptList!!0)
+    putStr "countInScript: The script of first clause in first sentence: "
+    showScript' [((sentClauScriptList!!0)!!0)]
 
     if funcIndex == 1                                         -- To get transitive times of every clause in all sentences.
        then do

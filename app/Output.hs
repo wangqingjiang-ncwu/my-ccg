@@ -25,6 +25,7 @@ module Output (
     showOverPair,     -- OverPair -> IO ()
     showNOverPair,    -- [OverPair] -> IO ()
     showScript,       -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
+    showScript',      -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
     showTree,         -- [[PhraCate]] -> IO ()
     showATree,        -- Int -> [[PhraCate]] -> IO ()

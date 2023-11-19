@@ -1,7 +1,7 @@
 # Parameters for database connection
 Host:127.0.0.1
 User:root
-Password:1234
+Password:wqj@ncwu
 Database:ccg4c
 
 # Source of parsing scripts, such as 'corpus', 'treebank1'.

@@ -440,14 +440,16 @@ cateComb onOff pc1 pc2
       ctspaByaToDa = ctspaByaToDa_DHa
       catesByaToDa = [(fst5 cate, "Da/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToDa]
 
--- The category conversion from np/.np to np\*np happens when a (measured) numeral occupies completment position.
-      a_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
+-- The category conversion from np/.np or np/*np to np\*np happens when a (measured) numeral occupies completment position.
+      a_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp_2]
+          where
+          csp_2 = removeDup [x| x <- csp2, elem True (map (\y-> cateEqual y (fst3 x)) [adjCate, numeralCate])]
       ctspaByaToCn_HnC = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- a_Cn_HnC, elem Cna onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
+
       ctspaByaToCn = ctspaByaToCn_HnC
       catesByaToCn = [(fst5 cate, "Cn/a-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByaToCn]
-
 
 -- The category conversion from np/.np to (s\.np)\x(s\.np) happens when the adjective occupies completment position.
       a_Cv_HvC = removeDup [(verbCompCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]

@@ -10,12 +10,16 @@ module Output (
     showNSeman,       -- [PhraCate] -> IO ()
     showNSeman2,      -- [(Category, Seman)] -> IO ()
     showPhraCate,     -- PhraCate -> IO ()
+    showPhraSyn,      -- PhraSyn -> IO ()
+    showStruGene,     -- StruGene -> IO ()
+    showStruGeneSample,  -- StruGeneSample -> IO ()
     putNCtsca,        -- [(Category, Tag, Seman, PhraStru, Act)] -> IO ()
     getNCtsca_String, -- [(Category, Tag, Seman, PhraStru, Act)] -> String
     getPhraCate_String,  -- PharCate -> string
     showNPhraCateLn,     -- [PhraCate] -> IO ()
     showNPhraCate,       -- [PhraCate] -> IO ()
     showNPhraCateWithoutNewLine,    -- [PhraCate] -> IO ()
+    showNPhraSynLn,      -- [PhraSyn] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     showAmbiModel1Frag,    -- PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
@@ -24,18 +28,23 @@ module Output (
     showNPhraCatePairList, -- [[(PhraCate, PhraCate)]] -> IO ()
     showOverPair,     -- OverPair -> IO ()
     showNOverPair,    -- [OverPair] -> IO ()
+    showOverPairid,   -- OverPairid -> IO ()
+    showNOverPairid,  -- [OverPairid] -> IO ()
     showScript,       -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
-    showScript',      -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
+    showScript',      -- [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
     showTree,         -- [[PhraCate]] -> IO ()
+    showTrees,        -- [[PhraCate]] -> IO ()
     showATree,        -- Int -> [[PhraCate]] -> IO ()
     showForestWithTreeStru,      -- [[PhraCate]] -> IO ()
     showTreeStru,     -- [[PhraCate]] -> [[PhraCate]] -> IO ()
     showNCateLine,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO ()
+    showSLR,          -- SLROfATrans -> IO ()
+    showSLROfClause,  -- SLROfClause -> IO ()
+    showSLROfSent,    -- SLROfSent-> IO ()
     dispWidth,        -- String -> Int
     dispWidth2,       -- Category -> Seman -> Int
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
-    getCateWidth',    -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO ()
     showNSemanSymb,   -- Int -> [PhraCate] -> [[PhraCate]] -> IO ()
     findPhraStartPos, -- PhraCate -> [[PhraCate]] -> Int
@@ -50,11 +59,17 @@ import Rule
 import Phrase
 import Parse
 import Corpus
-import AmbiResol (OverPair, OverType, Prior)
+--import AmbiResol (PhraSyn, OverPair, OverType, Prior,)
+import AmbiResol
 import Utils
 import Data.Char
 import Data.List
 import Data.Tuple.Utils
+
+type Stub = [PhraCate]
+type SLROfATrans = (Stub, [Rule])
+type SLROfClause = [SLROfATrans]
+type SLROfSent = [SLROfClause]
 
 getSemStr :: String -> String
 getSemStr [] = []
@@ -119,6 +134,45 @@ showPhraCate pc = do
     putNCtsca (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
+showPhraSyn :: PhraSyn -> IO ()
+showPhraSyn ps = putStr $ "(" ++ show (fst3 ps) ++ "," ++ (snd3 ps) ++ "," ++ (thd3 ps) ++ ")"
+
+
+showNPhraSyn :: [PhraSyn] -> IO ()
+showNPhraSyn [] = putStr "[]"
+showNPhraSyn [x] = do
+    putStr "["
+    showPhraSyn x
+    putStr "]"
+showNPhraSyn (x:xs) = do
+    putStr "["
+    putNPS (x:xs)
+    putStr "]"
+
+showStruGene :: StruGene -> IO ()
+showStruGene sg = do
+    putStr "("
+    showNPhraSyn (fst6 sg)
+    putStr ","
+    showPhraSyn (snd6 sg)
+    putStr ","
+    showPhraSyn (thd6 sg)
+    putStr ","
+    showNPhraSyn (fth6 sg)
+    putStr $ ","++ show (fif6 sg) ++ ","++ show (sth6 sg) ++ ")"
+
+showStruGeneSample :: StruGeneSample -> IO ()
+showStruGeneSample sgs = do
+    putStr $ "(" ++ show (fst7 sgs) ++ ","
+    showNPhraSyn (snd7 sgs)
+    putStr ","
+    showPhraSyn (thd7 sgs)
+    putStr ","
+    showPhraSyn (fth7 sgs)
+    putStr ","
+    showNPhraSyn (fif7 sgs)
+    putStr $ ","++ show (sth7 sgs) ++ ","++ show (svt7 sgs) ++ ")"
+
 putNCtsca :: [(Category,Tag,Seman,PhraStru,Act)] -> IO ()
 putNCtsca [] = putStr ""
 putNCtsca [x] = putStr $ "(" ++ show (fst5 x) ++ "," ++ (snd5 x) ++ "," ++ (thd5 x) ++ "," ++ (fth5 x) ++ "," ++ show (fif5 x) ++ ")"
@@ -158,6 +212,25 @@ showNPhraCate (x:xs) = do
     putStr "["
     putNPC (x:xs)
     putStr "]"
+
+showNPhraSynLn :: [PhraSyn] -> IO ()
+showNPhraSynLn [] = putStrLn "[]"
+showNPhraSynLn [x] = do
+    putStr "["
+    showPhraSyn x
+    putStrLn "]"
+showNPhraSynLn (x:xs) = do
+    putStr "["
+    putNPS (x:xs)
+    putStrLn "]"
+
+putNPS :: [PhraSyn] -> IO ()
+putNPS [] = putStr ""
+putNPS [x] = showPhraSyn x
+putNPS (x:xs) = do
+    showPhraSyn x
+    putStr ","
+    putNPS xs
 
 showNPhraCateWithoutNewLine :: [PhraCate] -> IO ()
 showNPhraCateWithoutNewLine [] = putStr "[]"
@@ -265,6 +338,32 @@ showNOverPair' (op:ops) = do
     putStr ", "
     showNOverPair' ops
 
+showOverPairid :: OverPairid -> IO ()
+showOverPairid (lp, rp, prior, id) = do
+    putStr "("
+    showPhraCate lp
+    putStr ", "
+    showPhraCate rp
+    putStr ", "
+    putStr $ show prior
+    putStr ", "
+    putStr $ show id
+    putStr ")"
+
+showNOverPairid :: [OverPairid] -> IO ()
+showNOverPairid ops = do
+    putStr "["
+    showNOverPairid' ops
+    putStrLn "]"
+
+showNOverPairid' :: [OverPairid] -> IO ()
+showNOverPairid' [] = putStr ""
+showNOverPairid' [op] = showOverPairid op
+showNOverPairid' (op:ops) = do
+    showOverPairid op
+    putStr ", "
+    showNOverPairid' ops
+
 showScript :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
 showScript [] = putStrLn ""
 showScript (s:ss) = do
@@ -300,6 +399,22 @@ showTree [] = putStrLn ""
 showTree spls = do
     showNPhraCate (head spls)
     showTree (tail spls)
+
+showTrees :: [[PhraCate]] -> IO ()
+showTrees [] = putStrLn "[]"
+showTrees sp = do
+    putStr "["
+    showTrees' sp
+    putStr "]"
+
+showTrees' :: [[PhraCate]] -> IO ()
+showTrees' [] = putStr ""
+showTrees' [s] = do
+    showNPhraCateLn s
+showTrees' (s:ss) = do
+    showNPhraCateLn s
+    putStrLn ","
+    showTrees' ss
 
 showATree :: Int -> [[PhraCate]] -> IO ()
 showATree ind pcss
@@ -340,6 +455,30 @@ dispWidth2 cate sem
     where
       lc = length $ show cate
       ls = dispWidth sem + 1       -- Adding 1, is for colon symbol.
+
+{-- Compute the width of a phrasal category with letter number as unit.
+-- For the initial phrasal (word) category in each line,
+-- its width = upper rounding of ((category string length / 8) + 1) * 8 - 1.
+-- For other categories, width = (sum of two parent categories) + 1
+-- Here the original result 'ospls' of divPhraCateBySpan is needed.
+
+getCateWidth :: PhraCate -> [[PhraCate]] -> Int
+getCateWidth x ospls
+    | sp == 0 = (div (dispWidth2 (ca!!0) (se!!0)) 8 + 1) * 8 - 1
+    | otherwise = (getCateWidth pc1 ospls) + (getCateWidth pc2 ospls) + 1
+        where
+        st = stOfCate x
+        sp = spOfCate x
+        ca = caOfCate x
+        se = seOfCate x
+        ss = ssOfCate x
+        pst1 = st
+        pst2 = ss
+        psp1 = pst2 - pst1 - 1
+        psp2 = sp - psp1 - 1
+        pc1 = (getPhraBySS (pst1, psp1) (ospls!!psp1))!!0     -- In a tree, only one category
+        pc2 = (getPhraBySS (pst2, psp2) (ospls!!psp2))!!0     -- In a tree, only one category
+-}
 
 {- The function is a wrapper of function getCateWidth'.
  - Compute the display width of every phrasal category such that its syntactic type and semantic expression can be displayed completely.
@@ -434,6 +573,51 @@ showNCateLine curPos (x:xs) ospls = do
     catWid = getCateWidth x ospls
     catTag = taOfCate x
     newPos = catPos + catWid + 1
+
+showSLR :: SLROfATrans -> IO ()
+showSLR slr = do
+    putStr "("
+    showNPhraCateLn (fst slr)
+    putStr ","
+    putStr $ show (snd slr)
+    putStr ")"
+
+showSLROfClause :: SLROfClause -> IO ()
+showSLROfClause [] = putStrLn "[]"
+showSLROfClause s = do
+    putStr "["
+    showSLROfClause' s
+    putStrLn "]"
+
+showSLROfClause' :: SLROfClause -> IO ()
+showSLROfClause' [] = putStr ""
+showSLROfClause' [s] = do
+    putStr "("
+    showNPhraCate (fst s)
+    putStr ","
+    putStr $ show (snd s)
+    putStr ")"
+showSLROfClause' (s:ss) = do
+    showSLROfClause' [s]
+--    putStrLn ","
+    putStr ","
+    showSLROfClause' ss
+
+showSLROfSent :: SLROfSent-> IO ()
+showSLROfSent [] = putStrLn ""
+showSLROfSent (s:ss) = do
+    putStr "["
+    showSLROfSent' (s:ss)
+    putStrLn "]"
+
+showSLROfSent' :: SLROfSent -> IO ()
+showSLROfSent' [] = putStr ""
+showSLROfSent' [s] = do
+    showSLROfClause s
+showSLROfSent' (s:ss) = do
+    showSLROfSent' [s]
+    putStr ","
+    showSLROfSent' ss
 
 -- Show symbol strings of phrasal categories in a certain span line.
 -- The input is phrasal categories with same span and in order of ascending of Start.

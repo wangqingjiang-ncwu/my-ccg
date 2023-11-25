@@ -25,6 +25,7 @@ module Utils (
     sth7,          -- (a,b,c,d,e,f,g) -> f
     svt7,          -- (a,b,c,d,e,f,g) -> g
     removeDup,     -- Eq a => [a] -> [a]
+    removeDup',    -- Eq a => [a] -> [a] -> [a]
     removeTuple,   -- Eq a => [(a,a)] -> [(a,a)]
     tupToList,     -- Eq a => [(a,a)] -> [a]
     throwBrac,     -- String -> String
@@ -52,7 +53,9 @@ module Utils (
     listLength,    -- String -> Int
     stringToList,      -- String -> [String]
     listToString,      -- [String] -> String
+    stringToTuple,     -- String -> (String,String)
     stringToTriple,    -- String -> (String,String,String)
+    stringToFiveTuple,  -- String -> (String,String,String,String,String)
     stringToSixTuple,  -- String -> (String,String,String,String,String,String)
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
     rewriteBackSlash,  -- String -> string
@@ -155,6 +158,14 @@ removeDup [x] = [x]
 removeDup (x:xs)
     | elem x xs = removeDup xs
     | otherwise = x:(removeDup xs)
+
+removeDup' :: Eq a => [a] -> [a] -> [a]
+removeDup' [] newList = newList
+removeDup' (x:xs) newList = removeDup' xs newList'
+    where
+      newList' = case notElem x newList of
+                   True -> newList ++ [x]
+                   False -> newList
 
 -- Remove duplicate 2-tuples. For (t1,t2) and (t2,t1), only the first is remained.
 removeTuple :: Eq a => [(a,a)] -> [(a,a)]
@@ -392,6 +403,14 @@ listToString [] = "[]"
 listToString [s] = "[" ++ s ++ "]"
 listToString (s:ss) = "[" ++ s ++ "," ++ init (tail (listToString ss)) ++ "]"
 
+-- Get (String, String) from the String of a tuple.
+stringToTuple :: String -> (String, String)
+stringToTuple str = (first, second)
+    where
+      str' = "[" ++ init (tail (throwHTSpace str)) ++ "]"
+      first = listHead str'
+      second = listLast str'
+
 -- Get (String, String, String) from the String of a triple.
 stringToTriple :: String -> (String, String, String)
 stringToTriple str = (first, second, third)
@@ -400,6 +419,17 @@ stringToTriple str = (first, second, third)
       first = listHead str'
       second = listHead (listDrop 1 str')
       third = listLast str'
+
+-- Get (String, String, String, String, String) from the String of a five-tuple.
+stringToFiveTuple :: String -> (String, String, String, String, String)
+stringToFiveTuple str = (first, second, third, fourth, fifth)
+    where
+      str' = "[" ++ init (tail (throwHTSpace str)) ++ "]"
+      first = listHead str'
+      second = listHead (listDrop 1 str')
+      third = listHead (listDrop 2 str')
+      fourth = listHead (listDrop 3 str')
+      fifth = listLast str'
 
 -- Get (String, String, String, String, String, String) from the String of a six-tuple.
 stringToSixTuple :: String -> (String, String, String, String, String, String)

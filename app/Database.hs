@@ -40,8 +40,10 @@ module Database (
   readStreamByText,                --[String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByInt,                 -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+  readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByInt32U3TextInt8Text, -- [String] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
   getConn,                     -- IO MySQLConn
   getConnByUserWqj,            -- IO MySQLConn
   recogOk                      -- IO ()
@@ -60,6 +62,8 @@ import           Data.Text as DT hiding (length, map, head, last, foldl)
 import           Data.Word
 import           Data.ByteString.Char8 as BC hiding (putStrLn, readFile, map, head, last)
 import           Utils
+import           AmbiResol
+import           Phrase(getPhraCateFromString, getPhraCateListFromString)
 
 fromMySQLInt8 :: MySQLValue -> Int
 fromMySQLInt8 (MySQLInt8 a) = read (show a) :: Int
@@ -202,6 +206,16 @@ readStreamByInt32Text es is = do
         Just x -> readStreamByInt32Text (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1))]) is
         Nothing -> return es
 
+{- Read a value from input stream [MySQLValue], append it to existed list [(Int, String, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText, MySQLText].
+ -}
+readStreamByInt32TextText :: [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
+readStreamByInt32TextText es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32TextText (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1), fromMySQLText (x!!2))]) is
+        Nothing -> return es
+
 {- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,
  - until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLInt8].
@@ -222,10 +236,26 @@ readStreamByTextTextInt8Text es is = do
         Just x -> readStreamByTextTextInt8Text (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2)) ++ "_" ++ fromMySQLText (x!!3)]) is
         Nothing -> return es
 
+{- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it
+ - to existed StruGeneSample list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32,MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText].
+ -}
+readStreamByInt32U3TextInt8Text :: [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+readStreamByInt32U3TextInt8Text es is = do
+    S.read is >>= \x -> case x of                                          -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32U3TextInt8Text (es ++ [(fromMySQLInt32U (x!!0),
+                                                    getPhraCateFromString (fromMySQLText (x!!1)),
+                                                    getPhraCateFromString (fromMySQLText (x!!2)),
+                                                    getPhraCateListFromString (fromMySQLText (x!!3)),
+                                                    fromMySQLInt8 (x!!4),
+                                                    readPriorFromStr (fromMySQLText (x!!5)))]) is
+        Nothing -> return es
+
 -- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
 getConn = do
-    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+--  confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    confInfo <- readFile "d:\\github\\my-ccg\\app\\Configuration"
     let host = getConfProperty "Host" confInfo
     let user = getConfProperty "User" confInfo
     let password = getConfProperty "Password" confInfo

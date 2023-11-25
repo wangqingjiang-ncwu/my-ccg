@@ -14,6 +14,8 @@ module Phrase (
     isPhrase,      -- PhraCate -> Bool
     nilPhra,       -- Phracate
     getPhraCateFromString,     -- String -> PhraCate
+    getPhraCateListFromString,         -- String -> [PhraCate]
+    getPhraCateListFromStrList,        -- [String] -> [PhraCate]
     phraCateToString,          -- PhraCate -> String
     nPhraCateToString,         -- [PhraCate] -> String
     createPhraCate,            -- Start -> Span -> [(Category,Tag,Seman,PhraStru,Act)] -> SecStart -> PhraCate
@@ -24,9 +26,12 @@ module Phrase (
     ctspaOfActCate,            -- PhraCate -> [(Category, Tag, Seman, PhraStru, Act)]
     ctpaOfCate,    -- PhraCate -> [(Category, Tag, PhraStru, Act)]
     ctpOfCate,     -- PhraCate -> [(Category, Tag, PhraStru)]
+    ctpOfCateList, -- [PhraCate] -> [(Category, Tag, PhraStru)]
     tpaOfCate,     -- PhraCate -> [(Tag, PhraStru, Act)]
     ctspOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
     ctspOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
+    phraCateWithoutAct,    -- PhraCate -> ((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)
+    nPhraCateWithoutAct,   -- [PhraCate] -> [((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)]
     cspOfCate,     -- PhraCate -> [(Category, Seman, PhraStru)]
     cspOfActCate,  -- PhraCate -> [(Category, Seman, PhraStru)]
     caOfCate,      -- PhraCate -> [Category]
@@ -34,6 +39,7 @@ module Phrase (
     taOfCate,      -- PhraCate -> [Tag]
     taOfActCate,   -- PhraCate -> [Tag]
     seOfCate,      -- PhraCate -> [Seman]
+    nseOfCate,     -- [PhraCate] -> [Seman] -> [Seman]
     seOfActCate,   -- PhraCate -> [Seman]
     psOfCate,      -- PhraCate -> [PhraStru]
     psOfActCate,   -- PhraCate -> [PhraStru]
@@ -93,6 +99,7 @@ nilPhra = ((-1,-1),[],-1)
 
 -- Get a phraCate from a string. The string has format "((start,span),[(cate,tag,sem,phraStru,act)],secStart)".
 getPhraCateFromString :: String -> PhraCate
+getPhraCateFromString "" = error "getPhraCateFromString: Input is null."
 getPhraCateFromString str = ((st,sp),[(cate,tag,sem,phraStru,act)],ss)
     where
     s = splitAtDeli ',' str
@@ -104,6 +111,16 @@ getPhraCateFromString str = ((st,sp),[(cate,tag,sem,phraStru,act)],ss)
     phraStru = throwHTSpace (s!!5)
     act = read (throwBrac (s!!6)) :: Bool
     ss = read (throwBrac (s!!7)) :: Int
+
+-- Get a list of phrasal categories from a string. The string has format "[((start,span),[(cate,tag,sem,phraStru,act)],secStart)]".
+getPhraCateListFromString :: String -> [PhraCate]
+getPhraCateListFromString "" = error "getPhraCateListFromString: Input is null."
+getPhraCateListFromString str = getPhraCateListFromStrList (stringToList str)
+
+-- Get a list of phrasal categories from a list of string, where one string is the string of a phrasal category.
+getPhraCateListFromStrList :: [String] -> [PhraCate]
+getPhraCateListFromStrList [] = []
+getPhraCateListFromStrList (s:ss) = getPhraCateFromString s : getPhraCateListFromStrList ss
 
 -- Get the string of a phrasal category.
 phraCateToString :: PhraCate -> String
@@ -152,6 +169,13 @@ ctpaOfCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, fth5 x, fif5 x)) ctspa
 ctpOfCate :: PhraCate -> [(Category, Tag, PhraStru)]              -- Get syntactic information of a phrase
 ctpOfCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, fth5 x)) ctspa
 
+ctpOfCateList :: [PhraCate] -> [(Category, Tag, PhraStru)] -> [(Category, Tag, PhraStru)]
+ctpOfCateList [] origCtpList = origCtpList
+ctpOfCateList (x:xs) origCtpList = ctpOfCateList xs newCtpList
+    where
+      ctp = ctpOfCate x
+      newCtpList = origCtpList ++ ctp
+
 tpaOfCate :: PhraCate -> [(Tag, PhraStru, Act)]                   -- Get syntactic information of a phrase
 tpaOfCate (_, ctspa, _) = map (\x -> (snd5 x, fth5 x, fif5 x)) ctspa
 
@@ -160,6 +184,18 @@ ctspOfCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) ctspa
 
 ctspOfActCate :: PhraCate -> [(Category, Tag, Seman, PhraStru)]
 ctspOfActCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) [y| y <- ctspa, fif5 y]
+
+phraCateWithoutAct :: PhraCate -> ((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)
+phraCateWithoutAct (ss, ctspa, st) = (ss, ctsp, st)
+    where
+    ctsp = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) ctspa
+
+nPhraCateWithoutAct :: [PhraCate] -> [((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)] -> [((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)]
+nPhraCateWithoutAct [] origPcs = origPcs
+nPhraCateWithoutAct (x:xs) origPcs = nPhraCateWithoutAct xs newPcs
+    where
+    pc = phraCateWithoutAct x
+    newPcs = origPcs ++ [pc]
 
 cspOfCate :: PhraCate -> [(Category, Seman, PhraStru)]
 cspOfCate (_, ctspa, _) = map (\x -> (fst5 x, thd5 x, fth5 x)) ctspa
@@ -191,6 +227,13 @@ seOfCate :: PhraCate -> [Seman]
 seOfCate pc = [thd5 c | c <- ctspa]
     where
     ctspa = ctspaOfCate pc
+
+nseOfCate :: [PhraCate] -> [Seman] -> [Seman]
+nseOfCate [] origSeList = origSeList
+nseOfCate (x:xs) origSeList = nseOfCate xs newSeList
+    where
+    se = (seOfCate x)!!0
+    newSeList = origSeList ++ [se]
 
 seOfActCate :: PhraCate -> [Seman]
 seOfActCate pc = [thd5 c | c <- ctspa, fif5 c == True]

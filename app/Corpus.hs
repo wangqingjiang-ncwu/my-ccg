@@ -35,6 +35,7 @@ module Corpus (
     readScript,          -- String -> Script
     readPCList,          -- String -> [PhraCate]
     readTrees,           -- String -> [Tree]
+    readSLROfSent,       -- String -> SLROfSent
     getTreeDepth,        -- Tree -> Int
     readRuleSet,         -- String -> [Rule]
     readRule,            -- String -> Rule
@@ -45,6 +46,9 @@ module Corpus (
     nScriptToString,     -- [Script] -> String
     treeToString,        -- Tree -> String
     nTreeToString,       -- [Tree] -> String
+    aSLRToString,        -- SLROfATrans -> String
+    clauseSLRToString,   -- SLROfClause -> String
+    nClauseSLRToString,   -- SLROfSent -> String
     closureToString,     -- Closure -> String
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
@@ -481,6 +485,19 @@ readPCList str = map getPhraCateFromString (stringToList str)
 readTrees :: String -> [[PhraCate]]
 readTrees str = map readPCList (stringToList str)
 
+readSLROfTrans :: String -> SLROfATrans
+readSLROfTrans str = (stub, rule)
+    where
+      tupleStr = stringToTuple str
+      stub = map getPhraCateFromString $ stringToList (fst tupleStr)
+      rule = readRuleSet (snd tupleStr)
+
+readSLROfClause :: String -> SLROfClause
+readSLROfClause str = map readSLROfTrans (stringToList str)
+
+readSLROfSent :: String -> SLROfSent
+readSLROfSent str = map readSLROfClause (stringToList str)
+
 -- Get the depth of a tree, namely the biggest depth of its leaves.
 getTreeDepth :: Tree -> Int
 getTreeDepth [] = 0                                        -- Empty tree
@@ -555,8 +572,8 @@ readRule str
     | str == "Dx/d" = Dxd      -- d10
     | str == "Doe/d" = Doed    -- d11
     | str == "D/p" = Dp        -- p1
-    | str == "O/oe" = Noe      -- oe1
-    | str == "Hn/oe" = Noe     -- oe2
+    | str == "O/oe" = Ooe      -- oe1
+    | str == "Hn/oe" = Hnoe     -- oe2
     | str == "N/oe" = Noe      -- oe3
     | str == "N/pe" = Npe      -- pe1
     | str == "A/q" = Aq        -- q1
@@ -583,6 +600,23 @@ treeToString tree = nPhraCateToString tree
 -- Get the String fron a [Tree] value.
 nTreeToString :: [Tree] -> String
 nTreeToString trees = listToString (map treeToString trees)
+
+type Stub = [PhraCate]
+type SLROfATrans = (Stub, [Rule])
+type SLROfClause = [SLROfATrans]
+type SLROfSent = [SLROfClause]
+
+aSLRToString :: SLROfATrans -> String
+aSLRToString slr = "(" ++ stub ++ "," ++ ruleSets ++ ")"
+    where
+      stub = nPhraCateToString (fst slr)
+      ruleSets = show (snd slr)
+
+clauseSLRToString :: SLROfClause -> String
+clauseSLRToString clauSLR = listToString (map aSLRToString clauSLR)
+
+nClauseSLRToString :: SLROfSent -> String
+nClauseSLRToString clauSLRs = listToString (map clauseSLRToString clauSLRs)
 
 type Closure = [PhraCate]
 type Forest = [[PhraCate]]

@@ -5,7 +5,7 @@ Password:wqj@ncwu
 Database:ccg4c
 
 # Source of parsing scripts, such as 'corpus', 'treebank1'.
-script_source:corpus
+script_source:treebank1
 
 # Source of parsing trees, such as 'corpus', 'treebank1'.
 tree_source:treebank1

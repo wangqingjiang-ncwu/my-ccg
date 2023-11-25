@@ -28,6 +28,13 @@ spec = do
       let q2 = (getCateFromString "np",">B","SP")
       distPhraSynSet [p1,p2] [q1,q2] `shouldBe` (2.5 :: Float)
 
+    it "The result of distPhraSynSet' [(getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"s\", \">\", \"DHv\")] [(getCateFromString \"s\\.np\", \"<B\", \"AHn\") (getCateFromString \"np\", \">B\", \"SP\")] is 2.5" $ do
+      let p1 = (getCateFromString "np", ">", "AHn")
+      let p2 = (getCateFromString "s", ">", "DHv")
+      let q1 = (getCateFromString "s\\.np","<B","AHn")
+      let q2 = (getCateFromString "np",">B","SP")
+      distPhraSynSet' [p1,p2] [q1,q2] `shouldBe` (2.5 :: Float)
+
     it "The result of distVect4StruGene ([(getCateFromString \"np\", \">\", \"AHn\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"s\\.np\",\"<B\",\"AHn\") ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) is [2.0, 2.0, 1.0, 3.0, 1.0, 0.0]" $ do
       let sg1 = ([(getCateFromString "np", ">", "AHn")], (getCateFromString "s", ">", "DHv"), (getCateFromString "s\\.np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
@@ -36,7 +43,7 @@ spec = do
     it "The result of dist4StruGeneByArithAdd ([(getCateFromString \"np\", \">\", \"AHn\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"s\\.np\",\"<B\",\"AHn\") ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] is 9.0" $ do
       let sg1 = ([(getCateFromString "np", ">", "AHn")], (getCateFromString "s", ">", "DHv"), (getCateFromString "s\\.np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
-      let weigthList = [1, 1, 1, 1, 1, 1]
+      let weigthList = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       dist4StruGeneByArithAdd sg1 sg2 weigthList `shouldBe` (9.0 :: Float)
 
     it "The result of dist4StruGeneByNormArithMean ([(getCateFromString \"np\", \">\", \"AHn\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"s\\.np\",\"<B\",\"AHn\"), [(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) is 11.0/18.0" $ do

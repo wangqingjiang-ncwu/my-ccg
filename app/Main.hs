@@ -356,12 +356,33 @@ doParseSentByScript username = do
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
+    confInfo <- readFile "Configuration"               -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
-    readTree_String sn >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.
+    readTree_String sn tree_source >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.    interpreter username
     interpreter username
 
+{-- 9. Display parsing Trees of the sentence indicated by serial_num.
+doDisplayTreesForASent :: String -> IO ()
+doDisplayTreesForASent username = do
+--    confInfo <- readFile "Configuration"               -- Read the local configuration file
+    confInfo <- readFile "d:\\github\\my-ccg\\app\\Configuration"
+    let tree_source = getConfProperty "tree_source" confInfo
+    let ambi_resol_result_tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
+
+    putStr "Please input value of 'serial_num': "
+    line <- getLine
+    let sn = read line :: Int
+--    readTree_String sn tree_source >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.
+    clauses <- (readTree_String sn tree_source >>= sentToClauses)
+    clauses' <- (readTree_String sn ambi_resol_result_tree_source >>= sentToClauses)
+    dispComparisonTreesOfAmbiResolResult 1 clauses clauses' tree_source ambi_resol_result_tree_source
+
+    interpreter username
+-}
 -- A. Do statistical analysis about table corpus and stru_gene, and display results.
 doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
@@ -654,7 +675,7 @@ doTestfunctionOfMaxminPoint = do
     conn <- getConn
     stmt <- prepareStmt conn "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from stru_gene where id >= ? and id <= ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
-    struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+    struGeneSampleList <- readStreamByInt324TextInt8Text [] is
     putStrLn $ "doTestfunctionOfMaxminPoint: " ++ show (length struGeneSampleList)
     let m1 = head struGeneSampleList
     let sgs = tail struGeneSampleList
@@ -682,6 +703,7 @@ doTestfunctionOfUpdateCentre4ACluster = do
     closeStmt conn stmt
 -}
 
+maxValOfInt = maxBound :: Int
 --  scml = sample cluster mark list
 
 -- D_3. Given kVal and sNum, do clustering.
@@ -700,10 +722,11 @@ doOnceClustering = do
     let wot = read (getConfProperty "wot" confInfo) :: Int
     let wpr = read (getConfProperty "wpr" confInfo) :: Int
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+    let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
     putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
                ++ ", distDef = " ++ distDef ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum
-               ++ ", distWeiRatioList = " ++ show distWeiRatioList
+               ++ ", distWeiRatioList = " ++ show distWeiRatioList'
     let arm = if | ambi_resol_model == "stru_gene" -> "SG"
                  | ambi_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
@@ -712,58 +735,7 @@ doOnceClustering = do
                 | otherwise -> "Nothing"
 
     putStrLn $ "doOnceClustering: arm = " ++ arm ++ ", df = " ++ df
-    autoRunClustByChangeKValSNum arm df kVal (kVal, 0, kVal) (sNum, 0, sNum) distWeiRatioList
-
-{-    if | arm == "Nothing" -> putStrLn "doTestfunctionOfIteration: 'ambi_resol_model' is not correct."
-       | df == "Nothing" -> putStrLn "doTestfunctionOfIteration: 'distDef' is not correct."
-       | otherwise -> do
-           t1 <- getCurrentTime
-           putStrLn $ "doTestfunctionOfIteration: arm = " ++ arm ++ ", df = " ++ df
-           let tblName = "clust_res_k" ++ kValStr ++ "_" ++ "s" ++ sNumStr ++ "_" ++ arm ++ "_" ++ df
-           let timeTblName = "clust_time_" ++ arm ++ "_" ++ df
-           let sqlstat = DS.fromString $ "drop table if exists " ++ tblName
-           stmt <- prepareStmt conn sqlstat
-           executeStmt conn stmt []
-
-           let sqlstat = DS.fromString $ "create table " ++ tblName ++ " (iNo tinyint primary key, sampleClustInfo mediumtext, modes mediumtext, distMean float)"
-           stmt <- prepareStmt conn sqlstat
-           executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering result.
-
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id >= ? and id <= ? "
-           stmt <- prepareStmt conn sqlstat
-           (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 sNum]
-
-           struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
-           let m1 = head struGeneSampleList
-           let sps = tail struGeneSampleList
-           let initialKPoints = getKModeByMaxMinPoint sps [m1] Map.empty kVal
-           let scml = findCluster4AllSamplesByArithAdd struGeneSampleList initialKPoints kVal 0 []
-           let clusterMap = divideSameCluster scml Map.empty
-           let origDistTotal = distTotalByClust scml 0.0
-           let distMean = origDistTotal / fromIntegral sNum
-           storeOneIterationResult tblName 0 scml initialKPoints distMean       -- Store the first clustering result.
-           ti1 <- getCurrentTime                                                -- Start time of iteration
-           finalINoDistMean <- findFinalCluster4AllSamplesByArithAdd tblName clusterMap initialKPoints kVal 1 origDistTotal
-           ti2 <- getCurrentTime                                                -- End time of iteration
---         forM_ scml' $ \scm -> putStrLn $ "doTestfunctionOfIteration: " ++ show scm
-           closeStmt conn stmt
-
-           putStrLn $ "doTestfunctionOfIteration: " ++ " final iNo and distMean are " ++  show finalINoDistMean
-           t2 <- getCurrentTime
-           let totalRunTime = diffUTCTime t2 t1
---           let its = fif5 (scml'!!0)                                            -- times of iteration.
-           let its = fst finalINoDistMean                                       -- times of iteration.
-           let finalDistMean = snd finalINoDistMean
-           let iterMeanTime = (diffUTCTime ti2 ti1) / fromIntegral its
-           putStrLn $ "doTestfunctionOfIteration: totalRunTime = " ++ show totalRunTime ++ ", iterMeanTime = " ++ show iterMeanTime ++ ", times of iterations = " ++ show (its + 1)
-
-           let sqlstat = DS.fromString $ "create table if not exists " ++ timeTblName ++ " (kVal int, sNum int, totalTime float, iterMeanTime float, iNo tinyint, finalDistMean float, primary key (kVal, sNum))"
-           stmt <- prepareStmt conn sqlstat
-           ok <- executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering time.
-           putStrLn $ "doTestfunctionOfIteration: okStatus = " ++ show (getOkStatus ok)
-           close conn
-           storeClusterTime timeTblName kVal sNum totalRunTime iterMeanTime its finalDistMean
--}
+    autoRunClustByChangeKValSNum arm df kVal (kVal, 0, kVal) (sNum, 0, sNum) distWeiRatioList'
 
 {- D_4. From bottomKVal to topKVal, kVal increases every time by deltaKVal.
  - From bottomSNum to topSNum, sNum increases every time by deltaSNum.
@@ -788,12 +760,13 @@ doClustering4DiffKValSNum = do
     let wot = read (getConfProperty "wot" confInfo) :: Int
     let wpr = read (getConfProperty "wpr" confInfo) :: Int
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+    let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
     putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
                ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
                ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
                ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
-               ++ ", distWeiRatioList = " ++ show distWeiRatioList
+               ++ ", distWeiRatioList = " ++ show distWeiRatioList'
 
     let arm = if | ambi_resol_model == "stru_gene" -> "SG"
                  | ambi_resol_model == "ambi_resol1" -> "AR1"
@@ -803,7 +776,7 @@ doClustering4DiffKValSNum = do
                 | otherwise -> "Nothing"
 
     putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
-    autoRunClustByChangeKValSNum arm df bottomKVal (bottomKVal, deltaKVal, topKVal) (bottomSNum, deltaSNum, topSNum) distWeiRatioList
+    autoRunClustByChangeKValSNum arm df bottomKVal (bottomKVal, deltaKVal, topKVal) (bottomSNum, deltaSNum, topSNum) distWeiRatioList'
 --    autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum []
 
 {- D_5. Store all ambiguity resolution accuracy for all cluster results.

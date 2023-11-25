@@ -7,6 +7,7 @@
 module Clustering (
     distPhraSyn,               -- PhraSyn -> PhraSyn -> Int
     distPhraSynSet,            -- [PhraSyn] -> [PhraSyn] -> Float
+    distPhraSynSet',           -- [PhraSyn] -> [PhraSyn] -> Float
     distVect4StruGene,         -- StruGene -> StruGene -> [Float]
     DistWeiRatioList,          -- [Int], namely [wle, wlo, wro, wre, wot, wpr]
     dist4StruGeneByArithAdd,            -- StruGene -> StruGene -> DistWeiRatioList -> Float
@@ -30,7 +31,7 @@ module Clustering (
     SIdx,                                -- Int
     ClusterMap,                          -- Map CIdx [StruGene]
     findFinalCluster4AllSamplesByArithAdd,    -- TableName -> ClusterMap -> CentreList -> KVal -> INo -> DistTotal -> DistWeiRatioList -> IO (INo, Dist)
-    readStreamByInt32U4TextInt8Text,          -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
+    readStreamByInt324TextInt8Text,           -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
     storeOneIterationResult,                  -- TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
     storeClusterTime,                         -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Float -> IO ()
     autoRunClustByChangeKValSNum,             -- String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
@@ -44,6 +45,7 @@ import Category
 import Phrase
 import AmbiResol
 import Utils
+import Output
 import Data.Tuple.Utils
 import Prelude
 import Data.List
@@ -89,6 +91,27 @@ distPhraSynSet ps qs = fromIntegral distSum / fromIntegral distNum              
     distSum = foldl (+) 0 distSet
     distNum = length distSet
 
+{- Nomalize the distance between two PhraSyn sets.
+ - When two sets are same, the distance is 0.0.
+ - when one set is null and another set is not, the distance is 3.0.
+ - For other situations, the distance formulas should be studied again.
+ -}
+distPhraSynSet' :: [PhraSyn] -> [PhraSyn] -> Float
+distPhraSynSet' [] [] = 0.0
+distPhraSynSet' [] _ = 3.0       -- The second PhraSyn set is not null.
+distPhraSynSet' _ [] = 3.0       -- The first PhraSyn set is not null.
+distPhraSynSet' ps qs
+    | ps' == [] && qs' == [] = 0.0
+    | ps' /= [] && qs' /= [] = fromIntegral distSum / fromIntegral distNum
+    | otherwise = 3.0 / fromIntegral distNum
+    where
+    sameElem = [x | x <- ps, elem x qs]
+    ps' = [x | x <- ps, notElem x sameElem]
+    qs' = [x | x <- qs, notElem x sameElem]
+    distSet = [distPhraSyn pi qj | pi <- ps', qj <- qs']
+    distSum = foldl (+) 0 distSet
+    distNum = length ps * length qs
+
 {- The distance vector between two StruGenes.
  - For ambiguity model StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior), the distance vector is obtained by following function.
  - Normalize the first 4 distances to [0,1] in distance vector.
@@ -113,7 +136,8 @@ type DistWeiRatioList = [Int]     -- [wle, wlo, wro, wre, wot, wpr]
 {- Arithmetically added distance between two StruGenes.
  -}
 dist4StruGeneByArithAdd :: StruGene -> StruGene -> DistWeiRatioList -> Float
-dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList / fromIntegral ratioTotal
+-- dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList / fromIntegral ratioTotal
+dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList
     where
     distList = map (\x -> fromIntegral (fst x) * snd x) $ zip distWeiRatioList $ distVect4StruGene s1 s2
     ratioTotal = foldl (+) 0 distWeiRatioList
@@ -274,8 +298,7 @@ findCluster4ASampleByNormArithMean sp ccl kVal = (sp, dMin, cIdx', ge, 0)
  -}
 
 {- 按簇号CIdx把所有样本划分成簇
-
-
+ SampleClusterMark : (StruGeneSample,DMin,CIdx,StruGene,INo)
 -}
 divideSameCluster :: [SampleClusterMark] -> Map.Map CIdx [StruGeneSample] -> Map.Map CIdx [StruGeneSample]
 divideSameCluster [] origMap = origMap
@@ -520,16 +543,36 @@ findFinalCluster4AllSamplesByArithAdd tblName clusterMap origCentreList kVal iNo
         let finalDistMean = origDistTotal / fromIntegral (length scml)
         return (iNo, finalDistMean)
 
+{- 发现所有样本的聚类结果
+ -}
+findFinalCluster4AllSamplesWithoutPri :: TableName -> ClusterMap -> CentreList -> KVal -> INo -> DistTotal -> DistWeiRatioList -> IO (INo, Dist)
+findFinalCluster4AllSamplesWithoutPri tblName clusterMap origCentreList kVal iNo origDistTotal distWeiRatioList = do
+    let newCentreList = updateCentre4AllCluster (Map.elems clusterMap) []
+    let struGeneSampleList = Map.foldr (++) [] clusterMap                             -- recover original samples.
+    let scml = findCluster4AllSamplesByArithAdd struGeneSampleList newCentreList kVal iNo [] distWeiRatioList
+    let newClusterMap = divideSameCluster scml Map.empty
+    let newDistTotal = distTotalByClust scml 0.0
+    let distMean = newDistTotal / fromIntegral (length scml)
+    storeOneIterationResult tblName iNo scml newCentreList distMean
+    putStrLn $ "findFinalCluster4AllSamplesByArithAdd: iNo = " ++ show iNo ++ ", origDistTotal = " ++ show origDistTotal ++ ", newDistTotal = " ++ show newDistTotal
+    if newDistTotal < origDistTotal
+--    if iNo < 20
+      then findFinalCluster4AllSamplesByArithAdd tblName newClusterMap newCentreList kVal (iNo + 1) newDistTotal distWeiRatioList
+--      else return scml
+      else do
+        let finalDistMean = origDistTotal / fromIntegral (length scml)
+        return (iNo, finalDistMean)
+
 --对上面的距离和迭代次数画图表示，也可以用手肘法找到合适的迭代次数，到此聚类结束
 
 {- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it
  - to existed StruGeneSample list, then read the next until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText].
  -}
-readStreamByInt32U4TextInt8Text :: [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
-readStreamByInt32U4TextInt8Text es is = do
+readStreamByInt324TextInt8Text :: [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
+readStreamByInt324TextInt8Text es is = do
     S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByInt32U4TextInt8Text (es ++ [(fromMySQLInt32U (x!!0),
+        Just x -> readStreamByInt324TextInt8Text (es ++ [(fromMySQLInt32 (x!!0),
                                                     readPhraSynListFromStr (fromMySQLText (x!!1)),
                                                     readPhraSynFromStr (fromMySQLText (x!!2)),
                                                     readPhraSynFromStr (fromMySQLText (x!!3)),
@@ -546,6 +589,9 @@ type TableName = String
  -}
 storeOneIterationResult :: TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
 storeOneIterationResult tblName iNo scml kCentres distMean = do
+    let cIdxPriorsTuple = map (\x -> (thd5 x, [(svt7 . fst5) x])) scml
+    let priorsOfSameCIdx = Map.toList $ getPriorsOfSameClusterMap cIdxPriorsTuple Map.empty
+--    putStrLn $ "Priors which are from same cluster will be expressed in the following form: " ++ show priorsOfSameCIdx
     let scd = map (\x -> ((fst7 . fst5) x, thd5 x, snd5 x)) scml                 -- [(SIdx, CIdx, DMin)]
     let scdStr = nScdToString scd                                        -- Get the string of [(SIdx, CIdx, DMin)]
     let modesStr = nStruGeneToString kCentres                            -- Get the string of [StruGene]
@@ -556,6 +602,18 @@ storeOneIterationResult tblName iNo scml kCentres distMean = do
     stmt <- prepareStmt conn sqlstat
     executeStmt conn stmt [toMySQLInt8 iNo, toMySQLText scdStr, toMySQLText modesStr, toMySQLFloat distMean]
     close conn
+
+type CIdxPriorsTuple = (SIdx, [Prior])
+
+{- 求显示同一聚类里的prior
+ - (x:xs): PhraSyn列表
+ - origFreqOfPhraSyn: 原PhraSyn的频次“字典”
+ -}
+getPriorsOfSameClusterMap :: [CIdxPriorsTuple] -> Map.Map CIdx [Prior] -> Map.Map CIdx [Prior]
+getPriorsOfSameClusterMap [] origPriorOfSameCluster = origPriorOfSameCluster
+getPriorsOfSameClusterMap (x:xs) origPriorOfSameCluster = getPriorsOfSameClusterMap xs newPriorOfSameCluster
+    where
+    newPriorOfSameCluster = Map.insertWith (++) (fst x) (snd x) origPriorOfSameCluster
 
 type TimeTableName = String
 type SNum = Int
@@ -611,18 +669,18 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
     if | arm == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'ambi_resol_model' is not correct."
        | df == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'distDef' is not correct."
        | otherwise -> do
-           t1 <- getCurrentTime
-{-
+--           t1 <- getCurrentTime
+{-初始聚类随机选点
            let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
-           struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+           struGeneSampleList <- readStreamByInt324TextInt8Text [] is
            let sIdxStruGeneMap = Map.fromList $ map (\x -> (fst7 x, (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x))) struGeneSampleList
            randomSIdsList <- getRandomsList kVal 1 sNum []
            let randomInitalModes = getStruGenebySIdsList randomSIdsList sIdxStruGeneMap []
 -}
-           let clustResTbl = "clust_res_k" ++ show kVal ++ "_" ++ "s" ++ show sNum ++ "_" ++ arm ++ "_" ++ df ++ "_w" ++ (foldl (++) "" (map show distWeiRatioList))
-           let timeTbl = "clust_time_" ++ arm ++ "_" ++ df
+           let clustResTbl = "clust_res_k" ++ show kVal ++ "_" ++ "s" ++ show sNum ++ "_" ++ arm ++ "_" ++ df ++ "_w" ++ (foldl (++) "" (map show (init distWeiRatioList)))
+        --   let timeTbl = "clust_time_" ++ arm ++ "_" ++ df ++ "_w" ++ (foldl (++) "" (map show (init distWeiRatioList)))
            let sqlstat = DS.fromString $ "drop table if exists " ++ clustResTbl
            stmt <- prepareStmt conn sqlstat
            executeStmt conn stmt []
@@ -635,7 +693,7 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 sNum]
 
-           struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+           struGeneSampleList <- readStreamByInt324TextInt8Text [] is
            let m1 = head struGeneSampleList
            let sps = tail struGeneSampleList
            let initialKPoints = getKModeByMaxMinPoint sps [m1] Map.empty kVal distWeiRatioList
@@ -645,19 +703,19 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            let origDistTotal = distTotalByClust scml 0.0
            let distMean = origDistTotal / fromIntegral sNum
            storeOneIterationResult clustResTbl 0 scml initialKPoints distMean       -- Store the first clustering result.
-           ti1 <- getCurrentTime                                                -- Start time of iteration
+--           ti1 <- getCurrentTime                                                -- Start time of iteration
            finalINoDistMean <- findFinalCluster4AllSamplesByArithAdd clustResTbl clusterMap initialKPoints kVal 1 origDistTotal distWeiRatioList
-           ti2 <- getCurrentTime                                                -- End time of iteration
+--           ti2 <- getCurrentTime                                                -- End time of iteration
 --         forM_ scml' $ \scm -> putStrLn $ "autoRunClustByChangeKValSNum: " ++ show scm
            closeStmt conn stmt
 
            putStrLn $ "autoRunClustByChangeKValSNum: " ++ " final iNo and distMean are " ++  show finalINoDistMean
-           t2 <- getCurrentTime
-           let totalRunTime = diffUTCTime t2 t1
+{-            t2 <- getCurrentTime
+--           let totalRunTime = diffUTCTime t2 t1
 --           let its = fif5 (scml'!!0)                                            -- times of iteration.
            let its = fst finalINoDistMean                                       -- times of iteration.
            let finalDistMean = snd finalINoDistMean
-           let iterMeanTime = (diffUTCTime ti2 ti1) / fromIntegral its
+          let iterMeanTime = (diffUTCTime ti2 ti1) / fromIntegral its
            putStrLn $ "autoRunClustByChangeKValSNum: totalRunTime = " ++ show totalRunTime ++ ", iterMeanTime = " ++ show iterMeanTime ++ ", times of iterations = " ++ show (its + 1)
 
            let sqlstat = DS.fromString $ "create table if not exists " ++ timeTbl ++ " (kVal int, sNum int, totalTime float, iterMeanTime float, iNo tinyint, finalDistMean float, primary key (kVal, sNum))"
@@ -668,6 +726,11 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            storeClusterTime timeTbl kVal sNum totalRunTime iterMeanTime its finalDistMean
            putStrLn $ "The clustering of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " has finished."
 
+           let struGeneSampleOfLpList = getStruGeneSampleOfLp struGeneSampleList []
+           clusterToStruGeneSampleListFromDB struGeneSampleOfLpList clustResTbl arm df kVal kValRange sNumRange distWeiRatioList
+           let struGeneSampleOfRpList = [x | x <- struGeneSampleList, notElem x struGeneSampleOfLpList]
+           clusterToStruGeneSampleListFromDB struGeneSampleOfRpList clustResTbl arm df kVal kValRange sNumRange distWeiRatioList
+-}
            let kVal' = kVal + snd3 kValRange
            let (kVal'', sNum') = case kVal' > thd3 kValRange of
                                    True -> (fst3 kValRange, sNum + snd3 sNumRange)
@@ -675,6 +738,34 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            if (sNum' > thd3 sNumRange || snd3 kValRange == 0)
              then putStrLn "autoRunClustByChangeKValSNum: End."
              else autoRunClustByChangeKValSNum arm df kVal'' kValRange (sNum', snd3 sNumRange, thd3 sNumRange) distWeiRatioList
+
+getStruGeneSampleOfLp :: [StruGeneSample] -> [StruGeneSample] -> [StruGeneSample]
+getStruGeneSampleOfLp [] struGeneSampleOfLpList = struGeneSampleOfLpList
+getStruGeneSampleOfLp (x:xs) struGeneSampleOfLpList = getStruGeneSampleOfLp xs struGeneSampleOfLpList'
+    where
+    struGeneSampleOfLpList' = case svt7 x == Lp of
+                               True -> struGeneSampleOfLpList ++ [x]
+                               False -> struGeneSampleOfLpList
+
+clusterToStruGeneSampleListFromDB :: [StruGeneSample] -> String -> String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
+clusterToStruGeneSampleListFromDB struGeneSampleList clustResTbl arm df kVal kValRange sNumRange distWeiRatioList = do
+    let sNum = fst3 sNumRange
+    let m1 = head struGeneSampleList
+    let sps = tail struGeneSampleList
+    let actualKVal = div kVal 2
+    let initialKPoints = getKModeByMaxMinPoint sps [m1] Map.empty actualKVal distWeiRatioList
+    let scml = findCluster4AllSamplesByArithAdd struGeneSampleList initialKPoints actualKVal 0 [] distWeiRatioList
+
+    let clusterMap = divideSameCluster scml Map.empty
+    let origDistTotal = distTotalByClust scml 0.0
+    let distMean = origDistTotal / fromIntegral sNum
+    storeOneIterationResult clustResTbl 0 scml initialKPoints distMean       -- Store the first clustering result.
+    finalINoDistMean <- findFinalCluster4AllSamplesByArithAdd clustResTbl clusterMap initialKPoints actualKVal 1 origDistTotal distWeiRatioList
+
+    putStrLn $ "autoRunClustByChangeKValSNum: " ++ " final iNo and distMean are " ++  show finalINoDistMean
+    putStrLn $ "The clustering of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " has finished."
+
+
 
 autoRunGetAmbiResolAccuracyOfAllClustRes :: String -> String -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> IO ()
 autoRunGetAmbiResolAccuracyOfAllClustRes arm df kVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum = do
@@ -696,7 +787,7 @@ autoRunGetAmbiResolAccuracyOfAllClustRes arm df kVal bottomKVal deltaKVal topKVa
            let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
-           struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+           struGeneSampleList <- readStreamByInt324TextInt8Text [] is
            let sIdxStruGeneMap = Map.fromList $ map (\x -> (fst7 x, (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x))) struGeneSampleList
 
            randomSIdsList1 <- getRandomsList kVal 1 sNum []
@@ -770,7 +861,7 @@ queryStruGenebySIdsList idsList struGeneList = do
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 x]
 
-    struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+    struGeneSampleList <- readStreamByInt324TextInt8Text [] is
     let m = head struGeneSampleList       -- Only a value in struGeneSampleList
     let struGeneList' = struGeneList ++ [(snd7 m, thd7 m, fth7 m, fif7 m, sth7 m, svt7 m)]
 
@@ -829,7 +920,7 @@ getAmbiResolAccuracyOfAClustRes = do
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
 
-    struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+    struGeneSampleList <- readStreamByInt324TextInt8Text [] is
     let sams = findAmbiResolResOfAllSamples struGeneSampleList finalModesList []
 --    putStrLn $ "The ambiguity resolution result is for first samples range in " ++ show startId ++ "~" ++ show endId ++ " is " ++ show sams ++ " ."
     let hitResList = map (\x -> snd3 x == thd3 x) sams
@@ -901,12 +992,12 @@ getAmbiResolSamples = do
     let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
     conn <- getConn
 
-    if ambi_resol_samples == "stru_gene"
+    if ambi_resol_samples == "stru_gene2"
       then do
         let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_samples
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []                    -- [int unsigned, varchar, ..]
-        struGeneSampleList <- readStreamByInt32U4TextInt8Text [] is
+        struGeneSampleList <- readStreamByInt324TextInt8Text [] is
         return struGeneSampleList
       else if (splitAtDeli '_' ambi_resol_samples)!!4 == "sg"
         then do

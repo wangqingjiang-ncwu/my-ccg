@@ -5,7 +5,9 @@
 
 module SentParse (
     getSentFromDB,        -- Int -> IO String
+    getSentListFromDB,    -- Int -> Int -> IO [(Int, String)]
     getSent,              -- String -> IO [String]
+--    getSentList,              -- String -> IO [String]
     parseSent,            -- Int -> Int -> [String] -> IO Bool
     goBackTo,             -- Int -> Int -> IO ()
     parseSent',           -- Int -> [String] -> IO ()
@@ -17,11 +19,19 @@ module SentParse (
     doTrans,              -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([OnOff],[PhraCate],[PhraCate])
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
+    autoRunParseSentByScript, -- Int -> Int -> IO ()
     parseSentByScript,    -- Int -> [String] -> IO ()
     parseSentByScript',   -- Int -> [String] -> [Script] -> IO Bool
     parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
     doTransWithScript,    -- [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
-    parseSentByStruGene,  -- Int -> [String] -> IO ()
+    getPhraStruCSFromStruGene2,       -- Int -> Int -> IO ()
+    autoverifyEffectOfPhraStruCS,     -- Int -> IO ()
+    autoRunGrammarAmbiResol,          -- Int -> Int -> IO ()
+    autoRunCollectPhraSyn,            -- Int -> Int -> IO ()
+    autoRunAmbiResolByStruGene,       -- Int -> Int -> IO ()
+    parseSentByStruGene,              -- Int -> [String] -> IO ()
+    getStruGene1FromAmbiResol1,       -- Int -> Int -> IO ()
+    getAccuracyOfAmbiResol,           -- IO ()
     doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
     ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
     ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
@@ -33,9 +43,9 @@ module SentParse (
     sentToClauses,        -- String -> IO [String]
     dispTree,             -- [String] -> IO ()
     dispTree',            -- Int -> [String] -> IO ()
+    dispComparisonTreesOfAmbiResolResult,   -- Int -> [String] -> [String] -> String -> String -> IO ()
     getClauPhraCate,      -- String -> [PhraCate]
     parseSentWithoutPruning      -- [Rule] -> [String] -> IO ()
-
     ) where
 
 import Control.Monad
@@ -53,12 +63,14 @@ import Data.String.Utils
 import Phrase
 import Rule
 import Corpus
-import AmbiResol (OverType, Prior(..), OverPair, StruGene)
+--import AmbiResol (OverType, Prior(..), OverPair, StruGene)
+import AmbiResol
 import Clustering
 import Parse
 import Output
 import Utils
 import Database
+import qualified Data.Map as Map
 
 -- Get a sentence from table corpus, actually the sentence is content of column cate_sent2.
 getSentFromDB :: Int -> IO String
@@ -69,6 +81,15 @@ getSentFromDB sn = do
     S.read is >>= \case
       Just [MySQLText v] -> return $ fromMySQLText (MySQLText v)
       Nothing -> return ""
+
+-- Get some sentences from table corpus, actually the sentences are content of column cate_sent2.
+getSentListFromDB :: Int -> Int -> [(Int, String)] -> IO [(Int, String)]
+getSentListFromDB startSn endSn sentList = do
+    conn <- getConn
+    stmt <- prepareStmt conn "select serial_num, cate_sent2 from corpus where serial_num >= ? and serial_num <= ?"
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]
+    sentList <- readStreamByInt32Text [] is
+    return sentList
 
 -- Split a sentence into clauses.
 getSent :: String -> IO [String]
@@ -142,26 +163,26 @@ goBackTo sn ci = do
 
 --  putStrLn $ "goBackTo: tree: " ++ (fromMySQLText (head row'))
 
-    let tree = readTrees $ fromMySQLText (row'!!0)
-    let script = readScripts $ fromMySQLText (row'!!1)
+    let trees = readTrees $ fromMySQLText (row'!!0)
+    let scripts = readScripts $ fromMySQLText (row'!!1)
 
-    if length tree + 1 < ci
+    if length trees + 1 < ci
       then do
-        putStrLn $ "goBackTo: " ++ show (length tree) ++ " clauses were parsed, skip failed."
+        putStrLn $ "goBackTo: " ++ show (length trees) ++ " clauses were parsed, skip failed."
         return False
-      else if length tree + 1 == ci
+      else if length trees + 1 == ci
              then do
-               putStrLn $ "goBackTo: " ++ show (length tree) ++ " clauses were parsed, skip succeeded."
+               putStrLn $ "goBackTo: " ++ show (length trees) ++ " clauses were parsed, skip succeeded."
                return True
              else do
-               let tree' = take (ci - 1) tree
-               let script' = take (ci - 1) script
+               let trees' = take (ci - 1) trees
+               let scripts' = take (ci - 1) scripts
                let sqlstat = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
                stmt' <- prepareStmt conn sqlstat
-               ok <- executeStmt conn stmt' [toMySQLText (nTreeToString tree'), toMySQLText (nScriptToString script'), toMySQLInt32 sn]
+               ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
                if (getOkAffectedRows ok == 1)
                then do
-                 putStrLn $ "goBackTo: " ++ show (length tree') ++ " clauses were parsed, skip succeeded."
+                 putStrLn $ "goBackTo: " ++ show (length trees') ++ " clauses were parsed, skip succeeded."
                  return True
                else do
                  putStrLn $ "goBackTo: skip failed!"
@@ -581,6 +602,15 @@ updateStruGene' gene overPairs = do
                   putStrLn "updateStruGene': Illegal priority"
                   updateStruGene' gene overPairs   -- Calling the function itself again.
 
+autoRunParseSentByScript :: Int -> Int -> IO ()
+autoRunParseSentByScript startSn endSn = do
+    putStrLn $ "Sentence No." ++ show startSn ++ "start to create SLR."
+    getSentFromDB startSn >>= getSent >>= parseSentByScript startSn
+    let startSn' = startSn +1
+    if startSn' <= endSn
+      then autoRunParseSentByScript startSn' endSn
+      else putStrLn "autoRunParseSentByScript: End."
+
 {- Re-parse a sentence according the previously created parsing script.
  - Here every clause is a String, and parsing starts from the first clause.
  - The first parameter is the value of 'serial_num' in database Table 'corpus'.
@@ -608,6 +638,84 @@ parseSentByScript sn cs = do
 
     putStr $ " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
     clauIdx <- getLine
+    if clauIdx /= ""
+      then do
+        let ci = read clauIdx :: Int
+        if ci < 1 || ci > length cs
+          then putStrLn $ "Clause " ++ show ci ++ " does not exist!"
+          else do
+            let skn = ci - 1                       -- Number of clauses to be Skipped, namely the index of first clause to be parsed.
+  --            finFlagAndSLRAndTree <- parseSentByScript' sn skn (drop skn cs) (drop skn script')
+            finFlagAndSLRAndTree <- parseSentByScript' sn skn [cs!!skn] [script'!!skn]
+            if (fst4 finFlagAndSLRAndTree)
+              then do
+                let query = DS.fromString ("select SLR from treebank1 where serial_num = ?")       -- Query is instance of IsString.
+                stmt <- prepareStmt conn query
+                (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+                sLRStrListOfSent <- readStreamByText [] is      -- [String], only a sentence str
+                let sLRListOfSent = readSLROfSent (sLRStrListOfSent!!0)
+                let sLRListOfSent' = case length sLRListOfSent == ci of         -- 按小句顺序从1小句开始分析，每个小句分析结果存入SLR,若某小句分析错误可再次进行分析直到分析正确，接着对之后的小句进行分析
+                                       True -> init sLRListOfSent ++ (snd4 finFlagAndSLRAndTree) -- 若某小句分析错误可再次进行分析
+                                       False -> sLRListOfSent ++ (snd4 finFlagAndSLRAndTree)     --对第1小句和其他的小句
+                let ciAnalyResult = case ((snd . fth4) finFlagAndSLRAndTree == []) of
+                                      True -> True
+                                      False -> False
+                let tagClause = (length cs, (ci,ciAnalyResult))          -- (小句个数，(分析到该小句,该小句分析结果标志))
+                let sqlstat = DS.fromString $ "update treebank1 set SLR = ?, tagClause = ? where serial_num = ?"
+                stmt <- prepareStmt conn sqlstat
+                ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString sLRListOfSent'), toMySQLText (show tagClause), toMySQLInt32 sn]
+                putStrLn $ "(snd4 finFlagAndSLRAndTree) = " ++ show (snd4 finFlagAndSLRAndTree)
+                let tagOfClauAnaly = (1, (fst . fth4) finFlagAndSLRAndTree, (snd . fth4) finFlagAndSLRAndTree)
+                putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
+                putStrLn $ "Sentence NO."++ show sn ++"' Clause NO." ++ show ci ++ " analyzes end."
+{-
+ --针对已经分析完的小句，但是SLR里有的小句是错误的
+                if (length sLRListOfSent == length cs)
+                  then do
+                    let sLRListOfSent' = take (ci - 1) sLRListOfSent ++ (snd4 finFlagAndSLRAndTree)++ drop ci sLRListOfSent
+                    let sqlstat = DS.fromString $ "update treebank1 set SLR = ? where serial_num = ?"
+                    stmt <- prepareStmt conn sqlstat
+                    ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString sLRListOfSent'), toMySQLInt32 sn]
+
+                    putStrLn $ "(snd4 finFlagAndSLRAndTree) = " ++ show (snd4 finFlagAndSLRAndTree)
+                    let tagOfClauAnaly = (1, (fst . fth4) finFlagAndSLRAndTree, (snd . fth4) finFlagAndSLRAndTree)
+                    putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
+                    putStrLn $ "Sentence NO."++ show sn ++"' Clause NO." ++ show ci ++ " analyzes end."
+                  else putStrLn $ "Sentence NO." ++ show sn ++ "' length of SLR is not equal the number of clauses."
+-}
+              else putStrLn $ "Sentence NO."++ show sn ++"' Clause NO." ++ show ci ++ " analyzes unsuccessfully."
+
+      else do
+        finFlagAndSLRAndTree <- parseSentByScript' sn 0 cs script'
+        if (fst4 finFlagAndSLRAndTree)
+          then do
+            let query = DS.fromString ("select tree from treebank1 where serial_num = ?")       -- Query is instance of IsString.
+            stmt <- prepareStmt conn query
+            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+            rows <- S.toList is
+            let origTrees = readTrees $ fromMySQLText ((rows!!0)!!0)
+            let origTrees' = map (sortPhraCateBySpan) origTrees
+            let newTree = thd4 finFlagAndSLRAndTree
+
+            putStrLn "origTrees: "
+            showTrees origTrees'
+            putStrLn "newTree: "
+            showTrees newTree
+            putStrLn "parseSentByScript2: Finished parsing."
+
+            let tagOfClauAnaly = (length origTrees, (fst . fth4) finFlagAndSLRAndTree, (snd . fth4) finFlagAndSLRAndTree)
+
+            let sqlstat = DS.fromString $ "update treebank1 set SLR = ?, tagClause = ? where serial_num = ?"
+            stmt <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString (snd4 finFlagAndSLRAndTree)), toMySQLText (show tagOfClauAnaly), toMySQLInt32 sn]
+            close conn
+--                putStrLn $ "SLRSampleOfSent2 = "
+--                showSLROfSent (snd4 finFlagAndSLRAndTree)
+            putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
+            putStrLn $ "Sentence NO."++ show sn ++" has "++ show (length origTrees) ++" clauses, of which "++ show ((fst . fth4) finFlagAndSLRAndTree) ++ " clauses are the same as the origial clauses."
+          else putStrLn "parseSentByScript2: Not finished parsing."
+
+{-
     if clauIdx /= ""                                   -- Not RETURN
       then do
         let ci = read clauIdx :: Int
@@ -618,20 +726,55 @@ parseSentByScript sn cs = do
             if gbtFlag
               then do
                 let skn = ci - 1                       -- Number of clauses to be Skipped, namely the index of first clause to be parsed.
-                finFlag <- parseSentByScript' sn skn (drop skn cs) (drop skn script')
-                if finFlag
-                  then putStrLn "parseSentByScript: Finished parsing."
-                  else putStrLn "parseSentByScript: Not finished parsing."
-              else putStrLn "parseSentByScript: Parsing was cancelled."         -- goBackTo failed, return upper layer calling.
+                finFlagAndSLRAndTree <- parseSentByScript' sn skn (drop skn cs) (drop skn script')
+
+                if (fst4 finFlagAndSLRAndTree)
+                  then do
+                    putStrLn "parseSentByScript1: Finished parsing."
+
+                    let sqlstat = DS.fromString $ "update treebank1 set SLR = ? where serial_num = ?"
+                    stmt <- prepareStmt conn sqlstat
+                    ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString (snd4 finFlagAndSLRAndTree)), toMySQLInt32 sn]
+                    putStrLn $ "SLRSampleOfSent1 = " ++ show (snd4 finFlagAndSLRAndTree)
+                  else putStrLn $ "parseSentByScript1: Not finished parsing."
+              else putStrLn "parseSentByScript1: Parsing was cancelled."         -- goBackTo failed, return upper layer calling.
       else do
         gbtFlag <- goBackTo sn 1
         if gbtFlag
           then do
-            finFlag <- parseSentByScript' sn 0 cs script'
-            if finFlag
-              then putStrLn "parseSentByScript: Finished parsing."
-              else putStrLn "parseSentByScript: Not finished parsing."
-          else putStrLn "parseSentByScript: Parsing was cancelled."             -- goBackTo failed, return upper layer calling.
+            finFlagAndSLRAndTree <- parseSentByScript' sn 0 cs script'
+            if (fst4 finFlagAndSLRAndTree)
+              then do
+                let query = DS.fromString ("select tree from treebank1 where serial_num = ?")       -- Query is instance of IsString.
+                stmt <- prepareStmt conn query
+                (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+                rows <- S.toList is
+                let origTrees = readTrees $ fromMySQLText ((rows!!0)!!0)
+                let origTrees' = map (sortPhraCateBySpan) origTrees
+                let newTree = thd4 finFlagAndSLRAndTree
+
+                putStrLn "origTrees: "
+                showTrees origTrees'
+                putStrLn "newTree: "
+                showTrees newTree
+                putStrLn "parseSentByScript2: Finished parsing."
+
+                let tagOfClauAnaly = (length origTrees, (fst . fth4) finFlagAndSLRAndTree, (snd . fth4) finFlagAndSLRAndTree)
+
+                let sqlstat = DS.fromString $ "update treebank1 set SLR = ?, tagClause = ? where serial_num = ?"
+                stmt <- prepareStmt conn sqlstat
+                ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString (snd4 finFlagAndSLRAndTree)), toMySQLText (show tagOfClauAnaly), toMySQLInt32 sn]
+--                putStrLn $ "SLRSampleOfSent2 = "
+--                showSLROfSent (snd4 finFlagAndSLRAndTree)
+                putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
+                putStrLn $ "Sentence NO."++ show sn ++" has "++ show (length origTrees) ++" clauses, of which "++ show ((fst . fth4) finFlagAndSLRAndTree) ++ " clauses are the same as the origial clauses."
+              else putStrLn "parseSentByScript2: Not finished parsing."
+          else putStrLn "parseSentByScript2: Parsing was cancelled."             -- goBackTo failed, return upper layer calling.putStrLn "origTrees: "
+-}
+
+type NumOfClauEqual = Int
+type ClauIdxOfClauUnequal = [Int]
+type TagOfClauAnaly = (NumOfClauEqual, ClauIdxOfClauUnequal)
 
 {- Re-parse a sentence according the previously created parsing script.
  - Here every clause is a String.
@@ -642,13 +785,15 @@ parseSentByScript sn cs = do
  - 'script' is parsing scripts for these clauses.
  - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
-parseSentByScript' :: Int -> Int -> [String] -> [Script] -> IO Bool
-parseSentByScript' _ _ [] _ = return True
+parseSentByScript' :: Int -> Int -> [String] -> [Script] -> IO (Bool, SLROfSent, [[PhraCate]], TagOfClauAnaly)
+parseSentByScript' _ _ [] _ = return (True, [], [], (0,[]))
 parseSentByScript' sn skn cs scripts = do
-    finFlag <- parseSentByScript' sn skn (take (length cs - 1) cs) (take (length cs - 1) scripts)
+    finFlagAndSLRAndTree <- parseSentByScript' sn skn (take (length cs - 1) cs) (take (length cs - 1) scripts)
+    let numOfClauEqual = fst $ fth4 finFlagAndSLRAndTree
+    let clauIdxOfClauUnequal = snd $ fth4 finFlagAndSLRAndTree
     let clauIdx = skn + length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
-    if finFlag                                                                  -- True means sentential parsing has been finished.
+    if (fst4 finFlagAndSLRAndTree)                                                                  -- True means sentential parsing has been finished.
       then do
         let nPCs = initPhraCate $ getNCate $ words (last cs)
         putStr "Before parsing: "
@@ -660,15 +805,62 @@ parseSentByScript' sn skn cs scripts = do
                            [] -> (clauIdx, [], [])                              -- Null script for clause 'clauIdx'
                            [x] -> x
                            (x:xs) -> last xs
-        rtbPCs <- parseClauseWithScript [] nPCs [] lastScript                   -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
-        if rtbPCs == ([],[],[])
-          then return False                                                     -- False means the current clause is terminated manually.
+        conn <- getConn
+        let query = DS.fromString ("select tree from treebank1 where serial_num = ?")       -- Query is instance of IsString.
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+        rows <- S.toList is
+        let origTrees = readTrees $ fromMySQLText ((rows!!0)!!0)
+        let origClauIdxTree = origTrees!!(clauIdx-1)
+        close conn
+
+        rtbPCs <- parseClauseWithScript [] nPCs [] lastScript []                  -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        let newClauIdxTree = snd4 rtbPCs
+        let judgeClauIdxTree = [x | x <- origClauIdxTree, elem x newClauIdxTree]
+        let numOfClauEqual' = case (length judgeClauIdxTree == length origClauIdxTree) of
+                                True -> numOfClauEqual + 1
+                                False -> numOfClauEqual
+
+        let newSLRSampleOfSent = (snd4 finFlagAndSLRAndTree) ++ [fth4 rtbPCs]
+        let newTreeOfSent = (thd4 finFlagAndSLRAndTree) ++ [snd4 rtbPCs]
+        let rtbPCs' = (fst4 rtbPCs, snd4 rtbPCs, thd4 rtbPCs)
+        if rtbPCs' == ([],[],[])
+          then return (False, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual',clauIdxOfClauUnequal))
+          else if (length judgeClauIdxTree == length origClauIdxTree)
+               then return (True, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual',clauIdxOfClauUnequal))                                                    -- False means the current clause is terminated manually.
+               else do
+                 let clauIdxOfClauUnequal' = clauIdxOfClauUnequal ++ [clauIdx]
+                 putStrLn "origClauTree:"
+                 showNPhraCateLn (sortPhraCateBySpan origClauIdxTree)
+                 putStrLn "newClauTree:"
+                 showNPhraCateLn newClauIdxTree
+                 return (True, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual', clauIdxOfClauUnequal'))
+
+
+--        if rtbPCs' == ([],[],[])
+--          then return (False, newSLRSampleOfSent, newTreeOfSent, numOfClauEqual')                                                    -- False means the current clause is terminated manually.
+--          else return (True, newSLRSampleOfSent, newTreeOfSent, numOfClauEqual')
+
+--        if (length judgeClauIdxTree == length origClauIdxTree)
+--          then do
+--        let numOfClauEqual' = numOfClauEqual + 1
+{-
           else do
-            storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
-            return True
+            putStrLn "origClauTree:"
+            showNPhraCateLn (sortPhraCateBySpan origClauIdxTree)
+            putStrLn "newClauTree:"
+            showNPhraCateLn newClauIdxTree
+            error "parseSentByScript': Current clause analysis error!"
+-}
       else do
         putStrLn $ "Skip clause " ++ show clauIdx
-        return False
+--        return (False, snd4 finFlagAndSLRAndTree, thd4 finFlagAndSLRAndTree, numOfClauEqual)
+        return (False, snd4 finFlagAndSLRAndTree, thd4 finFlagAndSLRAndTree, fth4 finFlagAndSLRAndTree)
+
+type Stub = [PhraCate]
+type SLROfATrans = (Stub, [Rule])
+type SLROfClause = [SLROfATrans]
+type SLROfSent = [SLROfClause]
 
 {- Parsing a clause is a recursive transition process.
  - Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, and a parsing script;
@@ -677,13 +869,17 @@ parseSentByScript' sn skn cs scripts = do
  - (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned
  -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  -}
-parseClauseWithScript :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
-parseClauseWithScript rules nPCs banPCs script = do
+parseClauseWithScript :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> SLROfClause -> IO ([[Rule]],[PhraCate],[PhraCate],SLROfClause)
+parseClauseWithScript rules nPCs banPCs script origSLRSample = do
     rtbPCs <- doTransWithScript nPCs banPCs script
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
+    let ruleOfATrans = fst3 rtbPCs
+    let sLROfATrans = (nPCs, ruleOfATrans)
+    let newSLRSample = origSLRSample ++ [sLROfATrans]
+
     if rtbPCs == ([],[],[])
-      then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
+      then return ([],[],[],origSLRSample)                   -- Return ([],[],[]) as the terminating flag.
       else if nPCs /= (snd3 rtbPCs)
         then do
           let scriptTail = case script of
@@ -691,7 +887,7 @@ parseClauseWithScript rules nPCs banPCs script = do
                               (clauIdx, [x], bPCs) -> (clauIdx, [], bPCs)       -- Remove the head element of OnOff list in parsing script.
                               (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, bPCs)
 
-          parseClauseWithScript (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail         -- Do the next trip of transition
+          parseClauseWithScript (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail newSLRSample        -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
           putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
@@ -699,7 +895,9 @@ parseClauseWithScript rules nPCs banPCs script = do
           let spls = divPhraCateBySpan (nPCs)
           putStrLn "  ##### Parsing Tree #####"
           showTreeStru spls spls
-          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+          putStrLn $ "SLR ="
+          showSLROfClause newSLRSample     -- Last round of transition does not create SLR.
+          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs, newSLRSample)
 
 {- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
  - rules used in this trip, the resultant phrases, and the banned phrases.
@@ -756,7 +954,7 @@ doTransWithScript nPCs banPCs script = do
     if transOk == "y" || transOk == ""             -- Press key 'y' or directly press RETURN
       then do
           updateAmbiResol (fst nbPCs) overPairs''                               -- Record ambiguity resolution fragments.
-          return (onOff,(fst nbPCs),(snd nbPCs))
+          return (onOff,sortPhraCateBySpan (fst nbPCs),sortPhraCateBySpan (snd nbPCs))
       else if transOk == "n"
              then doTransWithManualResol onOff nPCs banPCs      -- do this trip of transition by manually resolving ambiguities.
              else if transOk == "e"
@@ -781,14 +979,467 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
     lp = fst pcp
     rp = snd pcp
 
-{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
- - and syntactic ambiguities are resolved by clustering result.
- - Here every clause is a String, and parsing starts from the first clause.
- - sn: The value of 'serial_num' in database Table 'corpus'.
- - cs: The list of clausal strings.
- -}
-parseSentByStruGene :: Int -> [String] -> IO ()
-parseSentByStruGene sn cs = do
+{-
+lexAmbiResol :: [PhraCate] -> IO [Rule]
+lexAmbiResol nPCs = do
+    conn <- getConn
+    let query = DS.fromString ("select SLR from treebank1 where serial_num >= ? and serial_num <= ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 200]
+--    rows <- S.toList is
+--    let sLRListOfSent = map (\x -> readSLROfSent (fromMySQLText (x!!0))) rows
+    sLRStrListOfSent <- readStreamByText [] is      -- [String], each string is the string of SLRs of one sentence.
+    let sLRListOfSent = map (\x -> readSLROfSent x) sLRStrListOfSent
+    let sLRListOfClause = foldl (++) [] sLRListOfSent
+    let sLRListOfTrans = foldl (++) [] sLRListOfClause
+    close conn
+
+    let ctpOfnPCs = ctpOfCateList nPCs
+    let ctpOfsLR = map (\x -> (ctpOfCateList fst x, snd x)) sLRListOfTrans
+    let distRuleList = map (\x -> (distPhraSynSet ctpOfnPCs (fst x), snd x)) sLRListOfTrans
+    let rule = snd $ Map.findMin $ Map.fromList distRuleList
+    return rule
+-}
+
+-- 从StruGene2表中获得左右重叠短语的PhraStru,overType,prior,并计算Lp/Rp的次数,存到stru_gene_PhraStruCS表中
+-- 下面的函数还要对Tag/Category做
+
+getPhraStruCSFromStruGene2 :: Int -> Int -> IO ()
+getPhraStruCSFromStruGene2 startId endId = do
+    if startId <= endId
+     then do
+       getPhraStruCSFromStruGene2' startId endId
+     else putStrLn "getPhraStruCSFromStruGene2: End."
+
+getPhraStruCSFromStruGene2' :: Int -> Int -> IO ()
+getPhraStruCSFromStruGene2' currentId endId = do
+    conn <- getConn
+    let currentId' = currentId + 1
+    let sqlstat = DS.fromString $ "create table if not exists stru_gene_PhraStruCS (id int primary key auto_increment, PhraStruOflo varchar(200), PhraStruOfro varchar(200), overType tinyint(1), numOfLp int, numOfRp int)"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []
+
+    let query = DS.fromString ("select leftOver, rightOver, overType, prior from stru_gene2 where id = ? ")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 currentId]
+    rows <- S.toList is
+
+    let phraStruOflo = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
+    let phraStruOfro = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
+    let ot = fromMySQLInt8 ((rows!!0)!!2)
+    let prior = readPriorFromStr (fromMySQLText ((rows!!0)!!3))
+    let prior' = show prior
+    let priorTag = case prior' == "Lp" of
+                    True -> (1,0)
+                    False -> (0,1)
+
+    if phraStruOflo /= phraStruOfro
+      then do
+        let query = DS.fromString ("select id, numOfLp, numOfRp from stru_gene_PhraStruCS where PhraStruOflo = ? and PhraStruOfro = ? and overType = ?")       -- Query is instance of IsString.
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLText phraStruOflo, toMySQLText phraStruOfro, toMySQLInt8 ot]
+--        (defs, is) <- queryStmt conn stmt [toMySQLText (show cateOflo), toMySQLText (show cateOfro), toMySQLInt8 ot]
+        rows <- S.toList is
+
+        if rows == []
+          then do
+            putStrLn $ "id = "++ show currentId ++ " is new."
+            let numOfLp' = fst priorTag
+            let numOfRp' = snd priorTag
+
+            let query = DS.fromString ("insert into stru_gene_PhraStruCS set PhraStruOflo = ?, PhraStruOfro = ?, overType = ?, numOfLp = ?, numOfRp = ?")
+            stmt <- prepareStmt conn query
+            ok <- executeStmt conn stmt [toMySQLText phraStruOflo, toMySQLText phraStruOfro, toMySQLInt8 ot, toMySQLInt32 numOfLp', toMySQLInt32 numOfRp']
+            let rn = getOkAffectedRows ok
+            close conn
+          else do
+            putStrLn $ "id = "++ show currentId ++ " is hitcount."
+            let idOfPhraStruCS = fromMySQLInt32 ((rows!!0)!!0)
+            let numOfLp = fromMySQLInt32 ((rows!!0)!!1)
+            let numOfRp = fromMySQLInt32 ((rows!!0)!!2)
+            let numOfLp' = numOfLp + (fst priorTag)
+            let numOfRp' = numOfRp + (snd priorTag)
+
+            let query = DS.fromString ("update stru_gene_PhraStruCS set numOfLp = ?, numOfRp = ? where id = ?")
+            stmt <- prepareStmt conn query
+            ok <- executeStmt conn stmt [toMySQLInt32 numOfLp', toMySQLInt32 numOfRp', toMySQLInt32 idOfPhraStruCS]
+            let rn = getOkAffectedRows ok
+            close conn
+      else do
+        putStrLn $ "id = "++ show currentId ++ " phraStruOflo == phraStruOfro."
+        close conn
+
+    getPhraStruCSFromStruGene2 currentId' endId
+
+-- 设置不同的proportion，来看verifyEffectOfTagCS 的结果,在运行时no=0
+autoverifyEffectOfPhraStruCS :: Int -> IO ()
+autoverifyEffectOfPhraStruCS no = do
+    let proportion = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    if no < length proportion
+      then do
+        let proportion' = proportion!!no
+        verifyEffectOfPhraStruCS proportion' 1 11013 0 0 0
+        autoverifyEffectOfPhraStruCS (no + 1)
+      else putStrLn "autoverifyEffectOfPhraStruCS : End."
+
+{- 对上面得到的stru_gene_PhraStruCS表,反过来验证stru_gene2
+   1.取stru_gene2的一条数据,得到左右重叠短语的PhraStru,overType,prior
+   2.若左右重叠短语的PhraStru相等,取下一条stru_gene2数据
+   3.左右重叠短语的PhraStru不相等,找到stru_gene_PhraStruCS匹配的左右重叠短语的PhraStru,overType,计算numOfLp/num和numOfRp/num
+   4.给定一个proportion,若numOfLp/num和numOfRp/num 高于这个值，就进行预测，若该条数据的实际prior = 预测prior，说明预测正确，否则预测错误
+                       若numOfLp/num和numOfRp/num 低于这个值，就说该条数据模糊
+   5.计算11013条数据的总的ambiguNum numOfIncorrPred (numOfCorrPred / totalNumOfPred)
+-}
+verifyEffectOfPhraStruCS :: Float -> Int -> Int -> Int -> Int -> Int -> IO ()
+verifyEffectOfPhraStruCS proportion currentId endId numOfCorrPred ambiguNum totalNumOfPred = do
+    conn <- getConn
+    if currentId <= endId
+      then do
+        let query = DS.fromString ("select leftOver, rightOver, overType, prior from stru_gene2 where id = ? ")       -- Query is instance of IsString.
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 currentId]
+        rows <- S.toList is
+
+        let phraStruOflo = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
+        let phraStruOfro = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
+        let ot = fromMySQLInt8 ((rows!!0)!!2)
+        let prior = readPriorFromStr (fromMySQLText ((rows!!0)!!3))
+        let prior' = show prior
+        let currentId' = currentId + 1
+        if phraStruOflo /= phraStruOfro
+          then do
+            let query = DS.fromString ("select numOfLp, numOfRp from stru_gene_PhraStruCS where PhraStruOflo = ? and PhraStruOfro = ? and overType = ?")       -- Query is instance of IsString.
+            stmt <- prepareStmt conn query
+            (defs, is) <- queryStmt conn stmt [toMySQLText phraStruOflo, toMySQLText phraStruOfro, toMySQLInt8 ot]
+            rows <- S.toList is
+
+            if rows /= []
+              then do
+                let numOfLp = fromMySQLInt32 ((rows!!0)!!0)
+                let numOfRp = fromMySQLInt32 ((rows!!0)!!1)
+                let proportionOfLp = fromIntegral numOfLp / fromIntegral (numOfLp + numOfRp)
+                let proportionOfRp = fromIntegral numOfRp / fromIntegral (numOfLp + numOfRp)
+                let totalNumOfPred' = totalNumOfPred + 1
+                if proportionOfLp >= proportion
+                  then do
+--                    putStrLn $ "id = " ++ show currentId ++ "'s proportionOfLp >= 0.7"
+                    let numOfCorrPred' = case prior'== "Lp" of
+                                           True -> numOfCorrPred + 1
+                                           False -> numOfCorrPred
+                    close conn
+                    verifyEffectOfPhraStruCS proportion currentId' endId numOfCorrPred' ambiguNum totalNumOfPred'
+                  else if proportionOfRp >= proportion
+                         then do
+--                           putStrLn $ "id = " ++ show currentId ++ "'s proportionOfRp >= 0.8"
+                           let numOfCorrPred' = case prior'== "Rp" of
+                                                  True -> numOfCorrPred + 1
+                                                  False -> numOfCorrPred
+                           close conn
+                           verifyEffectOfPhraStruCS proportion currentId' endId numOfCorrPred' ambiguNum totalNumOfPred'
+                         else do
+                           let ambiguNum' = ambiguNum + 1
+--                           putStrLn $ "id = " ++ show currentId ++ "'s prior is ambiguous.(proportionOfLp or proportionOfRp < 0.8)"
+                           close conn
+                           verifyEffectOfPhraStruCS proportion currentId' endId numOfCorrPred ambiguNum' totalNumOfPred'
+              else error "verifyEffectOfPhraStruCS: rows is impossible null!"
+          else do
+            close conn
+            verifyEffectOfPhraStruCS proportion currentId' endId numOfCorrPred ambiguNum totalNumOfPred
+      else do
+        let accuracy = fromIntegral numOfCorrPred / fromIntegral totalNumOfPred
+        let numOfIncorrPred = totalNumOfPred - numOfCorrPred - ambiguNum
+        let accuracy' = fromIntegral numOfCorrPred / fromIntegral (totalNumOfPred - ambiguNum)
+        putStrLn $ "proportion = "++ show proportion ++ ", ambiguNum = " ++ show ambiguNum ++ ", numOfIncorrPred = " ++ show numOfIncorrPred ++ ", numOfCorrPred / totalNumOfPred = " ++ show numOfCorrPred ++ " / " ++ show totalNumOfPred ++ "=" ++ show accuracy ++ "/"++ show accuracy'
+
+autoRunGrammarAmbiResol :: Int -> Int -> IO ()
+autoRunGrammarAmbiResol startSn endSn = do
+    confInfo <- readFile "Configuration"
+    let tree_target = getConfProperty "tree_target" confInfo
+    let wle = read (getConfProperty "wle" confInfo) :: Int
+    let wlo = read (getConfProperty "wlo" confInfo) :: Int
+    let wro = read (getConfProperty "wro" confInfo) :: Int
+    let wre = read (getConfProperty "wre" confInfo) :: Int
+    let wot = read (getConfProperty "wot" confInfo) :: Int
+    let wpr = read (getConfProperty "wpr" confInfo) :: Int
+    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+
+    conn <- getConn
+    let query = DS.fromString ("select SLR from treebank1 where serial_num >= ? and serial_num <= ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 200]
+
+--    rows <- S.toList is
+--    let sLRListOfSent = map (\x -> readSLROfSent (fromMySQLText (x!!0))) rows
+    sLRStrListOfSent <- readStreamByText [] is      -- [String], each string is the string of SLRs of one sentence.
+    let sLRListOfSent = map (\x -> readSLROfSent x) sLRStrListOfSent
+    let sLRListOfClause = foldl (++) [] sLRListOfSent
+    let sLRListOfTrans = foldl (++) [] sLRListOfClause
+
+    sentList <- getSentListFromDB startSn endSn []
+    autoRunGrammarAmbiResol' startSn endSn sLRListOfTrans sentList tree_target distWeiRatioList
+    close conn
+
+autoRunGrammarAmbiResol' :: Int -> Int -> SLROfClause -> [(Int, String)] -> String -> DistWeiRatioList -> IO ()
+autoRunGrammarAmbiResol' sn endSn sLR sentList tree_target distWeiRatioList = do
+    putStrLn $ "The sentence of serial_num = " ++ show sn ++ " begins analysing automatically for grammar ambiguity resolution. "
+    let sent = snd $ sentList!!0
+    cs <- getSent sent
+    let sn' = sn + 1
+    let sentList' = tail sentList
+
+    parseSentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList
+    putStrLn " After parseSentByGrammarAmbiResol"
+    if sn' > endSn
+      then putStrLn "autoRunGrammarAmbiResol: End."
+      else do
+      putStrLn " sn' > endSn"
+      autoRunGrammarAmbiResol' sn' endSn sLR sentList' tree_target distWeiRatioList
+
+parseSentByGrammarAmbiResol :: Int -> [String] -> SLROfClause -> String -> DistWeiRatioList -> IO ()
+parseSentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList = do
+    conn <- getConn
+    putStrLn $ "!!! Number of SLR samples = " ++ show (length sLR)
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint default 0)"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []                          -- Create a new MySQL table for storing parsing result.
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_target ++ " where serial_num = ?"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]           -- read a row with given serial_num.
+
+    rows <- S.toList is                                                         -- [[MySQLText, MySQLText]]
+    if rows == []
+      then do
+        let query' = DS.fromString ("insert into " ++ tree_target ++ " set tree = ?, script = ?, serial_num = ?")     -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "parseSentByGrammarAmbiResol: " ++ show rn ++ " row(s) were inserted."
+          else error "parseSentByGrammarAmbiResol: insert failed!"
+      else do
+        let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")   -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "parseSentByGrammarAmbiResol: " ++ show rn ++ " row(s) were initialized."
+          else error "parseSentByGrammarAmbiResol: update failed!"
+
+    struGeneSamples <- getAmbiResolSamples
+    if struGeneSamples /= []
+      then do
+--        let struGenes = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGeneSamples
+        putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
+        parseSentByGrammarAmbiResol' sn cs sLR struGeneSamples distWeiRatioList
+        putStrLn "parseSentByGrammarAmbiResol: Finished parsing."
+      else error "parseSentByGrammarAmbiResol: struGeneSamples is Null."
+
+parseSentByGrammarAmbiResol' :: Int -> [String] -> SLROfClause -> [StruGeneSample] -> DistWeiRatioList -> IO ()
+parseSentByGrammarAmbiResol' _ [] _ _ _ = return ()
+parseSentByGrammarAmbiResol' sn cs sLR struGeneSamples distWeiRatioList = do
+    parseSentByGrammarAmbiResol' sn (take (length cs - 1) cs) sLR struGeneSamples distWeiRatioList
+
+    let clauIdx = length cs
+    putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
+    let nPCs = initPhraCate $ getNCate $ words (last cs)
+    putStr "Before parsing: "
+    showNPhraCateLn nPCs
+    putStr "Word semantic sequence: "
+    showNSeman nPCs
+
+    rtbPCs <- parseClauseWithGrammarAmbiResol [] nPCs [] sLR (length nPCs) struGeneSamples distWeiRatioList
+                                             -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+    storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
+
+parseClauseWithGrammarAmbiResol :: [[Rule]] -> [PhraCate] -> [PhraCate] -> SLROfClause -> Int -> [StruGeneSample] -> DistWeiRatioList -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithGrammarAmbiResol rules nPCs banPCs sLR lengthOfClause struGeneSamples distWeiRatioList = do
+    rtbPCs <- doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distWeiRatioList
+                                               -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
+                                               -- [Rule] is the set of rules used in this trip of transition.
+    if rtbPCs == ([],[],[])
+      then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
+      else if nPCs /= (snd3 rtbPCs)
+        then do
+          parseClauseWithGrammarAmbiResol (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) sLR lengthOfClause struGeneSamples distWeiRatioList
+                                               -- Do the next trip of transition
+                                               -- with appended rules, resultant PCs, and accumulated banned PCs.
+        else do                                -- Phrasal closure has been formed.
+          putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
+          showNPhraCateLn (sortPhraCateBySpan nPCs)
+          let spls = divPhraCateBySpan (nPCs)
+          putStrLn "  ##### Parsing Tree #####"
+          showTreeStru spls spls
+          return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
+
+getRuleListOfMinDist :: [(Float,[Rule])] -> [Rule] -> IO ([Rule],[(Float,[Rule])])
+getRuleListOfMinDist distRuleList ruleList = do
+    let distRuleList' = tail distRuleList
+    if fst (head distRuleList) == fst (head distRuleList')
+      then do
+        let ruleList' = ruleList ++ snd (head distRuleList')
+        getRuleListOfMinDist distRuleList' ruleList'
+      else return (ruleList,distRuleList')
+
+doTransWithGrammarAmbiResol :: [PhraCate] -> [PhraCate] ->  SLROfClause -> Int -> [StruGeneSample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distWeiRatioList = do
+    putStrLn "nPCs="
+    showNPhraCateLn nPCs
+    let ctpOfnPCs = ctpOfCateList nPCs []
+    putStrLn "ctpOfnPCs="
+    showNPhraSynLn ctpOfnPCs
+    let ctpOfsLR = map (\x -> (ctpOfCateList (fst x) [], snd x)) sLR
+    let distRuleListWithoutSort =  map (\x -> (distPhraSynSet' ctpOfnPCs (fst x), snd x)) ctpOfsLR
+    putStrLn $ "distRuleListWithoutSort=" ++ show (take 30 distRuleListWithoutSort)
+    let distRuleList = sortOn fst distRuleListWithoutSort
+    putStrLn $ "distRuleList=" ++ show (take 30 distRuleList)
+
+    let ruleList = snd (head distRuleList)
+    ruleListAndDistRuleList <- getRuleListOfMinDist distRuleList ruleList
+    let distRuleList' = snd ruleListAndDistRuleList
+    let ruleList' = removeDup' (fst ruleListAndDistRuleList) []
+    let rules = take (length ruleList') ruleList'      -- get all elems of ruleList
+
+    putStr "Rule switches: "
+    showOnOff rules                              -- Display rule switches
+    let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
+
+    putStr "New phrases before pruning: "
+--    showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
+    let pcs = [pc | pc <- nPCs2, notElem' pc nPCs]
+    showNPhraCateLn pcs
+    let spanList = map (\x -> spOfCate x) nPCs
+    if pcs == [] && (maximum spanList) /= lengthOfClause - 1
+      then doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList' lengthOfClause struGeneSamples distWeiRatioList
+      else do
+        let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+        let overPairs = ambiResolByGrammarAmbiResol nPCs2 [] pcps struGeneSamples distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+        putStr "doTransWithGrammarAmbiResol: overPairs: "
+        showNOverPairid overPairs
+
+        let overPairs' = map (\x -> (fst4 x, snd4 x, thd4 x)) overPairs
+        nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
+
+        putStr "New phrases after pruning: "
+        showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
+        putStr "Banned phrases: "
+        showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+        return (rules,(fst nbPCs),(snd nbPCs))
+
+{-
+  当传递没有产生新短语(剪枝前)且没有形成最终的句子时，调用该函数
+-}
+doTransWithGrammarAmbiResol' :: [PhraCate] -> [PhraCate] -> SLROfClause -> [(Float,[Rule])] -> Int -> [StruGeneSample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList lengthOfClause struGeneSamples distWeiRatioList = do
+    putStrLn $ "doTransWithGrammarAmbiResol' distRuleList=" ++ show (take 30 distRuleList)
+
+    let ruleList = snd (head distRuleList)
+    ruleListAndDistRuleList <- getRuleListOfMinDist distRuleList ruleList
+    let distRuleList' = snd ruleListAndDistRuleList
+    let ruleList' = removeDup' (fst ruleListAndDistRuleList) []
+    let rules = take (length ruleList') ruleList'      -- get all elems of ruleList
+
+    putStr "Rule switches: "
+    showOnOff rules                              -- Display rule switches
+    let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
+
+    putStr "New phrases before pruning: "
+--    showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
+    let pcs = [pc | pc <- nPCs2, notElem' pc nPCs]
+    showNPhraCateLn pcs
+    let spanList = map (\x -> spOfCate x) nPCs
+    if pcs == [] && (maximum spanList) /= lengthOfClause - 1
+      then doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList' lengthOfClause struGeneSamples distWeiRatioList
+      else do
+        let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+        let overPairs = ambiResolByGrammarAmbiResol nPCs2 [] pcps struGeneSamples distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+        putStr "doTransWithGrammarAmbiResol: overPairs: "
+        showNOverPairid overPairs
+
+        let overPairs' = map (\x -> (fst4 x, snd4 x, thd4 x)) overPairs
+        nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
+
+        putStr "New phrases after pruning: "
+        showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
+        putStr "Banned phrases: "
+        showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+        return (rules,(fst nbPCs),(snd nbPCs))
+
+ambiResolByGrammarAmbiResol :: [PhraCate] -> [OverPairid] -> [(PhraCate, PhraCate)] -> [StruGeneSample] -> DistWeiRatioList -> [OverPairid]
+ambiResolByGrammarAmbiResol _ overPairs [] _ _ = overPairs
+ambiResolByGrammarAmbiResol nPCs overPairs (pcp:pcps) struGeneSamples distWeiRatioList
+    = ambiResolByGrammarAmbiResol nPCs overPairs' pcps struGeneSamples distWeiRatioList
+    where
+    lop = fst pcp
+    rop = snd pcp
+    ot = getOverType nPCs lop rop                      -- Get overlapping type
+    leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
+    reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
+    pri = Noth
+
+    le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
+    lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+    ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
+    re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+                                                 -- The value is not used, just acted as place holder.
+    struGene = (le,lo,ro,re,ot,pri)
+    distWeiRatioList' = init distWeiRatioList ++ [0]
+    distList = map (\x -> (dist4StruGeneByArithAdd struGene (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x) distWeiRatioList', x)) struGeneSamples
+    distList' = sortOn fst distList
+--    minDist = minimum distList
+--    idx = elemIndex minDist distList
+--    idx' = case idx of
+--             Just x -> x
+--             Nothing -> -1                     -- Impossible position
+    pcOfMinDist = snd (head distList')
+    pri' = svt7 pcOfMinDist
+    id = fst7 pcOfMinDist
+    overPairs' = (lop, rop, pri',id):overPairs
+
+autoRunCollectPhraSyn :: Int -> Int -> IO ()
+autoRunCollectPhraSyn startSn endSn = do
+    collectPhraSynFromTreebank1 startSn
+    let startSn' = startSn +1
+    if startSn' <= endSn
+      then autoRunCollectPhraSyn startSn' endSn
+      else putStrLn "autoRunParseSentByScript: End."
+
+-- 为了方便观察(Category, Tag, PhraStru)中各元素的关系
+-- 从Treebank1的tree字段收集所有短语的(Category, Tag, PhraStru)，不包括词
+collectPhraSynFromTreebank1 :: Int -> IO ()
+collectPhraSynFromTreebank1 sn = do
+    conn <- getConn
+    let sqlstat = DS.fromString $ "create table if not exists PhraSynFromTree (id int primary key auto_increment, PhraSyn varchar(200))"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []
+
+    let query = DS.fromString ("select tree from treebank1 where serial_num = ?")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+    rows <- S.toList is
+    let origTrees = readTrees $ fromMySQLText ((rows!!0)!!0)
+    let origTrees' = foldl (++) [] origTrees
+    let phraseOfSpan0 = getPhraBySpan 0 origTrees'
+    let phraseWithoutSpan0 = [x| x <- origTrees', notElem x phraseOfSpan0]
+    let phraSynsOfASent = ctpOfCateList phraseWithoutSpan0 []
+    storeAPhraSynToDS phraSynsOfASent sn
+    close conn
+
+storeAPhraSynToDS :: [PhraSyn] -> Int -> IO ()
+storeAPhraSynToDS (x:xs) sn = do
+    conn <- getConn
+    let query = DS.fromString ("insert into PhraSynFromTree set PhraSyn = ?")
+    stmt <- prepareStmt conn query
+    ok <- executeStmt conn stmt [toMySQLText (phraSynToString x)]
+    let rn = getOkAffectedRows ok
+    close conn
+    if xs /= []
+      then storeAPhraSynToDS xs sn
+      else putStrLn $ "Sentence No." ++ show sn ++ "'s phraSyns store end."
+
+autoRunAmbiResolByStruGene :: Int -> Int -> IO ()
+autoRunAmbiResolByStruGene startSn endSn = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
@@ -799,7 +1450,40 @@ parseSentByStruGene sn cs = do
     let wot = read (getConfProperty "wot" confInfo) :: Int
     let wpr = read (getConfProperty "wpr" confInfo) :: Int
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+{-
+    putStrLn $ "The sentence of serial_num = " ++ show startSn ++ " begins analysing automatically for ambiguity resolution. "
+--    getSentFromDB startSn >>= getSent >>= parseSentByStruGene startSn
+    cs <- getSentFromDB startSn >>= getSent
+    parseSentByStruGene startSn cs script_source tree_target distWeiRatioList
+    let startSn' = startSn + 1
+    if startSn' > endSn
+      then putStrLn "autoRunAmbiResolByStruGene: End."
+      else autoRunAmbiResolByStruGene startSn' endSn
+-}
+    sentList <- getSentListFromDB startSn endSn []
+    autoRunAmbiResolByStruGene' startSn endSn sentList script_source tree_target distWeiRatioList
 
+autoRunAmbiResolByStruGene' :: Int -> Int -> [(Int, String)] -> String -> String -> DistWeiRatioList -> IO ()
+autoRunAmbiResolByStruGene' sn endSn sentList script_source tree_target distWeiRatioList = do
+    putStrLn $ "The sentence of serial_num = " ++ show sn ++ " begins analysing automatically for grammar ambiguity resolution. "
+    let sent = snd $ sentList!!0
+    cs <- getSent sent
+    let sn' = sn + 1
+    let sentList' = tail sentList
+
+    parseSentByStruGene sn cs script_source tree_target distWeiRatioList
+    if sn' > endSn
+      then putStrLn "autoRunAmbiResolByStruGene: End."
+      else autoRunAmbiResolByStruGene' sn' endSn sentList' script_source tree_target distWeiRatioList
+
+{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
+ - and syntactic ambiguities are resolved by clustering result.
+ - Here every clause is a String, and parsing starts from the first clause.
+ - sn: The value of 'serial_num' in database Table 'corpus'.
+ - cs: The list of clausal strings.
+ -}
+parseSentByStruGene :: Int -> [String] -> String -> String -> DistWeiRatioList -> IO ()
+parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
@@ -816,9 +1500,34 @@ parseSentByStruGene sn cs = do
     putStr "Parsing script: "
     showScript script'
 
-    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint)"
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint default 0)"
     stmt <- prepareStmt conn sqlstat
     executeStmt conn stmt []                          -- Create a new MySQL table for storing parsing result.
+
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_target ++ " where serial_num = ?"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]           -- read a row with given serial_num.
+
+    rows <- S.toList is                                                         -- [[MySQLText, MySQLText]]
+    if rows == []
+      then do
+        let query' = DS.fromString ("insert into " ++ tree_target ++ " set tree = ?, script = ?, serial_num = ?")     -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "parseSentByStruGene: " ++ show rn ++ " row(s) were inserted."
+          else error "parseSentByStruGene: insert failed!"
+      else do
+        let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")   -- Query is instance of IsString.
+        stmt' <- prepareStmt conn query'
+        ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
+        let rn = getOkAffectedRows ok
+        close conn
+        if (rn /= 0)
+          then putStrLn $ "parseSentByStruGene: " ++ show rn ++ " row(s) were initialized."
+          else error "parseSentByStruGene: update failed!"
 
     struGeneSamples <- getAmbiResolSamples
     if struGeneSamples /= []
@@ -828,6 +1537,7 @@ parseSentByStruGene sn cs = do
         putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
         parseSentByStruGene' sn cs script' struGenes distWeiRatioList
         putStrLn "parseSentByStruGene: Finished parsing."
+        close conn
       else error "parseSentByStruGene: struGeneSamples is Null."
 
 {- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
@@ -917,12 +1627,8 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
     showOnOff onOff                              -- Display rule switches
     let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
 
---    putStr "Transitive result before pruning: "
---    showNPhraCateLn (sortPhraCateBySpan nPCs2)
     putStr "New phrases before pruning: "
     showNPhraCateLn [pc | pc <- nPCs2, notElem' pc nPCs]
---    putStr "Banned phrases: "
---    showNPhraCateLn (banPCs)                     -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
     let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
     let overPairs = ambiResolByStruGene nPCs2 [] pcps struGenes distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
@@ -931,8 +1637,6 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
 
     nbPCs <- transWithPruning onOff nPCs banPCs overPairs                     -- Get transitive result with pruning.
 
---    putStr "Transitive result after pruning: "
---    showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
     putStr "New phrases after pruning: "
     showNPhraCateLn [pc | pc <- fst nbPCs, notElem' pc nPCs]
     putStr "Banned phrases: "
@@ -981,6 +1685,175 @@ ambiResolByStruGene nPCs overPairs (pcp:pcps) struGenes distWeiRatioList
              Nothing -> -1                     -- Impossible position
     pri' = sth6 (struGenes!!idx')
     overPairs' = (lop, rop, pri'):overPairs
+
+getStruGene1FromAmbiResol1 :: Int -> Int -> IO ()
+getStruGene1FromAmbiResol1 startId endId = do
+    if startId <= endId
+     then do
+       getStruGene1FromAmbiResol1' startId
+       getStruGene1FromAmbiResol1 (startId + 1) endId
+     else putStrLn "getStruGene1FromAmbiResol1: End."
+
+getStruGene1FromAmbiResol1' :: Int -> IO ()
+getStruGene1FromAmbiResol1' id = do
+    conn <- getConn
+    let sqlstat = DS.fromString $ "create table if not exists stru_gene2 (id int primary key auto_increment, origId int, leftExtend varchar(200), leftOver varchar(200), rightOver varchar(70), rightExtend varchar(200), overType tinyint(1), prior varchar(4), hitCount Int)"
+--    let sqlstat = DS.fromString $ "create table if not exists stru_gene2 (id int primary key, leftExtend varchar(200), leftOver varchar(200), rightOver varchar(70), rightExtend varchar(200), overType tinyint(1), prior varchar(4), hitCount Int)"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []
+    let query = DS.fromString ("select id, leftPhrase, rightPhrase, context, overType, prior from ambi_resol1 where id = ? ")       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32U id]
+    ambiResol1List <- readStreamByInt32U3TextInt8Text [] is
+    let ambiResol1 = ambiResol1List!!0
+    let prior = show $ sth6 ambiResol1
+
+    if prior /= "Noth"
+      then do
+        let leftPhrase = snd6 ambiResol1
+        let rightPhrase = thd6 ambiResol1
+        let context = fth6 ambiResol1
+        let nPCs = context ++ [leftPhrase] ++ [rightPhrase]
+        let leps = getPhraByEnd (stOfCate leftPhrase - 1) context        -- Get all left-extend phrases
+        let reps = getPhraByStart (enOfCate rightPhrase + 1) context
+        let id = fst6 ambiResol1
+        let le = map ((!!0) . ctpOfCate) leps
+        let lo = (ctpOfCate leftPhrase)!!0
+        let ro = (ctpOfCate rightPhrase)!!0
+        let re = map ((!!0) . ctpOfCate) reps
+--        let ot = getOverType nPCs leftPhrase rightPhrase
+        let ot = fif6 ambiResol1
+
+        let sqlstat = DS.fromString $ "replace into stru_gene2 set origId = ?, leftExtend = ?, leftOver = ?, rightOver = ?, rightExtend = ?, overType = ?, prior = ?"
+        stmt <- prepareStmt conn sqlstat
+--        executeStmt conn stmt [toMySQLInt32 1, toMySQLText (nPhraSynToString le), toMySQLText (phraSynToString lo), toMySQLText (phraSynToString ro), toMySQLText (nPhraSynToString re), toMySQLInt32U ot, toMySQLText prior]
+        executeStmt conn stmt [toMySQLInt32 id, toMySQLText (nPhraSynToString le), toMySQLText (phraSynToString lo), toMySQLText (phraSynToString ro), toMySQLText (nPhraSynToString re), toMySQLInt32U ot, toMySQLText prior]
+        close conn                                   -- Close MySQL connection.
+
+        else do
+          putStrLn $ "The data of id = " ++ show id ++ " from ambi_resol1 table has prior = Noth, this data is not processed."
+          close conn
+
+getAccuracyOfAmbiResol :: IO ()
+getAccuracyOfAmbiResol = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let accurate_tree_source = getConfProperty "tree_source" confInfo
+    let ambi_resol_result_tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
+    let query = DS.fromString ("select serial_num, tree, script from " ++ accurate_tree_source )       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt []
+    accurateTreebank <- readStreamByInt32TextText [] is
+
+    let query = DS.fromString ("select serial_num, tree, script from " ++ ambi_resol_result_tree_source )       -- Query is instance of IsString.
+    stmt <- prepareStmt conn query
+    (defs, is) <- queryStmt conn stmt []
+    ambiResolTreebank <- readStreamByInt32TextText [] is
+    let finalSn = fst3 (last ambiResolTreebank)
+    putStrLn $ "finalSn = " ++ show finalSn
+
+    finalMachAmbiResolRes <- findMachAmbiResolRes 1 1 accurateTreebank ambiResolTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
+--    let accuracy = fromIntegral ((fst . thd3) finalMachAmbiResolRes) / fromIntegral ((snd . thd3) finalMachAmbiResolRes)
+    putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
+--    putStrLn $ "Accuracy = " ++ show accuracy
+
+type NumOfManPositPhrase = Int
+type NumOfManNegPhrase = Int
+type NumOfMachPositPhrase = Int
+type NumOfMachNegPhrase = Int
+type NumOfCommonPositPhrase = Int
+type NumOfCommonNegPhrase = Int
+type NumOfCommonPhraseOnlySeman = Int
+type NumOfCommonResClause = Int
+--type NumOfPositUnionPhrase = Int
+type MachAmbiResolRes = ((NumOfManPositPhrase, NumOfManNegPhrase), (NumOfMachPositPhrase, NumOfMachNegPhrase), (NumOfCommonPositPhrase, NumOfCommonNegPhrase,NumOfCommonPhraseOnlySeman,NumOfCommonResClause))
+
+findMachAmbiResolRes :: Int -> Int -> [(Int, String, String)] -> [(Int, String, String)] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
+findMachAmbiResolRes startSn endSn accurateTreebank ambiResolTreebank origMachAmbiResolRes = do
+    let index = startSn - 1
+    let treeOfStartSn = stringToList $ snd3 (accurateTreebank!!index)   -- [clausestr]
+    let treeOfStartSn' = stringToList $ snd3 (ambiResolTreebank!!index)
+    let scriptOfStartSn = stringToList $ thd3 (accurateTreebank!!index)
+    let scriptOfStartSn' = stringToList $ thd3 (ambiResolTreebank!!index)
+
+    putStrLn $ "Sentence No.:" ++ show startSn
+    currentMachAmbiResolRes <- findMachAmbiResolRes' 1 treeOfStartSn treeOfStartSn' scriptOfStartSn scriptOfStartSn' origMachAmbiResolRes
+    let startSn' = startSn + 1
+    if startSn' <= endSn
+      then findMachAmbiResolRes startSn' endSn accurateTreebank ambiResolTreebank currentMachAmbiResolRes
+      else return currentMachAmbiResolRes
+
+findMachAmbiResolRes' :: Int -> [String] -> [String] -> [String] -> [String] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
+findMachAmbiResolRes' clauseNo (s:cs) (s':cs') script script' origMachAmbiResolRes = do
+    let index = clauseNo - 1
+    let pcs = getClauPhraCate s
+    let pcs' = getClauPhraCate s'
+    let phraseOfSpan0 = getPhraBySpan 0 pcs
+    let phraseOfSpan0' = getPhraBySpan 0 pcs'
+    let phraseWithoutSpan0 = [x| x <- pcs, notElem x phraseOfSpan0]    -- not includes word, only phrase with at least two words
+    let phraseWithoutSpan0' = [x| x <- pcs', notElem x phraseOfSpan0']
+    let npcWithoutAct = nPhraCateWithoutAct phraseWithoutSpan0 []
+    let npcWithoutAct' = nPhraCateWithoutAct phraseWithoutSpan0' []
+    let npcOnlyAct = nseOfCate phraseWithoutSpan0 []
+    let npcOnlyAct' = nseOfCate phraseWithoutSpan0' []
+    let commonPositPhrase = [x| x <- phraseWithoutSpan0', elem (phraCateWithoutAct x) npcWithoutAct]
+    let banPCs = getClauBanPCs (script!!index)
+    let banPCs' = getClauBanPCs (script'!!index)
+    let banPCsWithoutAct = nPhraCateWithoutAct banPCs []
+    let banPCsWithoutAct' = nPhraCateWithoutAct banPCs' []
+    let commonNegPhrase = [x| x <- banPCs', elem (phraCateWithoutAct x) banPCsWithoutAct]
+--    let positUnionPhrase = [x| x <- phraseWithoutSpan0 ++ phraseWithoutSpan0', ]
+--    let positUnionPhraseWithoutAct = union npcWithoutAct npcWithoutAct'
+    let commonPhraseOnlySeman = [x| x <- npcOnlyAct, elem x npcOnlyAct']
+    let phraseWithLongestSp = last pcs
+    let commonResClause = case elem phraseWithLongestSp phraseWithoutSpan0' of   -- 若小句只要一个词，想要得到0，phraseWithoutSpan0'代替pcs',可以实现 即elem phraseWithLongestSp [] = False
+                               True -> 1                                         -- 注意按小句算accuracy时，要减去只要一个词的小句。
+                               False -> 0
+
+    let numOfClausePhrase = length phraseWithoutSpan0
+    let banPCs = getClauBanPCs (script!!index)
+    let numOfBanPCs = length $ getClauBanPCs (script!!index)
+    let numOfClausePhrase' = length phraseWithoutSpan0'
+    let banPCs' = getClauBanPCs (script'!!index)
+    let numOfBanPCs' = length $ getClauBanPCs (script'!!index)
+
+    let newNumOfPhrase = (fst . fst3) origMachAmbiResolRes + numOfClausePhrase
+    let newNumOfBanPCs = (snd . fst3) origMachAmbiResolRes + numOfBanPCs
+    let newNumOfPhrase' = (fst . snd3) origMachAmbiResolRes + numOfClausePhrase'
+    let newNumOfBanPCs' = (snd . snd3) origMachAmbiResolRes + numOfBanPCs'
+    let newNumOfCommonPositPhrase = (fst4 . thd3) origMachAmbiResolRes + length commonPositPhrase
+    let newNumOfCommonNegPhrase = (snd4 . thd3) origMachAmbiResolRes + length commonNegPhrase
+    let newNumOfCommonPhraseOnlySeman = (thd4 . thd3) origMachAmbiResolRes + length commonPhraseOnlySeman
+    let newNumOfCommonResClause = (fth4 . thd3) origMachAmbiResolRes + commonResClause
+
+--    let newNumOfPositUnionPhrase = (snd . thd3) origMachAmbiResolRes + (numOfClausePhrase + numOfClausePhrase' - length commonPositPhrase)
+    let clauseResMark = ((numOfClausePhrase, numOfBanPCs), (numOfClausePhrase', numOfBanPCs'), (length commonPositPhrase, length commonNegPhrase, length commonPhraseOnlySeman,commonResClause))
+    let newAmbiResolResMark = ((newNumOfPhrase, newNumOfBanPCs), (newNumOfPhrase', newNumOfBanPCs'), (newNumOfCommonPositPhrase, newNumOfCommonNegPhrase, newNumOfCommonPhraseOnlySeman,newNumOfCommonResClause))
+
+    let spls = divPhraCateBySpan pcs       -- Span lines
+    let spls' = divPhraCateBySpan pcs'       -- Span lines
+    putStrLn $ "Clause No.: " ++ show clauseNo
+    putStrLn $ "Accuracy clause analysis tree is:"
+    showTreeStru spls spls
+    putStrLn $ "banPCs = "
+    showNPhraCateLn banPCs
+    putStrLn $ "The clause analysis tree obtained by disambiguation is:"
+    showTreeStru spls' spls'
+    putStrLn $ "banPCs' = "
+    showNPhraCateLn banPCs'
+    putStrLn $ "commonPhraseOnlySeman=" ++ show commonPhraseOnlySeman
+    putStrLn $ "phraseWithLongestSp = "
+    showPhraCate phraseWithLongestSp
+    putStrLn $ "The ambiguity resolution successful phrases without span = 0 are:"
+    showNPhraCateLn commonPositPhrase
+    showNPhraCateLn commonNegPhrase
+    putStrLn $ "clauseResMark = " ++ show clauseResMark
+    putStrLn $ "ambiResolResMark = " ++ show newAmbiResolResMark
+    putStr "\n"
+
+    if cs /= []
+      then findMachAmbiResolRes' (clauseNo + 1) cs cs' script script' newAmbiResolResMark
+      else return newAmbiResolResMark
 
 {- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
  - rules used in this trip, the resultant phrases, and the banned phrases.
@@ -1186,7 +2059,7 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
     rows <- S.toList is                                                         -- [[MySQLText, MySQLText]]
-    closeStmt conn stmt
+--    closeStmt conn stmt
 
     if rows == []
       then do
@@ -1230,7 +2103,9 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
  -}
 storeTree :: Int -> String -> IO ()
 storeTree sn treeStr = do
-    origTree <- readTree_String sn
+    confInfo <- readFile "Configuration"               -- Read the local configuration file
+    let tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
+    origTree <- readTree_String sn tree_source
     let newTree = origTree ++ ";" ++ treeStr                 -- Use ';' to seperate clause trees
     conn <- getConn
     stmt <- prepareStmt conn "update corpus set tree = ? where serial_num = ?"
@@ -1243,14 +2118,14 @@ storeTree sn treeStr = do
 {- Read the tree String of designated sentence in treebank.
  - There are several treebanks stored in database, their table names are corpus, treebank1, and so on.
  -}
-readTree_String :: Int -> IO String
-readTree_String sn = do
+readTree_String :: Int -> String -> IO String
+readTree_String sn tree_source = do
 --    dfe <- doesFileExist "Configuration"
 --    if dfe
 --      then putStrLn $ "readTree_String: Configuration exists."
 --      else putStrLn $ "readTree_String: Configuration does not exist."
-    confInfo <- readFile "Configuration"               -- Read the local configuration file
-    let tree_source = getConfProperty "tree_source" confInfo
+--    confInfo <- readFile "Configuration"               -- Read the local configuration file
+--    let tree_source = getConfProperty "tree_source" confInfo
 
     conn <- getConn
     let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num = ?"
@@ -1289,10 +2164,39 @@ dispTree' idx (s:cs) = do
       pcs = getClauPhraCate s
       spls = divPhraCateBySpan pcs      -- Span lines
 
+{- Display Comparison trees' structure of ambiguity resolution result.
+ - every clause has one accuracy tree and one ambiguity resolution tree.
+ - and the 'idx' is ordered number of first clause among remaining clauses.
+ - (s:cs):
+ - (x:xs):
+ - tree_source1:
+ - tree_source2:
+ -}
+dispComparisonTreesOfAmbiResolResult :: Int -> [String] -> [String] -> String -> String -> IO ()
+dispComparisonTreesOfAmbiResolResult _ [] [] _ _ = putStr ""                      -- Nothing to display.
+dispComparisonTreesOfAmbiResolResult clauIdx (s:cs) (x:xs) tree_source1 tree_source2 = do
+    putStrLn $ "Clause No.: " ++ show clauIdx
+    putStrLn $ "Accuracy clause analysis tree from tree_source = " ++ show tree_source1 ++ " is:"
+    showTreeStru spls spls
+    putStrLn $ "The clause analysis tree obtained by disambiguation which is from ambi_resol_result_tree_source = " ++ show tree_source2 ++ " is:"
+    showTreeStru splx splx
+    putStr "\n"
+    dispComparisonTreesOfAmbiResolResult (clauIdx + 1) cs xs tree_source1 tree_source2
+    where
+      pcs = getClauPhraCate s
+      spls = divPhraCateBySpan pcs      -- Span lines
+      pcx = getClauPhraCate x
+      splx = divPhraCateBySpan pcx      -- Span lines
+
 -- Get a clause's [PhraCate] from its string value.
 getClauPhraCate :: String -> [PhraCate]
 getClauPhraCate "" = []
 getClauPhraCate str = map getPhraCateFromString (stringToList str)
+
+-- Get a clause's [PhraCate] from string value of (clauIdx, [[Rule]], [PhraCate]).
+getClauBanPCs :: String -> [PhraCate]
+getClauBanPCs "" = []
+getClauBanPCs str = map getPhraCateFromString $ stringToList $ thd3 (stringToTriple str)
 
 {- Parse a sentence. The first input parameter is [Rule] value, and the second input parameter is the clause string of a sentence.
  -}

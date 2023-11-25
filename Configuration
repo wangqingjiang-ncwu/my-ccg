@@ -9,15 +9,16 @@ script_source:corpus
 
 # Source of parsing trees, such as 'corpus', 'treebank1'.
 tree_source:treebank_clust_res_k200_s18000_sg_aa
+ambi_resol_result_tree_source:treebank_grammar_ambi_resol
 
 # Storage position of parsing scripts, such as 'corpus', 'treebank1'.
 script_target:treebank1
 
 # Storage position of parsing trees, such as 'corpus', 'treebank1'.
-tree_target:treebank_clust_res_k200_s18000_sg_aa
+tree_target:treebank_grammar_ambi_resol
 
 # Ambiguity resolution model, such as 'stru_gene' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
-ambi_resol_model:stru_gene
+ambi_resol_model:ambi_resol1
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
@@ -25,11 +26,11 @@ ambi_resol_model:stru_gene
 distDef:arithAdd
 
 # K value in Clutering algrithm.
-kVal:40
+kVal:200
 
 # The number of samples on which clutering is done. The 'sNum' samples are first 'sNum' samples in a certain ambiguity resolution MySQL table.
 # The ambiguity resolution MySQL table is given by attribute 'ambi_resol_model'.
-sNum:4000
+sNum:2000
 
 # bottomKVal: Bottom of kVal
 bottomKVal:20
@@ -64,4 +65,4 @@ wot:1
 wpr:1
 
 # Ambiguity resolution samples for machine syntax parsing, which is actually a MySQL table.
-ambi_resol_samples:clust_res_k200_s18000_sg_aa
+ambi_resol_samples:stru_gene2

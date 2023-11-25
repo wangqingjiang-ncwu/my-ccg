@@ -16,11 +16,14 @@ module AmbiResol (
     nullStruGeneSample,  -- StruGeneSample
     nullStruGene,        -- StruGene
     OverPair,            -- (PhraCate, PhraCate, Prior)
+    OverPairid,          -- (PhraCate, PhraCate, Prior, SIdx)
     LeftPhra,            -- PhraCate
     RightPhra,           -- PhraCate
     Context,             -- [PhraCate]
     AmbiResol1,          -- (LeftPhra, RightPhra, Context, OverType, Prior)
+    AmbiResol1Sample,    -- (SIdx, LeftPhra, RightPhra, Context, OverType, Prior)
     readPriorFromStr,    -- String -> Prior
+    readAmbiResol1FromStr,   -- String -> AmbiResol1
     readPhraSynFromStr,  -- String -> PhraSyn
     readPhraSynListFromStr,  -- String -> [PhraSyn]
     readStruGeneFromStr,      -- String -> StruGene
@@ -34,7 +37,7 @@ module AmbiResol (
     ) where
 
 import Category
-import Phrase (Tag, PhraStru, PhraCate)
+import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString)
 import Utils
 import Data.Tuple.Utils
 import Text.Printf
@@ -102,6 +105,7 @@ nullStruGene = ([], nullPhraSyn, nullPhraSyn, [], -1, Noth)
 -- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
 
 type OverPair = (PhraCate, PhraCate, Prior)
+type OverPairid = (PhraCate, PhraCate, Prior, SIdx)
 
 {- The following defines No.1 ambiguity resolution model.
  -}
@@ -110,7 +114,7 @@ type LeftPhra = PhraCate                       -- Overlapping left phrase
 type RightPhra = PhraCate                      -- Overlapping right phrase
 type Context = [PhraCate]                      -- All phrases created to now but not including LeftPhra and RightPhra.
 type AmbiResol1 = (LeftPhra, RightPhra, Context, OverType, Prior)      -- Ambiguity resolution model
-
+type AmbiResol1Sample = (SIdx, LeftPhra, RightPhra, Context, OverType, Prior)
 
 readPriorFromStr :: String -> Prior
 readPriorFromStr str
@@ -118,6 +122,17 @@ readPriorFromStr str
     | str == "Rp" = Rp
     | str == "Noth" = Noth
     | otherwise = error "readPriorFromStr: String is invalid."
+
+-- Get a sample of No.1 ambiguity resolution model from a string.
+readAmbiResol1FromStr :: String -> AmbiResol1
+readAmbiResol1FromStr str = (lp, rp, ct, ot, pr)
+    where
+    fiveTupleStr = stringToFiveTuple str
+    lp = getPhraCateFromString (fst5 fiveTupleStr)
+    rp = getPhraCateFromString (snd5 fiveTupleStr)
+    ct = getPhraCateListFromString (thd5 fiveTupleStr)
+    ot = read (fth5 fiveTupleStr) :: Int
+    pr = readPriorFromStr (fif5 fiveTupleStr)
 
 readPhraSynFromStr :: String -> PhraSyn
 readPhraSynFromStr str = (ca, ta, ps)
@@ -129,11 +144,11 @@ readPhraSynFromStr str = (ca, ta, ps)
 
 readPhraSynListFromStr :: String -> [PhraSyn]
 readPhraSynListFromStr "[]" = []
-readPhraSynListFromStr str = pSyn:(readPhraSynListFromStr str')
-    where
-    listStr = stringToList str
-    pSyn = readPhraSynFromStr (head listStr)
-    str' = listToString (tail listStr)
+readPhraSynListFromStr str = readPhraSynListFromStrList (stringToList str)
+
+readPhraSynListFromStrList :: [String] -> [PhraSyn]
+readPhraSynListFromStrList [] = []
+readPhraSynListFromStrList (s:ss) = readPhraSynFromStr s : (readPhraSynListFromStrList ss)
 
 {- StruGene :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
  - LeftExtend :: [PhraSyn]
@@ -153,12 +168,12 @@ readStruGeneFromStr str = (le, lo, ro, re, ot, pr)
 readStruGeneListFromStr :: String -> [StruGene]
 readStruGeneListFromStr str = map readStruGeneFromStr (stringToList str)
 
-type SIdx = Int
-type CIdx = Int
-type DMin = Float
+type SIdx = Int                     -- Identifier of a sample
+type CIdx = Int                     -- Identifier of a cluster
+type DMin = Float                   -- Minimum among distances between a sample and all cluster members
 type Scd = (SIdx, CIdx, DMin)
 
--- Get the string of a scd
+-- Get the string of a Scd value.
 scdToString :: Scd -> String
 scdToString scd = "(" ++ sIdx ++ "," ++ cIdx ++ "," ++ dMin ++")"
     where

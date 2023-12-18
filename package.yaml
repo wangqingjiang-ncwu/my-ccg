@@ -31,6 +31,8 @@ dependencies:
 - directory
 - time
 - random
+- hmatrix
+- hmatrix-gsl
 
 library:
   source-dirs: src

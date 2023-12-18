@@ -1,6 +1,7 @@
 import Prelude hiding (lookup)
 import Data.Map
 import Data.List
+import Numeric.LinearAlgebra as LA
 
 ListIntCount :: List -> Map -> Map
 ListIntCount (list countMap) = (ret) where

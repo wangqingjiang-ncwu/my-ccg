@@ -10,7 +10,7 @@
 #
 resolver: lts-13.15
 # resolver: nightly-2015-09-21
-# resolver: ghc-8.2.2
+# resolver: ghc-9.2.7
 #
 # The location of a snapshot can be provided as a file or url. Stack assumes
 # a snapshot provided as a file might change, whereas a url resource does not.
@@ -68,8 +68,12 @@ arch: x86_64
 # Extra directories used by stack for building
 extra-include-dirs:
   - D:\Download\Programming Soft\mysql\MySQL\MySQL Server 8.0\include
+  - C:\Users\wangq\AppData\Local\Programs\stack\x86_64-windows\msys2-20221216\mingw64\include
+#  - C:\msys64\mingw64\include
 extra-lib-dirs:
   - D:\Download\Programming Soft\mysql\MySQL\MySQL Server 8.0\lib
+  - C:\Users\wangq\AppData\Local\Programs\stack\x86_64-windows\msys2-20221216\mingw64\lib
+#  - C:\msys64\mingw64\lib
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor

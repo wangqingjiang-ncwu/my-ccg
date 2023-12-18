@@ -38,6 +38,8 @@ library
     , bytestring
     , containers
     , directory
+    , hmatrix
+    , hmatrix-gsl
     , hspec
     , io-streams
     , mysql-haskell
@@ -54,6 +56,7 @@ executable my-ccg-exe
       Clustering
       Corpus
       Database
+      NeuralNetwork
       Output
       OutputTest
       Parse
@@ -72,6 +75,8 @@ executable my-ccg-exe
     , bytestring
     , containers
     , directory
+    , hmatrix
+    , hmatrix-gsl
     , hspec
     , io-streams
     , my-ccg
@@ -99,6 +104,7 @@ test-suite my-ccg-test
       Corpus
       Database
       Main
+      NeuralNetwork
       Output
       OutputTest
       Parse
@@ -118,6 +124,8 @@ test-suite my-ccg-test
     , bytestring
     , containers
     , directory
+    , hmatrix
+    , hmatrix-gsl
     , hspec
     , io-streams
     , my-ccg

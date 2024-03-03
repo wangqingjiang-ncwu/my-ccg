@@ -82,6 +82,7 @@ primitives = ["s", "np"]
 data Category = Nil | X | Primitive Prim | Derivative Category Slash Category deriving (Eq)
 
 -- Define relation Ord between two categories such that two phrasal cagories also can be compared.
+-- Maybe the following instance is redundant, if deriving Category from type class Ord.
 instance Ord Category where
     Nil < Nil = False
     X < X = False

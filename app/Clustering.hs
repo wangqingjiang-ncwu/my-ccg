@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 
--- Copyright (c) 2019-2023 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2024 China University of Water Resources and Electric Power
 -- All rights reserved.
+-- This module was written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
+-- To complete clustering, the distances between phrases shoule be defined firsly. Unfortunately it is not a simple problem.
 
 module Clustering (
     distPhraSyn,               -- PhraSyn -> PhraSyn -> Int
@@ -62,7 +64,13 @@ import System.Random
 import Control.Monad
 --import System.Random.Stateful
 
--- The distance between two phrases
+{- The distance between two phrases, where only grammatical factors are considered,
+ - and the correlations between different values of a same factor and between different factors are both neglected.
+ - Actually, some categories such 'np' and 's\.np' may be converted for some syntactic requirements, and phrasal
+ - structures such as 'AHn' and 'HnC' have same grammatical nature, which means there may exist correlations bewteen
+ - the different values of a same factor. Meanwhile, phrasal structure 'AHn' must have category 'np', so there exist
+ - correlations between some different factors.
+ -}
 distPhraSyn :: PhraSyn -> PhraSyn -> Int
 distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
     where
@@ -80,6 +88,13 @@ distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
  - Phrase set 1 = [p1, p2, ..., pn], phrase set 2 = [q1, q2, ..., qm]
  - dij = distPhraSyn pi qj
  - return the average dij among i<-[1..n] and j<-[1..m].
+ - For model 'struGene', LeftExtend and RightExtend are left-neighbouring and right-neighbouring phrases respectively.
+ - When comparing the LeftExtend or RightExtend phrases between two StruGene samples, the following algorithm is used:
+ - Suppose two sets to be compared are P and Q.
+ - (1) P == Q, the distance is 0;
+ - (2) P is proper set of Q, the distance is card(Q-P)/card(Q);
+ - (3) Q is proper set of P, the distance is card(P-Q)/card(P);
+ - (4) otherwise, the distance is sigma{distPhraSyn(r,t)| r<-P-Q, t<-Q-p}/(card(P-Q) x card(Q-P)).
  -}
 distPhraSynSet :: [PhraSyn] -> [PhraSyn] -> Float
 distPhraSynSet [] [] = 0.0

@@ -207,11 +207,14 @@ cateComb onOff pc1 pc2
       ctspaByvToO = ctspaByvToO_VO ++ ctspaByvToO_PO ++ ctspaByvToO_MOv
       catesByvToO = [(fst5 cate, "O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToO]
 
-{- The conversion from verbal types to np/.np happens when the verb occupies attribute position.
+{- The conversion from verbal types to np/.np happens when the verb occupies attribute position,
+ - or used to form '得' structure.
  -}
       v_A_AHn = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
       ctspaByvToA_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- csp2, fst3 cate2 == npCate, elem Av onOff]
-      ctspaByvToA = ctspaByvToA_AHn
+      v_A_U3P = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]
+      ctspaByvToA_U3P = [rule cate1 cate2 | rule <- [appF], cate1 <- csp1, fst3 cate1 == aux3Cate, cate2 <- v_A_U3P, elem Av onOff]
+      ctspaByvToA = ctspaByvToA_AHn ++ ctspaByvToA_U3P
       catesByvToA = [(fst5 cate, "A/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA]
 
 {- The conversion from verb to noun happens when the verb occupies nominal head word position of structure AHn and HnC.
@@ -886,8 +889,7 @@ cateComb onOff pc1 pc2
       catesBynToA_dToHn = [(fst5 cate, "A/n-Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToA_dToHn]
 
 {- The two adjacent types "np <verb>" convert to "(np/.np)/*(np/.np) np/.np", forming structure DHa, here conversions noun-to-adverbial and
-   verb-to-headword of DHa happen simultaneously.
- - Such as, "那么r 死vi" => "那么np 死s\.np" => "那么(np/.np)/*(np/.np) 死np/.np"
+   verb-to-headword of DHa happen simultaneously. Such as, "那么r 死vi" => "那么np 死s\.np" => "那么(np/.np)/*(np/.np) 死np/.np"
  -}
       v_A_DHa = removeDup [(adjCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\y-> cateEqual y (fst3 csp)) vCate)]
       ctspaBynToDa_vToA = [rule cate1 cate2 | rule <- [appF], cate1 <- n_Da_DHa, cate2 <- v_A_DHa, elem Dan onOff, elem Av onOff]

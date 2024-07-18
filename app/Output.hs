@@ -400,28 +400,32 @@ showTree spls = do
     showNPhraCate (head spls)
     showTree (tail spls)
 
-showTrees :: [[PhraCate]] -> IO ()
+showTrees :: [Tree] -> IO ()
 showTrees [] = putStrLn "[]"
 showTrees sp = do
     putStr "["
     showTrees' sp
     putStr "]"
 
-showTrees' :: [[PhraCate]] -> IO ()
+showTrees' :: [Tree] -> IO ()
 showTrees' [] = putStr ""
-showTrees' [s] = do
-    showNPhraCateLn s
-showTrees' (s:ss) = do
-    showNPhraCateLn s
+showTrees' [t] = do
+    putStr "("
+    putStr $ (show . fst) t
+    putStr ","
+    showNPhraCate (snd t)
+    putStrLn ")"
+showTrees' (t:ts) = do
+    showTrees' [t]
     putStrLn ","
-    showTrees' ss
+    showTrees' ts
 
-showATree :: Int -> [[PhraCate]] -> IO ()
-showATree ind pcss
-    | notElem ind [1..length pcss] = error "Tree index is out of range."
+showATree :: Int -> [Tree] -> IO ()
+showATree ind ts
+    | notElem ind [1..length ts] = error "Tree index is out of range."
     | otherwise = do
         putStrLn $ "  ##### Parsing Tree No." ++ show ind
-        showNPhraCate (pcss!!(ind-1))
+        showNPhraCate (snd (ts!!(ind-1)))
 
 -- Draw a horizontal line of width 'w'
 drawLine :: Int -> IO ()

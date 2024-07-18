@@ -28,15 +28,16 @@ module Corpus (
     ClauIdx,             -- Int
     BanPCs,              -- [PhraCate]
     Script,              -- (ClauIdx,[[Rule]],BanPCs)
-    Tree,                -- [PhraCate]
+    Tree,                -- (ClauIdx, [PhraCate])
     Closure,             -- [PhraCate]
     Forest,              -- [[PhraCate]]
     readScripts,         -- String -> [Script]
     readScript,          -- String -> Script
     readPCList,          -- String -> [PhraCate]
+    readTree,            -- String -> Tree
     readTrees,           -- String -> [Tree]
     readSLROfSent,       -- String -> SLROfSent
-    getTreeDepth,        -- Tree -> Int
+    getTreeDepth,        -- [PhraCate] -> Int
     readRuleSet,         -- String -> [Rule]
     readRule,            -- String -> Rule
     readClosures,        -- String -> [Closure]
@@ -55,11 +56,13 @@ module Corpus (
     nForestToString,     -- [Forest] -> String
     setIpcOfRows,        -- Int -> Int -> String -> IO ()
     removeLineFeed,      -- IO ()
-    removeLineFeedForOneRow      -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
+    removeLineFeedForOneRow,    -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
+    addClauIdxtoTreeField       -- Int -> Int -> IO ()
     ) where
 
 import Control.Monad
 import qualified System.IO.Streams as S
+import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List.Utils
 import Data.List
@@ -136,7 +139,7 @@ posCate = [("n","np"),
            ("dx","(s\\.np)/x(s\\.np)"),                -- 趋向动词的状语
            ("ds","s/*s"),                              -- 句子的状语
            ("p","((s\\.np)/#(s\\.np))/*np"),           -- 通过Cv/d、Ds/d，去掉了类型((s\\.np)\\x(s\\.np))/*np、(s/*s)/*np"
-           ("pa","((s/.np)\\#np)/#((s\\.np)/.np)"),    -- 介词'把'的类型，宾语提前到动语前
+           ("pa","((s/.np)\\.np)/#((s\\.np)/.np)"),    -- 介词'把'的类型，宾语提前到动语前
            ("pb","(s/#(s/.np))\\#np"),                 -- 介宾'被'的类型，宾语提取到主语前
            ("c","(X\\*X)/*X"),                         -- 连词的典型类型，双向连词，分别通过Cb/c、Cf/c得到后向、前向连词。
            ("cb","X\\*X"),                             -- 后向连词
@@ -461,8 +464,8 @@ type ClauIdx = Int
 type BanPCs = [PhraCate]
 type Script = (ClauIdx, [[Rule]], BanPCs)
 
--- A Tree is actually a list of PhraCate.
-type Tree = [PhraCate]
+-- A Tree is a clausal serial number and a list of PhraCate.
+type Tree = (ClauIdx, [PhraCate])
 
 -- Read Scripts from a String.
 readScripts :: String -> [Script]
@@ -481,9 +484,17 @@ readScript str = (cid, ruleSets, banPCs)
 readPCList :: String -> [PhraCate]
 readPCList str = map getPhraCateFromString (stringToList str)
 
--- Read [[PhraCate]] from a String.
-readTrees :: String -> [[PhraCate]]
-readTrees str = map readPCList (stringToList str)
+-- Read (ClauIdx, [PhraCate]) from a String.
+readTree :: String -> Tree
+readTree str = (clauIdx, phraCateList)
+    where
+    (clauIdxStr, phraCateListStr) = stringToTuple str
+    clauIdx = read clauIdxStr :: Int
+    phraCateList = map getPhraCateFromString (stringToList phraCateListStr)
+
+-- Read [Tree] from a String.
+readTrees :: String -> [Tree]
+readTrees str = map readTree (stringToList str)
 
 readSLROfTrans :: String -> SLROfATrans
 readSLROfTrans str = (stub, rule)
@@ -499,12 +510,12 @@ readSLROfSent :: String -> SLROfSent
 readSLROfSent str = map readSLROfClause (stringToList str)
 
 -- Get the depth of a tree, namely the biggest depth of its leaves.
-getTreeDepth :: Tree -> Int
+getTreeDepth :: [PhraCate] -> Int                          -- Here a tree is only considered its phrasal categories.
 getTreeDepth [] = 0                                        -- Empty tree
 getTreeDepth [r] = 1                                       -- Only root
 getTreeDepth t = if (roots == [] || length roots > 1)
                    then (-1)                               -- No parsing tree or more than one parsing tree.
-                   else (1 + maximum [getTreeDepth lt, getTreeDepth rt])
+                   else (1 + maximum [getTreeDepth lt, getTreeDepth rt])      -- ClauIdx 0 is nonsense.
     where
       leafNum = length (getPhraBySpan 0 t)                       -- Phrase length
       roots = getPhraBySpan (leafNum - 1) t
@@ -595,9 +606,9 @@ nScriptToString scripts = listToString (map scriptToString scripts)
 
 -- Get the String from a Tree value.
 treeToString :: Tree -> String
-treeToString tree = nPhraCateToString tree
+treeToString tree = "(" ++ show (fst tree) ++ "," ++ nPhraCateToString (snd tree) ++ ")"
 
--- Get the String fron a [Tree] value.
+-- Get the String from a [Tree] value.
 nTreeToString :: [Tree] -> String
 nTreeToString trees = listToString (map treeToString trees)
 
@@ -706,3 +717,30 @@ removeLineFeedForOneRow vs = [rs', rs2', vs!!2]
     rs2StrNoLF = replace "\n" "" $ replace "\r" "" rs2Str
     rs' = toMySQLText rsStrNoLF
     rs2' = toMySQLText rs2StrNoLF
+
+{- Add clause index to field tree in treebank. Treebank is selected by property 'tree_target' in configuration file.
+ - The serial number range of sentences are designated by input parameter 'sentSnOfStart' and 'sentSnOfEnd'.
+ - Clause indices make removing and paring again desiganated clauses feasible.
+ - This function may be run under ghci.
+ -}
+addClauIdxtoTreeField :: Int -> Int -> IO ()
+addClauIdxtoTreeField sentSnOfStart sentSnOfEnd = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_target = getConfProperty "tree_target" confInfo
+
+    conn <- getConn
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_target ++ " where serial_num >= ? && serial_num <= ?"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sentSnOfStart, toMySQLInt32 sentSnOfEnd]           -- read rows whose serial_nums are in designated range.
+    rows <- S.toList is
+    closeStmt conn stmt
+    close conn                       -- Close the connection.
+
+--    let origTrees = map (readPCList . fromMySQLText . (!!0)) rows          -- For all row, the values of field 'tree' are transformed into [PhraCate] values.
+
+    putStrLn $ show rows
+
+--    let rows' = map removeLineFeedForOneRow rows
+--    let stmt1 = "update corpus set raw_sent = ?, raw_sent2 = ? where serial_num = ?"
+--    oks <- executeMany conn stmt1 rows'
+--    putStrLn $ show (length oks) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.

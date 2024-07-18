@@ -65,8 +65,8 @@ module Utils (
     isSubstr,          -- String -> String -> String -> String -> Bool
     txt2csv4WordEmbed, -- String -> IO ()
     getConfProperty,   -- String -> String -> String
-    getLineUntil,      -- [String] -> IO String
-    acceptOrNot,        -- a -> String -> IO Maybe a
+    getLineUntil,      -- String -> [String] -> Bool -> IO String
+    acceptOrNot,       -- a -> String -> IO Maybe a
     ) where
 
 import Data.Tuple
@@ -542,19 +542,29 @@ kvListToMap :: [(String, String)] -> Map String String -> Map String String
 kvListToMap [] m = m
 kvListToMap (s:ss) m = kvListToMap ss (Map.insert (fst s) (snd s) m)
 
--- Read input repeatedly until the input string is in designated string set.
-getLineUntil :: String -> [String] -> IO String
-getLineUntil prompt cs = do
+{- Read input repeatedly until the input string is in designated string set.
+ - Suppose the string set is not empty.
+ - If the input string is empty string, namely pressing RETURN, and
+ -   (1) the default flag is True, return the first element of the string set;
+ -   (2) the default flag is False, return the last element of the string set.
+ -}
+getLineUntil :: String -> [String] -> Bool -> IO String
+getLineUntil _ [] _ = return "RangeZero"
+getLineUntil prompt cs flag = do
     putStr prompt
     read <- getLine
     if elem read cs
       then return read
-      else getLineUntil prompt cs
+      else if read == ""
+             then if flag == True
+                    then return (head cs)
+                    else return (last cs)
+             else getLineUntil prompt cs flag
 
 -- According to user opinion, accept or deny the input.
 acceptOrNot :: a -> String -> IO (Maybe a)
 acceptOrNot a prompt = do
-    yn <- getLineUntil prompt ["y","n",""]
-    if yn == "y" || yn == ""
+    yn <- getLineUntil prompt ["y","n"] True
+    if yn == "y"
       then return (Just a)
       else return Nothing

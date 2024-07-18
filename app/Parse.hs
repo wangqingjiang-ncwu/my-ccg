@@ -313,12 +313,22 @@ cateComb onOff pc1 pc2
       catesByvtToOE = [(fst5 cate, "OE/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToOE]
 
 {- The conversion from intransitive verb's type to transitive verb's type happens when
- - the intransitive verb is followed by a phrase with structure "XX" follows.
+   (1) The intransitive verb is followed by a phrase with structure "XX" or with category "np";
+   (2) The intransitive verb follows a phrase with category "np".
  -}
-      vi_Vt = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == predCate]
-      ctspaByviToVt = [rule cate1 cate2 | rule <- [appB], cate1 <- vi_Vt, cate2 <- csp_2, elem Vtvi onOff]
+      vi_Vt_XX = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == predCate]
+      ctspaByviToVt_XX = [rule cate1 cate2 | rule <- [appB], cate1 <- vi_Vt_XX, cate2 <- csp_2, elem Vtvi onOff]
           where
           csp_2 = removeDup [x| x <- csp2, thd3 x == "XX"]
+      vi_Vt_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == predCate]
+      ctspaByviToVt_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- vi_Vt_VO, cate2 <- csp_2, elem Vtvi onOff]
+          where
+          csp_2 = removeDup [x| x <- csp2, fst3 x == npCate]
+      vi_Vt_OE = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == predCate]
+      ctspaByviToVt_OE = [rule cate1 cate2 | rule <- [raiFh], cate1 <- csp_1, cate2 <- vi_Vt_OE, elem Vtvi onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == npCate]
+      ctspaByviToVt =  ctspaByviToVt_XX ++ ctspaByviToVt_VO ++ ctspaByviToVt_OE
       catesByviToVt = [(fst5 cate, "Vt/vi-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByviToVt]
 
 {- The conversion from verb-complemented type to adjective type happens when

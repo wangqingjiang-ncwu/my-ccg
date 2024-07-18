@@ -254,8 +254,7 @@ readStreamByInt32U3TextInt8Text es is = do
 -- Get a connection to MySQL database according to a configuration file.
 getConn :: IO MySQLConn
 getConn = do
---  confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    confInfo <- readFile "d:\\github\\my-ccg\\app\\Configuration"
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let host = getConfProperty "Host" confInfo
     let user = getConfProperty "User" confInfo
     let password = getConfProperty "Password" confInfo

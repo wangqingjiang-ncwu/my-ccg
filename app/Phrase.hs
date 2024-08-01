@@ -69,6 +69,7 @@ module Phrase (
     ) where
 
 import Data.Tuple
+import Data.String.Utils
 import Category
 import Utils
 

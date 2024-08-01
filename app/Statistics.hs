@@ -28,7 +28,7 @@ import Phrase
 import Utils
 import Database
 import Corpus
-import SentParse (sentToClauses, dispTree')
+import SentParse (sentToClauses, dispTreeOfSent)
 import Output(showScript, showScript')
 
 {- The following functions read field 'tree' of table 'corpus', then count all clauses according the input index.
@@ -80,19 +80,20 @@ countInTree bottomSn topSn funcIndex = do
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
 
-    sentStrList <- readStreamByText [] is                           -- [String], here a string is the parsing result of a sentence.
+    sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
     let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
     let sentClauNumList = map length sentClauStrList          -- [Int], here an integer is the number of clauses in a sentence.
     let sentNum = length sentStrList                          -- The number of sentences.
     let clauseTotalNum = foldl (+) 0 sentClauNumList          -- The total number of clauses.
-    let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList
+
+    let sentClauTreeList = map (map readTree) sentClauStrList     -- [[Tree]], here Tree ::= (ClauIdx, [PhraCate])
+--    let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList
                                                               -- [[[String]]], here a string is for a phrase.
-    let sentClauPhraList = toSentClauPhraList sentClauPhraStrList
-                                                              -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+    let sentClauPhraList = map (map snd) sentClauTreeList     -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
 
 --  Output the following for test.
---  putStrLn $ "countInTree: The list of clauses in first sentence: " ++ show (sentClauPhraList!!0)
---  putStrLn $ "countInTree: The first clause in first sentence: " ++ show ((sentClauPhraList!!0)!!0)
+--    putStrLn $ "countInTree: The list of clauses in first sentence: " ++ show (sentClauPhraList!!0)
+--    putStrLn $ "countInTree: The first clause in first sentence: " ++ show ((sentClauPhraList!!0)!!0)
 
     if funcIndex == 1                                          -- To get the number of sentences.
        then putStrLn $ "countInTree: The number of sentences: " ++ show sentNum
@@ -111,7 +112,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 4                                          -- To get the length of every clause in every sentence.
        then do
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[Int]], here every integer is the length of a clause.
+         let sentClauLengthList = toSentClauLengthList sentClauTreeList                 -- [[Int]], here every integer is the length of a clause.
          let clauseLengthTotal = foldl (+) 0 $ map (foldl (+) 0) sentClauLengthList
          let averageClauseLength = (fromIntegral clauseLengthTotal :: Float) / (fromIntegral clauseTotalNum :: Float)
          putStrLn $ "countInTree: Length of every clause in every sentence: " ++ show sentClauLengthList
@@ -135,14 +136,14 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 6                                          -- To get the number of clauses with different lengths.
        then do
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList                 -- [[Int]], here every integer is the length of a clause.
+         let sentClauLengthList = toSentClauLengthList sentClauTreeList                 -- [[Int]], here every integer is the length of a clause.
          let clauLength2NumMap = toClauLength2NumMap sentClauLengthList Map.empty       -- Map Int Int, namely Map <clauLength> <clauNum>, and 'empty' return null Map.
          putStrLn $ "countInTree: Clause count by clause length: " ++ show clauLength2NumMap
        else putStr ""
 
     if funcIndex == 7                                          -- To get the number of clauses with different depths.
        then do
-         let sentClauDepthList = toSentClauDepthList sentClauPhraList           -- [[Int]], here every integer is the depth of a clause.
+         let sentClauDepthList = toSentClauDepthList sentClauTreeList           -- [[Int]], here every integer is the depth of a clause.
          let clauDepth2NumMap = toClauDepth2NumMap sentClauDepthList Map.empty
                                                                 -- Map Int Int, namely Map <clauDepth> <clauNum>, and 'empty' return null Map.
          putStrLn $ "countInTree: The height of parsing tree of every clause in every senetence: " ++ show sentClauDepthList
@@ -213,7 +214,7 @@ countInTree bottomSn topSn funcIndex = do
 
 --       putStrLn $ "countInTree: The number of used conversions in every clause: " ++ show sentClauConvNumList
 
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList                                 -- [[ClauLength]], 'ClauLength' is the length of a clause.
+         let sentClauLengthList = toSentClauLengthList sentClauTreeList                                 -- [[ClauLength]], 'ClauLength' is the length of a clause.
          putStrLn $ "countInTree: The length of every clause: " ++ show sentClauLengthList
 
          let clauLength2ConvNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauConvNumList Map.empty                   -- Map Int [Int]
@@ -268,18 +269,31 @@ countInScript bottomSn topSn funcIndex = do
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
 
-    sentStrList <- readStreamByText [] is                           -- [String], here a string is the parsing script of a sentence.
-    let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing script of a clause.
-    let sentClauNumList = map length sentClauStrList          -- [Int], here an integer is the number of clauses in a sentence.
-    let sentNum = length sentStrList                          -- The number of sentences.
-    let clauseTotalNum = foldl (+) 0 sentClauNumList          -- The total number of clauses.
-    let sentClauScriptList = toSentClauScriptList sentClauStrList               -- [[Script]], here a Script is the representation in memory of parsing script of a clause.
+    sentScriptStrList <- readStreamByText [] is                     -- [String], here a string is the parsing script of a sentence.
+    let sentClauScriptStrList = map stringToList sentScriptStrList        -- [[String]], here a string is the parsing script of a clause.
+    let sentClauNumList = map length sentClauScriptStrList                -- [Int], here an integer is the number of clauses in a sentence.
+    let sentNum = length sentScriptStrList                          -- The number of sentences.
+    let clauseTotalNum = foldl (+) 0 sentClauNumList                -- The total number of clauses.
+    let sentClauScriptList = map (map readScript) sentClauScriptStrList         -- [[Script]], here a Script is the representation in memory of parsing script of a clause.
 
     -- Output the following for test. Using 'showScript' or else using 'show' should be decied again.
-    putStr "countInScript: The script list of clauses in first sentence: "
-    showScript (sentClauScriptList!!0)
-    putStr "countInScript: The script of first clause in first sentence: "
-    showScript' [((sentClauScriptList!!0)!!0)]
+    -- putStr "countInScript: The script list of clauses in first sentence: "
+    -- showScript (sentClauScriptList!!0)
+    -- putStr "countInScript: The script of first clause in first sentence: "
+    -- showScript' [((sentClauScriptList!!0)!!0)]
+    -- putStrLn
+
+    let tree_source = getConfProperty "tree_source" confInfo
+    putStrLn $ "The source of parsing trees is set as: " ++ tree_source         -- Display the source of parsing trees
+    let sqlstat2 = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num >= ? and serial_num < ?"
+    stmt2 <- prepareStmt conn sqlstat2
+    (defs2, is2) <- queryStmt conn stmt2 [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
+    sentTreeStrList <- readStreamByText [] is2                                  -- [String], here a string is the parsing result of a sentence.
+
+    let sentClauTreeStrList = map stringToList sentTreeStrList             -- [[String]], here a string is the parsing result of a clause.
+    let sentClauTreeList = map (map readTree) sentClauTreeStrList          -- [[Tree]], here a Tree value is the parsing result for a clause.
+    let sentClauPhraList = map (map snd) sentClauTreeList                  -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+    let sentClauLengthList = toSentClauLengthList sentClauTreeList         -- [[Int]], here every integer is the length of a clause.
 
     if funcIndex == 1                                         -- To get transitive times of every clause in all sentences.
        then do
@@ -293,7 +307,7 @@ countInScript bottomSn topSn funcIndex = do
          let descListOfTT2FreqByValue = toDescListOfMapByValue (Map.toList transTimes2FreqMap)
          putStrLn $ "countInScript: The descending list of frequencies of different transitive times: " ++ show descListOfTT2FreqByValue
 
-         let transTimesTotal = fromIntegral $ foldl (+) 0 $ map snd descListOfTT2FreqByValue         -- The total number of transtive times for all clauses.
+         let transTimesTotal = fromIntegral $ foldl (+) 0 $ map fst descListOfTT2FreqByValue         -- The total number of transtive times for all clauses.
          let descListOfTT2NormalizedFreqByValue = map (\x -> (fst x, ((/ transTimesTotal) . fromIntegral . snd) x)) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
          putStrLn $ "countInScript: Transitive times total for all clauses: " ++ show transTimesTotal
          putStrLn $ "countInScript: The descending list of normalized frequencies of different transitive times: " ++ show (formatMapListWithFloatValue descListOfTT2NormalizedFreqByValue 4)
@@ -302,15 +316,6 @@ countInScript bottomSn topSn funcIndex = do
     if funcIndex == 3                                         -- To get the list of transitive times for every different clausal lengths.
        then do
          let sentClauTransTimesList = map (map (length . snd3)) sentClauScriptList      -- [[[Int]]], here every integer is the transitive times in parsing a clause.
-
-         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
-         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
-         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
-         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
-         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
-         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
-
          let clauLength2TransTimesListMap = toClauLength2CerParaListMap sentClauLengthList sentClauTransTimesList Map.empty             -- Map Int [Int]
          let ascenListOfClauLength2TransTimesList = Map.toAscList clauLength2TransTimesListMap                                          -- [(Int, [Int])]
          let ascenListOfClauLength2TransTimesMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2TransTimesList     -- [(ClauLength, [Min, Max, Mean])]
@@ -338,14 +343,6 @@ countInScript bottomSn topSn funcIndex = do
          let sentClauTransConvNumList = map (map (map length)) sentClauTransConvList        -- [[[num]]]
          let sentClauConvFreqList = map (map (foldl (+) 0)) sentClauTransConvNumList       -- [[total]]
 
-         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
-         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
-         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
-         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
-         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
-         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
-
          let clauLength2ConvNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauConvFreqList Map.empty                  -- Map Int [Int]
          let ascenListOfClauLength2ConvNumList = Map.toAscList clauLength2ConvNumListMap                                                -- [(Int, [Int])]
          let ascenListOfClauLength2ConvNumMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumList   -- [(ClauLength, [Min, Max, Mean])]
@@ -370,15 +367,6 @@ countInScript bottomSn topSn funcIndex = do
     if funcIndex == 7
        then do
          let sentClauAbanPhraNumList = map (map (length . thd3)) sentClauScriptList
-
-         stmt <- prepareStmt conn "select tree from corpus where serial_num >= ? and serial_num < ?"
-         (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
-         sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
-         let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
-         let sentClauPhraStrList = toSentClauPhraStrList sentClauStrList        -- [[[String]]], here a string is for a phrase.
-         let sentClauPhraList = toSentClauPhraList sentClauPhraStrList          -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
-         let sentClauLengthList = toSentClauLengthList sentClauPhraList         -- [[Int]], here every integer is the length of a clause.
-
          let clauLength2AbanPhraNumListMap = toClauLength2CerParaListMap sentClauLengthList sentClauAbanPhraNumList Map.empty               -- Map Int [Int]
          let ascenListOfClauLength2AbanPhraNumList = Map.toAscList clauLength2AbanPhraNumListMap                                            -- [(Int, [Int])]
          let ascenListOfClauLength2AbanPhraNumMinMaxMeanList = toListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2AbanPhraNumList   -- [(ClauLength, [Min, Max, Mean])]
@@ -516,25 +504,16 @@ searchInScript bottomSn topSn funcIndex = putStrLn "searchInScript: to do."
 {- Get representations in memory of parsing results of sentences.
  - <sentsResult> ::= [<sentResult>], a <sentResult> is the parsing result for a sentence.
  - <sentResult> ::= [<clauResult>], a <clauResult> is the parsing result for a clause, where a sentence includes many clauses.
- - <clauResult> ::= [PhraCate], <PhraCate> is the representation in memory for a phrase.
- - So, <sentsResult> ::= [[[PhraCate]]]
+ - <clauResult> ::= Tree, where Tree ::= (ClauIdx, [PhraCate]), PhraCate is the representation in memory for a phrase.
+ - So, <sentsResult> ::= [[Tree]]
  - From the perspective of parsing trees, the results of a clause, a sentence, and a set of sentences are a tree, a forest, and a forest of forests.
  -}
-toSentClauPhraStrList :: [[String]] -> [[[String]]]
-toSentClauPhraStrList [] = []
-toSentClauPhraStrList (sent:sents) = (map stringToList sent) : toSentClauPhraStrList sents
-
-{- Get representations in memory of parsing results of sentences.
- -}
-toSentClauPhraList :: [[[String]]] -> [[[PhraCate]]]
-toSentClauPhraList [] = []
-toSentClauPhraList (sent:sents) = (map (map getPhraCateFromString) sent) : toSentClauPhraList sents
 
 {- Get the length of every clause for a set of parsing trees.
  -}
-toSentClauLengthList :: [[[PhraCate]]] -> [[Int]]
+toSentClauLengthList :: [[Tree]] -> [[Int]]
 toSentClauLengthList [] = []
-toSentClauLengthList (sent:sents) = (map (length . (getPhraBySpan 0)) sent) : toSentClauLengthList sents
+toSentClauLengthList (sent:sents) = (map (length . (getPhraBySpan 0) . snd) sent) : toSentClauLengthList sents
 
 {- Get the numbers of clauses with every different lengths, which is Data.Map.
  - The input is the list of clause lengths in every sentence, and the output is Map (clauLength, clauNum).
@@ -552,9 +531,9 @@ toClauLength2NumMap (sent:sents) clauLength2NumMap = Map.unionWith (+) mapHead m
 
 {- Get the depths of clauses in every sentence.
  -}
-toSentClauDepthList :: [[[PhraCate]]] -> [[Int]]
+toSentClauDepthList :: [[Tree]] -> [[Int]]
 toSentClauDepthList [] = []
-toSentClauDepthList (sent:sents) = (map getTreeDepth sent) : toSentClauDepthList sents
+toSentClauDepthList (sent:sents) = (map (getTreeDepth . snd) sent) : toSentClauDepthList sents
 
 {- Get the numbers of clauses with every different depths, which is Data.Map.
  - The input is the list of clause depths in every sentence, and the output is Map (clauDepth, clauNum).
@@ -693,12 +672,6 @@ insertPhraList2TtsFreqMap [x] tts2FreqMap
     ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
 insertPhraList2TtsFreqMap (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap xs (insertPhraList2TtsFreqMap [x] tts2FreqMap)
 
-{- Get representations in memory of parsing scripts of sentences.
- -}
-toSentClauScriptList :: [[String]] -> [[Script]]
-toSentClauScriptList [] = []
-toSentClauScriptList (sent:sents) = (map readScript sent) : toSentClauScriptList sents
-
 {- Get the frequencies of various transtive times, which is Data.Map.
  - The input is the list of sentential parsing scripts, and the output is Map <transTimes> <ttNum>.
  -}
@@ -765,6 +738,8 @@ showAscenListOfClauLength2FreqRate [(clauLength, freqRate)] = "(" ++ show clauLe
 showAscenListOfClauLength2FreqRate (cl:cls) = showAscenListOfClauLength2FreqRate [cl] ++ ", " ++ showAscenListOfClauLength2FreqRate cls
 
 {- Get the number of not-recognizable phrases in parsing every clause in every sentence.
+ - But now, the not-recognizable phrases are removed in function 'cateComb', and not stored into database.
+ - So the banned phrases in field 'script' of database table 'corpus' do not contain any 'NR' phrase.
  -}
 toSentClauAbanNRPhraNumList :: [[Script]] -> [[Int]]
 toSentClauAbanNRPhraNumList [] = []                                             -- No sentence
@@ -825,7 +800,7 @@ dispTreeListOnStdout :: [(Int, String)] -> IO ()
 dispTreeListOnStdout [] = putStrLn "No parsing tree to display."
 dispTreeListOnStdout [(sn, treeStr)] = do
     putStrLn $ "Sentence No.: " ++ show sn
-    sentToClauses treeStr >>= dispTree' 1          -- The ordered number of first clause is 1.
+    sentToClauses treeStr >>= dispTreeOfSent
 dispTreeListOnStdout (t:ts) = do
     dispTreeListOnStdout [t]
     dispTreeListOnStdout ts

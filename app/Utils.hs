@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Utils (
@@ -39,6 +39,8 @@ module Utils (
     doubleBackSlash,   -- String -> String
     putNStr,       -- [String] -> IO ()
     throwHTSpace,  -- String -> String
+--    lstrip,        -- String -> String
+--    rstrip,        -- String -> String
     throwHTSpaceInList,      -- String -> String
     listHead,      -- String -> String
     listHead',     -- String -> String
@@ -52,6 +54,7 @@ module Utils (
     dropNElem,     -- Int -> String -> String
     listLength,    -- String -> Int
     stringToList,      -- String -> [String]
+    stringToList',     -- String -> [String]
     listToString,      -- [String] -> String
     stringToTuple,     -- String -> (String,String)
     stringToTriple,    -- String -> (String,String,String)
@@ -70,10 +73,10 @@ module Utils (
     ) where
 
 import Data.Tuple
-import Data.List
-import Data.String.Utils
+import Data.List (elemIndex)
 import Data.Map (Map)
 import qualified Data.Map as Map
+-- import Data.String.Utils
 import qualified Data.String as DS
 
 -- Functions on four tuple.
@@ -180,7 +183,7 @@ removeTuple ts
       it = init ts
 
 -- Convert a list of tuples into a list of elements.
-tupToList :: Eq a => [(a,a)] -> [a]
+tupToList :: [(a,a)] -> [a]
 tupToList tupList = (fst tup) ++ (snd tup)
     where
       tup = unzip tupList
@@ -222,7 +225,7 @@ splitAtDeli c cs
 splitAtDeliThrowSpace :: Char -> String -> [String]
 splitAtDeliThrowSpace _ "" = []
 splitAtDeliThrowSpace c cs
-    | i /= -1 = (lstrip (rstrip (take i cs))) : splitAtDeli c (drop (i+1) cs)
+    | i /= -1 = (throwHTSpace (take i cs)) : splitAtDeli c (drop (i+1) cs)
     | otherwise = [cs]
     where
       ind = elemIndex c cs
@@ -273,9 +276,23 @@ putNStr (s:ss) = do
         putNStr ss
       else putNStr ss
 
--- Throw away head spaces and tail spaces from a character string.
+-- Throw away head spaces and tail spaces in a string.
 throwHTSpace :: String -> String
-throwHTSpace cs = lstrip $ rstrip cs
+throwHTSpace str = rstrip (lstrip str)
+
+-- Implement of function Data.String.Utils.lstrip
+lstrip :: String -> String
+lstrip [] = []
+lstrip (x:xs)
+    | x == ' ' = lstrip xs
+    | otherwise = x : xs
+
+-- Implement of function Data.String.Utils.rstrip
+rstrip :: String -> String
+rstrip [] = []
+rstrip xs
+    | last xs == ' ' = rstrip $ init xs
+    | otherwise = xs
 
 {- Throw away head spaces and tail spaces in each string element as well as head spaces and tail spaces of the whole
    string list, here the string list is converted from a list.
@@ -397,6 +414,19 @@ stringToList str
       str'' = throwHTSpace $ init (tail str')   -- Throw away '[' and ']', then remove head and tail spaces.
       idx = indexOfDelimiter 0 0 0 ',' str''
 
+{- Without considering to throw away the head and tail whitespaces of every element, directly get [String] from a String of element list.
+ - This function is used to read string list where no redundant spaces exist.
+ -}
+stringToList' :: String -> [String]
+stringToList' str
+    | head str /= '[' || last str /= ']' = error "stringToList: This is not the string of a list."
+    | str' == "" = []
+    | idx == -1 = [str']
+    | otherwise =  (take idx str') : (stringToList' ("[" ++ drop (idx + 1) str' ++ "]"))
+    where
+      str' = init (tail str)   -- Throw away '[' and ']'
+      idx = indexOfDelimiter 0 0 0 ',' str'
+
 -- Get the String from a [String].
 listToString :: [String] -> String
 listToString [] = "[]"
@@ -517,14 +547,6 @@ replaceBlankByComma (x:xs)
     | x == ' ' = ',' : replaceBlankByComma xs
     | otherwise = x : replaceBlankByComma xs
 
--- Replace the first blank by comma. If FoundFirstBlank is true, that represents the first blank has been found and replaced.
-replaceFirstBlankByComma :: Bool -> String -> String
-replaceFirstBlankByComma _ [] = []
-replaceFirstBlankByComma True xs = xs
-replaceFirstBlankByComma False (x:xs)
-    | x == ' ' = ',' : xs
-    | otherwise = x : replaceFirstBlankByComma False xs
-
 -- Get a property value by a given property name in configuration text.
 getConfProperty :: String -> String -> String
 getConfProperty propName confInfo = case propValue of
@@ -549,13 +571,13 @@ kvListToMap (s:ss) m = kvListToMap ss (Map.insert (fst s) (snd s) m)
  -   (2) the default flag is False, return the last element of the string set.
  -}
 getLineUntil :: String -> [String] -> Bool -> IO String
-getLineUntil _ [] _ = return "RangeZero"
+getLineUntil _ [] _ = return "ZeroRange"
 getLineUntil prompt cs flag = do
     putStr prompt
-    read <- getLine
-    if elem read cs
-      then return read
-      else if read == ""
+    input <- getLine
+    if elem input cs
+      then return input
+      else if input == ""
              then if flag == True
                     then return (head cs)
                     else return (last cs)

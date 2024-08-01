@@ -9,6 +9,7 @@ module SentParse (
     getSent,              -- String -> IO [String]
 --    getSentList,              -- String -> IO [String]
     parseSent,            -- Int -> Int -> [String] -> IO Bool
+    dropParsingResult,    -- Int -> Int -> Int -> IO Bool
     goBackTo,             -- Int -> Int -> IO ()
     parseSent',           -- Int -> [String] -> IO ()
     storeClauseParsing,   -- Int -> Int -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
@@ -41,6 +42,7 @@ module SentParse (
     storeTree,            -- Int -> String -> IO ()
     readTree_String,      -- Int -> IO String
     sentToClauses,        -- String -> IO [String]
+    dispTreeOfSent,       -- [String] -> IO ()
     dispTree,             -- [String] -> IO ()
     dispTree',            -- Int -> [String] -> IO ()
     dispComparisonTreesOfAmbiResolResult,   -- Int -> [String] -> [String] -> String -> String -> IO ()
@@ -117,19 +119,20 @@ parseSent :: Int -> [String] -> IO ()
 parseSent sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
 
-    let prompt1 = " There are " ++ show (length cs) ++ " clauses in total, from which clause to start: [RETURN for 1] "
+    let prompt1 = " There are " ++ show (length cs) ++ " clauses in total, from which clause to start? [RETURN for 1] "
     let inputRange1 = [show x | x <- [1 .. length cs]]
     clauIdxOfStartStr <- getLineUntil prompt1 inputRange1 True
     let clauIdxOfStart = read clauIdxOfStartStr :: Int
 
-    let prompt2 = " to which clause to end: [RETURN for last one] "
-    let inputRange2 = [show x | x <- [clauIdxOfStart .. length cs]]
+    let prompt2 = " to which clause to end? [RETURN for last one] "
+    let inputRange2 = [show x | x <- [1 .. length cs]]
     clauIdxOfEndStr <- getLineUntil prompt2 inputRange2 False
 
-    if clauIdxOfEndStr == "RangeZero"
-      then putStrLn "parseSent: Clausal range is zero, and no clause is parsed."
+    if clauIdxOfEndStr == "ZeroRange"
+      then putStrLn "parseSent: Clausal range is zero, and no clause is parsed."               -- Impossible.
       else do               -- Drop trees and scripts of clause clauIdxOfStart to clause clauIdxOfEnd.
              let clauIdxOfEnd = read clauIdxOfEndStr :: Int
+             putStrLn $ "Clause from " ++ show clauIdxOfStart ++ " to " ++ show clauIdxOfEnd ++ " will be parsed."
              dropFlag <- dropParsingResult sn clauIdxOfStart clauIdxOfEnd
              if dropFlag
                then do
@@ -139,7 +142,7 @@ parseSent sn cs = do
                    else putStrLn "parseSent: Not finished parsing."
                else putStrLn "parseSent: Parsing was cancelled."                 -- dropParsingResult failed, return upper layer calling.
 
-{- To be ready for parsing from clause clauIdxOfStart to clause clauIdxOfEnd, parsing trees and scripts of those clauses are removed in treebank.
+{- To prepare for parsing from clause clauIdxOfStart to clause clauIdxOfEnd, parsing trees and scripts of those clauses are removed in treebank.
  - The treebank is designated by property 'tree_target' in file Configuration.
  - For removing success, return True; otherwise return False.
  -}
@@ -158,7 +161,7 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
                  Nothing -> [MySQLText "[]", MySQLText "[]"]                    -- Both "tree" and "script" in treebank will be initialized as '[]'.
     S.skipToEof is                                     -- Consume result set.
 
---  putStrLn $ "dropParsingResult: tree: " ++ (fromMySQLText (head row'))
+    putStrLn $ "dropParsingResult: tree: " ++ (fromMySQLText (head row'))
 
     let trees = readTrees $ fromMySQLText (row'!!0)
     let scripts = readScripts $ fromMySQLText (row'!!1)
@@ -166,8 +169,8 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
     let clauIdxRange = quickSortForInt [ fst t | t <- trees]
     putStrLn $ "dropParsingResult: The indices of parsed clauses are " ++ show clauIdxRange
 
-    let trees' = [ t | t <- trees, notElem (fst t) [clauIdxOfStart..clauIdxOfEnd]]
-    let scripts' = [ t | t <- scripts, notElem (fst3 t) [clauIdxOfStart..clauIdxOfEnd]]
+    let trees' = [ t | t <- trees, notElem (fst t) [clauIdxOfStart..clauIdxOfEnd]]            -- Element order in [Tree] is kept.
+    let scripts' = [ t | t <- scripts, notElem (fst3 t) [clauIdxOfStart..clauIdxOfEnd]]       -- Element order in [Script] is kept.
 
     let sqlstat = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
     stmt' <- prepareStmt conn sqlstat
@@ -183,6 +186,7 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
 {- To be ready for parsing from clause <ci>, parsing trees and scripts of clauses with index bigger than or equal to <ci> are deleted in treebank.
  - The treebank is designated by property 'tree_target' in file Configuration.
  - For skip success, return True; otherwise return False.
+ - The function is obsoleted, replaced with dropParsingResult to support parsing the designated range of clauses.
  -}
 goBackTo :: Int -> Int -> IO Bool
 goBackTo sn ci = do
@@ -255,6 +259,10 @@ parseSent' sn skn cs = do
 --  Add the parsing result of a clause into database. Now, parameter <clauIdx> has not been used for checking.
 storeClauseParsing :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
 storeClauseParsing sn clauIdx rtbPCs = do
+    confInfo <- readFile "Configuration"                                        -- Read configuration file
+    let tree_target = getConfProperty "tree_target" confInfo
+    let sqlstat = DS.fromString $ "select tree, script from " ++ tree_target ++ " where serial_num = ?"
+
     conn <- getConn
     stmt <- prepareStmt conn "select tree, script from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
@@ -267,14 +275,14 @@ storeClauseParsing sn clauIdx rtbPCs = do
 
     let tree = readTrees $ fromMySQLText (head row')
     let script = readScripts $ fromMySQLText (last row')
-    putStrLn $ "storeClauseParsing: tree: " ++ (nTreeToString tree)
-    putStrLn $ "storeClauseParsing: script: " ++ (nScriptToString script)
+--    putStrLn $ "storeClauseParsing: tree: " ++ (nTreeToString tree)
+--    putStrLn $ "storeClauseParsing: script: " ++ (nScriptToString script)
 
-    let tree' = tree ++ [(clauIdx, snd3 rtbPCs)]
-    let script' = script ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+    let tree' = quickSortForTree $ tree ++ [(clauIdx, snd3 rtbPCs)]
+    let script' = quickSortForScript $ script ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
 
-    putStrLn $ "storeClauseParsing: tree': " ++ (nTreeToString tree')
-    putStrLn $ "storeClauseParsing: script': " ++ (nScriptToString script')
+--    putStrLn $ "storeClauseParsing: tree': " ++ (nTreeToString tree')
+--    putStrLn $ "storeClauseParsing: script': " ++ (nScriptToString script')
 
     stmt' <- prepareStmt conn "update corpus set tree = ?, script = ? where serial_num = ?"
     ok <- executeStmt conn stmt' [toMySQLText (nTreeToString tree'), toMySQLText (nScriptToString script'), toMySQLInt32 sn]
@@ -2124,7 +2132,21 @@ readTree_String sn tree_source = do
 sentToClauses :: String -> IO [String]
 sentToClauses cs = return $ stringToList cs
 
--- Display trees' structure of clauses of a sentence, one tree per clause.
+{- Display trees' structure of clauses of a sentence. For every clause, the input is a string of (ClauIdx, [PhraCate]).
+ -}
+dispTreeOfSent :: [String] -> IO ()
+dispTreeOfSent [] = putStr ""                          -- Nothing to display.
+dispTreeOfSent (s:cs) = do
+    let clauTreeStr = stringToTuple s
+    putStrLn $ "Clause No.: " ++ (fst clauTreeStr)
+    let pcs = getClauPhraCate (snd clauTreeStr)
+    let spls = divPhraCateBySpan pcs                   -- Span lines
+    showTreeStru spls spls
+    dispTreeOfSent cs
+
+{- Display trees' structure of clauses of a sentence, one tree per clause.
+ - This function is obsoleted.
+ -}
 dispTree :: [String] -> IO ()
 dispTree [] = putStr ""                      -- Nothing to display.
 dispTree (s:cs) = do
@@ -2135,7 +2157,9 @@ dispTree (s:cs) = do
       pcs = getClauPhraCate s
       spls = divPhraCateBySpan pcs      -- Span lines
 
--- Display trees' structure of remaining clauses of a sentence, one tree per clause, and the 'idx' is ordered number of first clause among remaining clauses.
+{- Display trees' structure of remaining clauses of a sentence, one tree per clause, and the 'idx' is ordered number of first clause among remaining clauses.
+ - The function is obsoleted.
+ -}
 dispTree' :: Int -> [String] -> IO ()
 dispTree' _ [] = putStr ""                      -- Nothing to display.
 dispTree' idx (s:cs) = do
@@ -2173,7 +2197,7 @@ dispComparisonTreesOfAmbiResolResult clauIdx (s:cs) (x:xs) tree_source1 tree_sou
 -- Get a clause's [PhraCate] from its string value.
 getClauPhraCate :: String -> [PhraCate]
 getClauPhraCate "" = []
-getClauPhraCate str = map getPhraCateFromString (stringToList str)
+getClauPhraCate str = map getPhraCateFromString (stringToList' str)
 
 -- Get a clause's [PhraCate] from string value of (clauIdx, [[Rule]], [PhraCate]).
 getClauBanPCs :: String -> [PhraCate]

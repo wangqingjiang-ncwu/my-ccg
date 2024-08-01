@@ -37,7 +37,7 @@ module Database (
   getOkLastInsertID,           -- OK -> Int
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
-  readStreamByText,                --[String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByText,                -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByInt,                 -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]

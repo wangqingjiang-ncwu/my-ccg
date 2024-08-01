@@ -83,4 +83,9 @@ spec = do
         let pc02 = createPhraCate 0 2 [(c02, "<", "wins' (Brave' Frank')", "SP", True)] 2
         let pcClo = [pc0,pc1,pc2,pc01,pc02]
         ssOfCate ([x | x <- pcClo, spOfCate x == 2]!!0) `shouldBe` 2
-        
+
+    it "The treeToString result of (0,[((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0)]) is (0,[((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0)])" $ do
+        let c0 = getCateFromString "np/.np"
+        let pc0 = createPhraCate 0 0 [(c0, "Desig", "Brave'", "DE", True)] 0
+        let tree = (1,[pc0])
+        treeToString tree `shouldBe` "(1,[((0,0),[(np/.np,Desig,Brave',DE,True)],0)])"

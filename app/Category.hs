@@ -323,7 +323,7 @@ prep2CompCate = getCateFromString "((s\\.np)\\x(s\\.np))/*np"
 
 -- '把'
 prep4BaCate :: Category
-prep4BaCate = getCateFromString "((s/.np)\\#np)/#((s\\.np)/.np)"
+prep4BaCate = getCateFromString "((s/.np)\\.np)/#((s\\.np)/.np)"
 
 -- '被'
 prep4BeiCate :: Category
@@ -404,4 +404,4 @@ postfixCate = getCateFromString "np\\*X"
 
 -- '把' phrase
 baPhraseCate :: Category
-baPhraseCate = getCateFromString "(s\\#np)/#((s\\.np)/.np)"
+baPhraseCate = getCateFromString "(s\\.np)/#((s\\.np)/.np)"

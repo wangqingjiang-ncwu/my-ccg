@@ -62,4 +62,3 @@ tests:
     dependencies:
     - my-ccg
     - hspec
-    - MissingH

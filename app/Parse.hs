@@ -283,7 +283,7 @@ cateComb onOff pc1 pc2
  - (1) The verb's type follows conjunction type (X\*X)/*X,
  - (2) A phrase with structure XX follows,
  - (3) An object acts as the subject, and no '被' makes the verb change into a predicate, namely “受事做主语” (Object as Subject).
- - (4) '被' makes the verb change into a predicate.
+ - (4) '被' makes transitive verbs change into a predicate.
  -}
       vt_P_Conj = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
       ctspaByvtToP_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_Conj, elem Pvt onOff]
@@ -304,7 +304,7 @@ cateComb onOff pc1 pc2
       ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP ++ ctspaByvtToP_Bei
       catesByvtToP = [(fst5 cate, "P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP]
 
-{- The conversion from transitive verb's types to object-extractioned type happens when the prepositional type happens to the left of this verb.
+{- The conversion from transitive verb's types to object-extractioned type happens when the preposition '被' type happens to the left of this verb.
  -}
       vt_OE = removeDup [(objectExtractionCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
       ctspaByvtToOE = [rule cate1 cate2 | rule <- [raiBh], cate1 <- csp_1, cate2 <- vt_OE, elem OEvt onOff]
@@ -857,6 +857,12 @@ cateComb onOff pc1 pc2
       ctspaBysToA_vToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A_AHn, cate2 <- v_Hn_AHn, elem As onOff, elem Hnv onOff]
       catesBysToA_vToHn = [(fst5 cate, "A/s-Hn/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA_vToHn]
 
+
+{- The two adjacent types "s <adverbial>" convert to "np/.np np", forming structure AHn, here A/s and Hn/d happen simultaneously.
+ -}
+      ctspaBysToA_dToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- s_A_AHn, cate2 <- d_Hn_AHn, elem As onOff, elem Hnd onOff]
+      catesBysToA_dToHn = [(fst5 cate, "A/s-Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToA_dToHn]
+
 {- The two adjacent types "s np" convert to "np np\*np", forming structure HnC, here Hn/s and Cn/n happen simultaneously.
  -}
       n_Cn_HnC = removeDup [(nounCompCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == npCate]
@@ -951,7 +957,7 @@ cateComb onOff pc1 pc2
         ++ catesByqToA
         ++ catesBycToJf ++ catesBycToJb
         ++ catesByu3ToU3d
-        ++ catesBysToS_aToP ++ catesBysToA_vToHn ++ catesBysToHn_nToCn
+        ++ catesBysToS_aToP ++ catesBysToA_vToHn ++ catesBysToA_dToHn ++ catesBysToHn_nToCn
         ++ catesBynToV_vToO ++ catesBynToA_sToHn ++ catesBynToA_aToHn ++ catesBynToA_vToHn ++ catesBynToA_dToHn ++ catesBynToDa_vToA
         ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesByvToA_dToHn ++ catesByvtToP_vToCv
         ++ catesByaToS_vtToP

@@ -223,6 +223,7 @@ doPosToCateForASent username = do
              interpreter username
           else if pos_check' == 1
                  then do
+                   putStrLn "doPosToCateForASent: pos_check'==1"
                    posToCateForASent sn
                    interpreter username
                  else do
@@ -362,21 +363,20 @@ doDisplayTreesForASent username = do
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
-    readTree_String sn tree_source >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.    interpreter username
+    readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
     interpreter username
 
-{-- 9. Display parsing Trees of the sentence indicated by serial_num.
+{-- 9. Display parsing Trees of the sentence indicated by serial_num, which is for comparing differences between two kinds of parsing trees.
 doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
---    confInfo <- readFile "Configuration"               -- Read the local configuration file
-    confInfo <- readFile "d:\\github\\my-ccg\\app\\Configuration"
+    confInfo <- readFile "Configuration"
     let tree_source = getConfProperty "tree_source" confInfo
     let ambi_resol_result_tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
 
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
---    readTree_String sn tree_source >>= sentToClauses >>= dispTree' 1          -- The ordered number of first clause is 1.
+--    readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
     clauses <- (readTree_String sn tree_source >>= sentToClauses)
     clauses' <- (readTree_String sn ambi_resol_result_tree_source >>= sentToClauses)
     dispComparisonTreesOfAmbiResolResult 1 clauses clauses' tree_source ambi_resol_result_tree_source

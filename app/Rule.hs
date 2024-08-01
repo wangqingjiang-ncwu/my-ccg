@@ -127,6 +127,7 @@ comFh cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">B", "", "", False)
     | isAvail && (cateEqual ca2 verbCate || cateEqual ca2 verbCate2 || ca1 == baPhraseCate) = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb se1 se2, "DHv", True)
     | isAvail && ca1 == advCate && ca2 == advCate && ps1 == "PO" && ps2 == "PO" = (advCate, ">B", semComb se1 se2, "PO", True)
+    | isAvail && ca1 == advCate && ca2 == baPhraseCate = (baPhraseCate, ">B", semComb se1 se2, "DHas", True)
     | isAvail && ca1 == advCate && ca2 == advCate = (advCate, ">B", semComb se1 se2, "DHd", True)     -- 例，今天nt 下午nt
     | isAvail = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">B", "", "", False)
@@ -206,7 +207,7 @@ raiFh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Ta
 raiFh cate1 cate2
     | isPrimitive ca2 || isPrimitive lcate2 || isX lcate2 = (nilCate, ">T->B", "", "", False)
     | isAvail && (ca2 == verbCate || ca2 == verbCate2) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "OE", True)
-    | isAvail && ca2 == advCate = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "PE", True)
+    | isAvail && (ca2 == advCate || ca2 == baPhraseCate) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "PE", True)
     | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "NR", True)
     | otherwise = (nilCate, ">T->B", "", "", False)
     where

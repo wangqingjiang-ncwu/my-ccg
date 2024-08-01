@@ -45,6 +45,7 @@ module Output (
     dispWidth,        -- String -> Int
     dispWidth2,       -- Category -> Seman -> Int
     getCateWidth,     -- PhraCate -> [[PhraCate]] -> Int
+    getCateWidth',    -- PhraCate -> [[PhraCate]] -> Int
     showNCateSymb,    -- Bool -> [PhraCate] -> [[PhraCate]] -> IO ()
     showNSemanSymb,   -- Int -> [PhraCate] -> [[PhraCate]] -> IO ()
     findPhraStartPos, -- PhraCate -> [[PhraCate]] -> Int

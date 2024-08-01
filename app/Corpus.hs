@@ -29,6 +29,8 @@ module Corpus (
     BanPCs,              -- [PhraCate]
     Script,              -- (ClauIdx,[[Rule]],BanPCs)
     Tree,                -- (ClauIdx, [PhraCate])
+    quickSortForTree,    -- [Tree] -> [Tree]
+    quickSortForScript,  -- [Script] -> [Script]
     Closure,             -- [PhraCate]
     Forest,              -- [[PhraCate]]
     readScripts,         -- String -> [Script]
@@ -57,7 +59,7 @@ module Corpus (
     setIpcOfRows,        -- Int -> Int -> String -> IO ()
     removeLineFeed,      -- IO ()
     removeLineFeedForOneRow,    -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
-    addClauIdxtoTreeField       -- Int -> Int -> IO ()
+    addClauIdxToTreeField       -- Int -> Int -> IO ()
     ) where
 
 import Control.Monad
@@ -193,6 +195,7 @@ posCate = [("n","np"),
    DHd: Adverbial-adverb (headword) phrase
    DHx: Adverbial-directioanl verb phrase
    DHoe: Adverbial-object extraction phrase, such as "最近d 他说oe 的 话"
+   DHas: Adverbial-ba structure phrase, such as "甚至d 把他as 连上三级"
    HaC: Adjective (headword)-complement phrase
    AHn: Attribute-noun (headword) phrase
    HnC: Noun (headword)-complement phrase
@@ -294,12 +297,13 @@ posToCateForASent sn = do
     stmt <- prepareStmt conn "select raw_sent2 from corpus where serial_num = ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
     raw_sent <- S.read is
+--    putStrLn $ show raw_sent
 
     let cate_sent = case raw_sent of
                       Just x -> rawToCateForASent (head x)
                       Nothing -> error "posToCateForASent: No raw_sent was read."
---  putStrLn $ show raw_sent
---  putStrLn $ show cate_sent
+
+    putStrLn $ show cate_sent
     skipToEof is               -- Go to the end of the stream.
 
     stmt1 <- prepareStmt conn "update corpus set cate_sent = ? where serial_num = ?"
@@ -466,6 +470,16 @@ type Script = (ClauIdx, [[Rule]], BanPCs)
 
 -- A Tree is a clausal serial number and a list of PhraCate.
 type Tree = (ClauIdx, [PhraCate])
+
+-- Quick sort for [Tree] according their ClauIdx field, where Tree :: (ClauIdx, [PhraCate]).
+quickSortForTree :: [Tree] -> [Tree]
+quickSortForTree [] = []
+quickSortForTree (t:ts) = (quickSortForTree [x|x<-ts, fst x < fst t]) ++ [t] ++ (quickSortForTree [x|x<-ts, fst x >= fst t])
+
+-- Quick sort for [Script] according ClauIdx field, where Script :: (ClauIdx,[[Rule]],BanPCs).
+quickSortForScript :: [Script] -> [Script]
+quickSortForScript [] = []
+quickSortForScript (s:ss) = (quickSortForScript [x|x<-ss, fst3 x < fst3 s]) ++ [s] ++ (quickSortForScript [x|x<-ss, fst3 x >= fst3 s])
 
 -- Read Scripts from a String.
 readScripts :: String -> [Script]
@@ -721,26 +735,34 @@ removeLineFeedForOneRow vs = [rs', rs2', vs!!2]
 {- Add clause index to field tree in treebank. Treebank is selected by property 'tree_target' in configuration file.
  - The serial number range of sentences are designated by input parameter 'sentSnOfStart' and 'sentSnOfEnd'.
  - Clause indices make removing and paring again desiganated clauses feasible.
- - This function may be run under ghci.
+ - This function should be run under ghci.
  -}
-addClauIdxtoTreeField :: Int -> Int -> IO ()
-addClauIdxtoTreeField sentSnOfStart sentSnOfEnd = do
+addClauIdxToTreeField :: Int -> Int -> IO ()
+addClauIdxToTreeField sentSnOfStart sentSnOfEnd = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let tree_target = getConfProperty "tree_target" confInfo
 
     conn <- getConn
-    let sqlstat = DS.fromString $ "select tree from " ++ tree_target ++ " where serial_num >= ? && serial_num <= ?"
+    let sqlstat = DS.fromString $ "select tree, serial_num from " ++ tree_target ++ " where serial_num >= ? && serial_num <= ?"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sentSnOfStart, toMySQLInt32 sentSnOfEnd]           -- read rows whose serial_nums are in designated range.
     rows <- S.toList is
+
+    let rows' = map addClauIdxForOneRow rows                        -- [[MySQLValue]]
+    let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ? where serial_num = ?"
+    oks <- executeMany conn sqlstat1 rows'
+    putStrLn $ show (length oks) ++ " rows have been updated."             -- Only rows with their values changed are affected rows.
+
     closeStmt conn stmt
     close conn                       -- Close the connection.
 
---    let origTrees = map (readPCList . fromMySQLText . (!!0)) rows          -- For all row, the values of field 'tree' are transformed into [PhraCate] values.
-
-    putStrLn $ show rows
-
---    let rows' = map removeLineFeedForOneRow rows
---    let stmt1 = "update corpus set raw_sent = ?, raw_sent2 = ? where serial_num = ?"
---    oks <- executeMany conn stmt1 rows'
---    putStrLn $ show (length oks) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
+{- For [MySQLText tree, MySQLInt32 serial_num] in querying result from treebank, 'tree' is transformed into [[PhraCate]], then introduce clausal indices to
+ - form [(Int, [PhraCate])]. 'serial_num' remain same.
+ -}
+addClauIdxForOneRow :: [MySQLValue] -> [MySQLValue]
+addClauIdxForOneRow vs = [tree'', vs!!1]
+    where
+    treeStr = fromMySQLText (vs!!0)                            -- The field tree
+    tree = map readPCList $ stringToList treeStr               -- [[PhraCate]]
+    tree' = zip ([1..] :: [ClauIdx]) tree                      -- [(ClauIdx, [PhraCate])], namely [Tree]
+    tree'' = (toMySQLText . listToString) $ map treeToString tree'

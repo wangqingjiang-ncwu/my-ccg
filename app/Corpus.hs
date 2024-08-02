@@ -752,10 +752,10 @@ addClauIdxToTreeField sentSnOfStart sentSnOfEnd = do
       then
         putStrLn "addClauIdxToTreeField: No sentence is asked to do this operation."
       else do
-        let bracketSnList = map (\row -> (((!!1) . fromMySQLText . (!!0)) row, (fromMySQLInt32 . (!!1)) row)) $ filter (\row -> (fromMySQLText . (!!0)) row /= "[]") rows 
+        let bracketSnList = map (\row -> (((!!1) . fromMySQLText . (!!0)) row, (fromMySQLInt32 . (!!1)) row)) $ filter (\row -> (fromMySQLText . (!!0)) row /= "[]") rows
                                              -- [(Char, Int)], the 2nd char i.e. bracket and serial_num
                                              -- The rows with 'tree' value "[]" are filtered out.
-        putStrLn $ "addClauIdxToTreeField: bracketSnList: " ++ show bracketSnList
+--        putStrLn $ "addClauIdxToTreeField: bracketSnList: " ++ show bracketSnList
         prevRes <- someFinished False bracketSnList
         if prevRes
           then putStrLn "addClauIdxToTreeField: This operation was cancelled."

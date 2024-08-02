@@ -67,7 +67,8 @@ module Category (
     conjCate4Forward,            -- Category, "X/*X"
     prefixCate,           -- Category, "np/*np"
     postfixCate,          -- Category, "np\*X"
-    baPhraseCate          -- Category, "((s\#np)/#((s\.np)/.np)"
+    baPhraseCate,         -- Category, "((s\#np)/#((s\.np)/.np)"
+    poPhraseCate          -- Category, "(s\#np)/#(s\.np)"
     ) where
 
 type Slash = String
@@ -327,7 +328,7 @@ prep4BaCate = getCateFromString "((s/.np)\\.np)/#((s\\.np)/.np)"
 
 -- '被'
 prep4BeiCate :: Category
-prep4BeiCate = getCateFromString "(s/#(s/.np))\\#np"
+prep4BeiCate = getCateFromString "(s/#(s/.np))\\.np"
 
 verbCompCate :: Category
 verbCompCate = getCateFromString "(s\\.np)\\x(s\\.np)"
@@ -405,3 +406,7 @@ postfixCate = getCateFromString "np\\*X"
 -- '把' phrase
 baPhraseCate :: Category
 baPhraseCate = getCateFromString "(s\\.np)/#((s\\.np)/.np)"
+
+-- 'PO' phrase
+poPhraseCate :: Category
+poPhraseCate = getCateFromString "(s\\.np)/#(s\\.np)"

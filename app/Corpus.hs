@@ -142,7 +142,7 @@ posCate = [("n","np"),
            ("ds","s/*s"),                              -- 句子的状语
            ("p","((s\\.np)/#(s\\.np))/*np"),           -- 通过Cv/d、Ds/d，去掉了类型((s\\.np)\\x(s\\.np))/*np、(s/*s)/*np"
            ("pa","((s/.np)\\.np)/#((s\\.np)/.np)"),    -- 介词'把'的类型，宾语提前到动语前
-           ("pb","(s/#(s/.np))\\#np"),                 -- 介宾'被'的类型，宾语提取到主语前
+           ("pb","(s/#(s/.np))\\.np"),                 -- 介宾'被'的类型，宾语提取到主语前
            ("c","(X\\*X)/*X"),                         -- 连词的典型类型，双向连词，分别通过Cb/c、Cf/c得到后向、前向连词。
            ("cb","X\\*X"),                             -- 后向连词
            ("cf","X/*X"),                              -- 前向连词
@@ -748,13 +748,40 @@ addClauIdxToTreeField sentSnOfStart sentSnOfEnd = do
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sentSnOfStart, toMySQLInt32 sentSnOfEnd]           -- read rows whose serial_nums are in designated range.
     rows <- S.toList is
 
-    let rows' = map addClauIdxForOneRow rows                        -- [[MySQLValue]]
-    let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ? where serial_num = ?"
-    oks <- executeMany conn sqlstat1 rows'
-    putStrLn $ show (length oks) ++ " rows have been updated."             -- Only rows with their values changed are affected rows.
+    if (rows == [])
+      then
+        putStrLn "addClauIdxToTreeField: No sentence is asked to do this operation."
+      else do
+        let bracketSnList = map (\row -> (((!!1) . fromMySQLText . (!!0)) row, (fromMySQLInt32 . (!!1)) row)) $ filter (\row -> (fromMySQLText . (!!0)) row /= "[]") rows 
+                                             -- [(Char, Int)], the 2nd char i.e. bracket and serial_num
+                                             -- The rows with 'tree' value "[]" are filtered out.
+        putStrLn $ "addClauIdxToTreeField: bracketSnList: " ++ show bracketSnList
+        prevRes <- someFinished False bracketSnList
+        if prevRes
+          then putStrLn "addClauIdxToTreeField: This operation was cancelled."
+          else do
+            let rows' = map addClauIdxForOneRow rows                        -- [[MySQLValue]]
+            let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ? where serial_num = ?"
+            oks <- executeMany conn sqlstat1 rows'
+            putStrLn $ show (length oks) ++ " rows have been updated."             -- Only rows with their values changed are affected rows.
 
     closeStmt conn stmt
     close conn                       -- Close the connection.
+
+{- Check the first element of every tuple.
+ - If the first element is '(', then the sentence indicated by the second element might have finished operation 'addClauIdxToTreeField'; Otherwise, it might not.
+ - If some sentences might finish the operation, return True; Otherwise, return False.
+ - From the previous transition, 'prevRes' is True for some previous sentences finishing this operation, and False for no previous sentences finishes this operation.
+ - So at the beginning, 'prevRes' should be False.
+ -}
+someFinished :: Bool -> [(Char, Int)] -> IO Bool
+someFinished prevRes [] = return prevRes
+someFinished prevRes (ci:cis)
+    | fst ci == '[' = someFinished prevRes cis
+    | fst ci == '(' = do
+                        putStrLn $ "someFinished: Sentence " ++ show (snd ci) ++ " have finished operation 'addClauIdxToTreeField'."
+                        someFinished True cis
+    | otherwise = error "someFinished: Exception."
 
 {- For [MySQLText tree, MySQLInt32 serial_num] in querying result from treebank, 'tree' is transformed into [[PhraCate]], then introduce clausal indices to
  - form [(Int, [PhraCate])]. 'serial_num' remain same.

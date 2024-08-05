@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module Output (
@@ -403,9 +403,9 @@ showTree spls = do
 
 showTrees :: [Tree] -> IO ()
 showTrees [] = putStrLn "[]"
-showTrees sp = do
+showTrees ts = do
     putStr "["
-    showTrees' sp
+    showTrees' ts
     putStr "]"
 
 showTrees' :: [Tree] -> IO ()

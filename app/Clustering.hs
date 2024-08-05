@@ -4,7 +4,7 @@
 -- Copyright (c) 2019-2024 China University of Water Resources and Electric Power
 -- All rights reserved.
 -- This module was written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
--- To complete clustering, the distances between phrases shoule be defined firsly. Unfortunately it is not a simple problem.
+-- To complete clustering, the distances between phrases shoule be defined firstly. Unfortunately it is not a simple problem.
 
 module Clustering (
     distPhraSyn,               -- PhraSyn -> PhraSyn -> Int
@@ -65,11 +65,12 @@ import Control.Monad
 --import System.Random.Stateful
 
 {- The distance between two phrases, where only grammatical factors are considered,
- - and the correlations between different values of a same factor and between different factors are both neglected.
+ - and the correlations between different values of an identical factor and between different factors are both neglected.
  - Actually, some categories such 'np' and 's\.np' may be converted for some syntactic requirements, and phrasal
  - structures such as 'AHn' and 'HnC' have same grammatical nature, which means there may exist correlations bewteen
  - the different values of a same factor. Meanwhile, phrasal structure 'AHn' must have category 'np', so there exist
  - correlations between some different factors.
+ - Principal Components Analysis (PCA) and Factor Analysis (FA) are promising methods for solving this problem.
  -}
 distPhraSyn :: PhraSyn -> PhraSyn -> Int
 distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
@@ -88,7 +89,7 @@ distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
  - Phrase set 1 = [p1, p2, ..., pn], phrase set 2 = [q1, q2, ..., qm]
  - dij = distPhraSyn pi qj
  - return the average dij among i<-[1..n] and j<-[1..m].
- - For model 'struGene', LeftExtend and RightExtend are left-neighbouring and right-neighbouring phrases respectively.
+ - For model 'StruGene', LeftExtend and RightExtend are left-neighbouring and right-neighbouring phrases respectively.
  - When comparing the LeftExtend or RightExtend phrases between two StruGene samples, the following algorithm is used:
  - Suppose two sets to be compared are P and Q.
  - (1) P == Q, the distance is 0;
@@ -127,7 +128,7 @@ distPhraSynSet' ps qs
     distSum = foldl (+) 0 distSet
     distNum = length ps * length qs
 
-{- The distance vector between two StruGenes.
+{- The distance vector between two samples of model StruGene.
  - For ambiguity model StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior), the distance vector is obtained by following function.
  - Normalize the first 4 distances to [0,1] in distance vector.
  -}
@@ -181,7 +182,7 @@ minValueList (x:xs) sg mvList = minValueList xs sg mvList1
     mi = minimum $ map (\x -> dist4StruGeneByArithAdd (fst x) (snd x) ) $ zip (replicate (length sg) x) sg
     mvList1 = mvList ++ [mi]
 
---type initPointSet = ([StruGene],[StruGene],[Float])
+-- type initPointSet = ([StruGene],[StruGene],[Float])
 
   初始化选取k个众心点，用maxmin算法.
    找出最小值列表中最大的值，并记录序号；sgs中该序号的元素即为新找的中心点，
@@ -210,7 +211,7 @@ getKModeByMaxMinPoint sgs ms kVal
  - oldModeList: original modes.
  - origSIdxMinValueMap: original map from samples to minimal distances.
  - kVal: the number of clusters.
- - : weigth list of distances on StruGene elements between two StruGene samples.
+ - distWeiRatioList: weigth list of distances on StruGene elements between two StruGene samples.
  -}
 getKModeByMaxMinPoint :: [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Float -> Int -> DistWeiRatioList -> [StruGene]
 getKModeByMaxMinPoint sgs oldModeList origSIdxMinValueMap kVal distWeiRatioList
@@ -270,7 +271,7 @@ type KVal = Int                                          -- The number of cluste
  ccl: 簇心列表(cluster centre list)
  kVal: 簇的个数
  distWeiRatioList: weigth list of distances on StruGene elements between two StruGene samples.
- elemIndices d cs：查找cs表中值为d的索引值
+ elemIndex d cs：查找cs表中值为d的索引值
  -}
 findCluster4ASampleByArithAdd :: StruGeneSample -> [StruGene] -> KVal -> INo -> DistWeiRatioList -> SampleClusterMark
 findCluster4ASampleByArithAdd sp ccl kVal iNo distWeiRatioList = (sp, dMin, cIdx', ge, iNo)
@@ -421,8 +422,6 @@ fromListList2SetList :: Ord a => [[a]] -> [Set.Set a]
 fromListList2SetList [] = []
 fromListList2SetList (x:xs) = (Set.fromList x):(fromListList2SetList xs)
 
-
-
 {-求PhraSyn三元组列表的一个众心（可能有多个）.
   PhraSynList: PhraSyn列表
   freqOfPhraSynMap: 短语句法三元组到频次的映射字典.
@@ -534,8 +533,6 @@ distTotalByClust (x:xs) origDist = distTotalByClust xs newDist
 
 type DistTotal = Float                                   -- Sum of distances between all samples and their cluster centres.
 type DistMean = Float
--- type SIdx = Int
--- StruGeneSample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 type ClusterMap = Map.Map CIdx [StruGeneSample]          -- Partition of sample set after one time of clustering iteration.
 
 {- 发现所有样本的聚类结果

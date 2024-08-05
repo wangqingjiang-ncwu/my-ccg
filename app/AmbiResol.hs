@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
 -- All rights reserved.
 
 module AmbiResol (
@@ -44,6 +44,7 @@ import Text.Printf
 -- import Clustering
 
 -- Syntactic attribues of a phrase, including its syntactic category, tag of rule by which the phrase is obtained, and structural type of the phrase.
+-- In Chinese, sentential parsing includes morphological parsing, so rule 'A/n->' contains the two aspects.
 type PhraSyn = (Category, Tag, PhraStru)
 
 -- Null phrasal syntax.
@@ -64,11 +65,7 @@ type LeftOver = PhraSyn         -- Overlapping left phrase
 type RightOver = PhraSyn        -- Overlapping right phrase
 type RightExtend = [PhraSyn]    -- Right neighbors
 type OverType = Int                             -- Overlapping type
-data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing.
-type StruGeneSample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
-
-nullStruGeneSample :: StruGeneSample
-nullStruGeneSample = (-1, [], nullPhraSyn, nullPhraSyn, [], -1, Noth)
+data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing or both not.
 
 instance Show Prior where
     show Lp = "Lp"
@@ -95,24 +92,31 @@ instance Ord Prior where
     Noth <= Rp = False
 
 
--- The structural genes are stored in table stru_gene of MySQL database ccg4c.
+-- The following defines No.0 ambiguity resolution model, and the original samples of which are stored in table 'stru_gene' of database 'ccg4c'.
 type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 
 -- Null struture gene is just used as a place holder.
 nullStruGene :: StruGene
 nullStruGene = ([], nullPhraSyn, nullPhraSyn, [], -1, Noth)
 
--- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
+-- Sample index, used in multiple sample bases.
+type SIdx = Int
 
+-- Sample model of Syntax-Structural Genes
+type StruGeneSample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+
+nullStruGeneSample :: StruGeneSample
+nullStruGeneSample = (-1, [], nullPhraSyn, nullPhraSyn, [], -1, Noth)
+
+-- An overlapping pair of phrasal categories, including its priority assignment, used in clause parsing.
 type OverPair = (PhraCate, PhraCate, Prior)
 type OverPairid = (PhraCate, PhraCate, Prior, SIdx)
 
-{- The following defines No.1 ambiguity resolution model.
- -}
+-- The following defines No.1 ambiguity resolution model.
 
 type LeftPhra = PhraCate                       -- Overlapping left phrase
 type RightPhra = PhraCate                      -- Overlapping right phrase
-type Context = [PhraCate]                      -- All phrases created to now but not including LeftPhra and RightPhra.
+type Context = [PhraCate]                      -- All phrases created to now except LeftPhra and RightPhra.
 type AmbiResol1 = (LeftPhra, RightPhra, Context, OverType, Prior)      -- Ambiguity resolution model
 type AmbiResol1Sample = (SIdx, LeftPhra, RightPhra, Context, OverType, Prior)
 
@@ -168,9 +172,8 @@ readStruGeneFromStr str = (le, lo, ro, re, ot, pr)
 readStruGeneListFromStr :: String -> [StruGene]
 readStruGeneListFromStr str = map readStruGeneFromStr (stringToList str)
 
-type SIdx = Int                     -- Identifier of a sample
-type CIdx = Int                     -- Identifier of a cluster
-type DMin = Float                   -- Minimum among distances between a sample and all cluster members
+type CIdx = Int                     -- Cluster index
+type DMin = Float                   -- Minimal distance between a sample and all cluster members
 type Scd = (SIdx, CIdx, DMin)
 
 -- Get the string of a Scd value.

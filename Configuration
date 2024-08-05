@@ -11,9 +11,6 @@ script_source:corpus
 # tree_source:treebank_clust_res_k200_s18000_sg_aa
 tree_source:corpus
 
-# Source of parsing trees under automatic ambiguity resolution.
-ambi_resol_result_tree_source:treebank_grammar_ambi_resol
-
 # Storage position of parsing scripts, such as 'corpus', 'treebank1'.
 script_target:corpus
 
@@ -21,9 +18,15 @@ script_target:corpus
 # tree_target:treebank_grammar_ambi_resol
 tree_target:corpus
 
+# 'SLR' is one kind of category conversion ambiguity resolution model.
+# In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.
+# 'treebank1' is a table storing SLR samples, in which every record has (serial_num, tree, script, SLR, tagClause), and the first 3 fields
+# come from 'corpus'.
+cate_conv_ambig_resol_source:treebank1
+cate_conv_ambig_resol_target:treebank1
+
 # Ambiguity resolution model, such as 'stru_gene' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
-# ambi_resol_model:ambi_resol1
-ambi_resol_model:stru_gene
+ambi_resol_model:ambi_resol1
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.

@@ -12,6 +12,7 @@ module Parse (
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
     findPhraWithLowestPrio,  -- [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> PhraCate
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
+    getPrior',         -- [OverPair] -> PhraCate -> PhraCate -> Maybe Prior
     getOverType,       -- [PhraCate] -> PhraCate -> PhraCate -> Int
     removeOnePC,       -- PhraCate -> [PhraCate] -> [PhraCate]
     updateAct,         -- [PhraCate] -> [PhraCate]
@@ -138,8 +139,9 @@ cateComb onOff pc1 pc2
 {- Use N/s only when
  - (1) "<conjunction> s",
  - (2) "s np\*np", where the phrase with category np\*np has structure XX;
- - (3) "s 的",
- - (4) "'把' s"
+ - (3) "np/*np s", where the phrase with category np/*np has structure U1P;
+ - (4) "s 的",
+ - (5) "'把' s"
  -}
       s_N_Conj = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
       ctspaBysToN_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_Conj, elem Ns onOff]
@@ -149,6 +151,10 @@ cateComb onOff pc1 pc2
       ctspaBysToN_XX = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_XX, cate2 <- csp_2, elem Ns onOff]
           where
           csp_2 = removeDup [x| x <- csp2, fst3 x == ndCate, thd3 x == "XX"]
+      s_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToN_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_AHn, elem Ns onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, thd3 x == "U1P"]
       s_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
       ctspaBysToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_U1P, cate2 <- csp_2, elem Ns onOff]
           where
@@ -157,7 +163,7 @@ cateComb onOff pc1 pc2
       ctspaBysToN_Ba = [rule cate1 cate2 | rule <- [raiBh2], cate1 <- csp_1, cate2 <- s_N_Ba, elem Ns onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == prep4BaCate]
-      ctspaBysToN = ctspaBysToN_Conj ++ ctspaBysToN_XX ++ ctspaBysToN_U1P ++ ctspaBysToN_Ba
+      ctspaBysToN = ctspaBysToN_Conj ++ ctspaBysToN_XX ++ ctspaBysToN_AHn ++ ctspaBysToN_U1P ++ ctspaBysToN_Ba
       catesBysToN = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN]
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, and non-inflectionship
@@ -987,10 +993,10 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
     where
---    combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+      combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
 --    Allowing two inactive phrases to combine.
-      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
-      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs, notElem' cb pcs]
+--      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
+      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElemForPhrase cb banPCs, notElemForPhrase cb pcs]
                  -- The banned phrases might be created again, here they are filtered out.
                  -- The non-banned phrases also might be created again, here those reduplicates are removed out.
       pcs2 = pcs ++ newCbs
@@ -1001,16 +1007,16 @@ trans onOff pcs banPCs = pcs2
  -}
 transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
 transWithPruning onOff pcs banPCs overPairs = do
---  let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
-    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
+    let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+--    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
                                                                   -- Not consider phrasal activity
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem' cb banPCs, notElem' cb pcs]
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElemForPhrase cb banPCs, notElemForPhrase cb pcs]
     if newCbs /= []
       then do
         let pcs1 = pcs ++ newCbs                                      -- Before pruning
         pcs1' <- prune overPairs pcs1 newCbs                          -- After pruning
         let pcs2 = updateAct pcs1'                                    -- Attr. activity is corrected.
-        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem' cb pcs2]    -- Update the list of banned phrasal categories.
+        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElemForPhrase cb pcs2]    -- Update the list of banned phrasal categories.
         return (pcs2, banPCs2)
       else return (pcs, banPCs)
 
@@ -1086,7 +1092,7 @@ prune overPairs pcs newCbs = do
 prune' :: [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
 prune' pcs banPCs = do
     pcs1 <- prune pcs                                              -- After pruning, Attr. activity is corrected.
-    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElem' pc pcs1]      -- Update the list of banned phrasal categories.
+    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElemForPhrase pc pcs1]      -- Update the list of banned phrasal categories.
     return (pcs1, banPCs1)
  -}
 
@@ -1122,15 +1128,17 @@ findPhraWithLowestPrio unCheckedOps ops overPairs = do
         pri <- getPrior overPairs pc1 pc2                              -- Find priority from a list of 'OverPair'
         let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1
         let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
-        if (pri == Lp || pri == Noth) && pcps2 /= []                   -- Prior value Noth means the pair of phrases should be removed.
-          then findPhraWithLowestPrio xs pcps2 overPairs
-          else if (pri == Lp || pri == Noth) && pcps2 == []
-                 then return pc2
-                 else if pri == Rp && pcps1 /= []
-                        then findPhraWithLowestPrio xs pcps1 overPairs
-                        else if pri == Rp && pcps1 == []
-                               then return pc1
-                               else error $ "findPhraWithLowestPrio: Impossible situation: pri=" ++ show pri
+        let pcps = pcps1 ++ pcps2
+        case pri of
+          Lp -> if pcps2 /= []
+                  then findPhraWithLowestPrio xs pcps2 overPairs
+                  else return pc2
+          Rp -> if pcps1 /= []
+                  then findPhraWithLowestPrio xs pcps1 overPairs
+                  else return pc1
+          Noth -> if pcps /= []                                        -- Prior value Noth means the pair of phrases should be removed.
+                    then findPhraWithLowestPrio xs pcps overPairs
+                    else return pc2                                    -- Without loss of generality, let left phrase be prior to the right.
 
 {- Select <prior> from a list of 'OverPair' where matching given an overlapping pair of phrases.
    <Just Lp> means <leftOver> should remains while <rightOver> should be abandoned, and <Just Rp> means the contrary.
@@ -1142,13 +1150,22 @@ findPhraWithLowestPrio unCheckedOps ops overPairs = do
  -}
 
 getPrior :: [OverPair] -> PhraCate -> PhraCate -> IO Prior
-getPrior [] _ _ = return Noth
+getPrior [] _ _ = return Noth                   -- Defaultly, two overlapping phrases are not willingly to remain.
 getPrior (op:ops) pc1 pc2 = do
     let lo = fst3 op                            -- Left-overlapping phrase
     let ro = snd3 op                            -- Right-overlapping phrase
     if (equalPhra lo pc1 && equalPhra ro pc2)
       then return (thd3 op)
       else getPrior ops pc1 pc2
+
+getPrior' :: [OverPair] -> PhraCate -> PhraCate -> Maybe Prior
+getPrior' [] _ _ = Nothing                      -- Fail in searching the given overlapping phrases in the set of [(PhraCate, PhraCate, Prior)].
+getPrior' (op:ops) pc1 pc2 = do
+    let lo = fst3 op                            -- Left-overlapping phrase
+    let ro = snd3 op                            -- Right-overlapping phrase
+    if (equalPhra lo pc1 && equalPhra ro pc2)
+      then Just (thd3 op)
+      else getPrior' ops pc1 pc2
 
 {- Decide whether two phrasal categories are overlapping. If overlapping, give its type.
    Type 1: st1==st2,sp1==sp2         (Equal overlap)
@@ -1174,9 +1191,9 @@ getOverType :: [PhraCate] -> PhraCate -> PhraCate -> Int
 getOverType pcs pc1 pc2
     | st1 == st2 && sp1 == sp2 = 1                                                     -- Equal overlap
     | st1 < st2  && st2 <= (st1 + sp1) && (st1 + sp1) < (st2 + sp2) = 2                -- Cross overlap
-    | st1 == st2 && st1 + sp1 < st2 + sp2 && notElem' pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
-    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElem' pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
-    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElem' pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
+    | st1 == st2 && st1 + sp1 < st2 + sp2 &&  notElemForPhrase pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
+    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElemForPhrase pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
+    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElemForPhrase pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
     | otherwise = 0                        -- Non-overlap or blood relation
     where
     st1 = stOfCate pc1

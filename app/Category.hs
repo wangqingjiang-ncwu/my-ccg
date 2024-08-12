@@ -45,8 +45,8 @@ module Category (
     advCompCate,   -- ((s\.np)/#(s\.np))\*((s\.np)/#(s\.np))
     prep2AdvCate,  -- Category, "((s\.np)/#(s\.np))/*np"
     prep2CompCate, -- Category, "((s\.np)\x(s\.np))/*np"
-    prep4BaCate,          -- Category, "((s/.np)\#np)/#((s\.np)/.np)"
-    prep4BeiCate,         -- Category, "(s/#(s\.np))\#np"
+    prep4BaCate,          -- Category, "((s/.np)\.np)/#((s\.np)/.np)"
+    prep4BeiCate,         -- Category, "(s/#(s\.np))\.np"
     verbCompCate,         -- Category, "(s\.np)\x(s\.np)"
     nounCompCate,         -- Category, "np\*np"
     adjCompCate,          -- Category, "(np/.np)\*(np/.np)"
@@ -67,8 +67,8 @@ module Category (
     conjCate4Forward,            -- Category, "X/*X"
     prefixCate,           -- Category, "np/*np"
     postfixCate,          -- Category, "np\*X"
-    baPhraseCate,         -- Category, "((s\#np)/#((s\.np)/.np)"
-    poPhraseCate          -- Category, "(s\#np)/#(s\.np)"
+    baPhraseCate,         -- Category, "((s\.np)/#((s\.np)/.np)"
+    poPhraseCate          -- Category, "(s\.np)/#(s\.np)"
     ) where
 
 type Slash = String

@@ -34,10 +34,14 @@ module AmbiResol (
     nPhraSynToString,    -- [PhraSyn] -> String
     struGeneToString,    -- StruGene -> String
     nStruGeneToString,   -- [StruGene] -> String
+    removeDup4OverPair,  -- [OverPair] -> [OverPair]
+    hasDup4OverPair,     -- [OverPair] -> [OverPair]
+    equal4OverPair,      -- OverPair -> OverPair -> Bool
+    elem4OverPair        -- OverPair -> [OverPair] -> Bool
     ) where
 
 import Category
-import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString)
+import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Utils
 import Data.Tuple.Utils
 import Text.Printf
@@ -214,3 +218,30 @@ struGeneToString sg = "(" ++ le ++ "," ++ lo ++ "," ++ re ++ "," ++ ro ++ "," ++
 -- Get the string of [StruGene]
 nStruGeneToString :: [StruGene] -> String
 nStruGeneToString sgs = listToString (map struGeneToString sgs)
+
+-- Remove duplicate OverPair values in a list. When comparing two PhraCate values, attribue Act is NOT considered.
+removeDup4OverPair :: [OverPair] -> [OverPair]
+removeDup4OverPair [] = []
+removeDup4OverPair [x] = [x]
+removeDup4OverPair (x:xs)
+    | elem4OverPair x xs = removeDup4OverPair xs
+    | otherwise = x : removeDup4OverPair xs
+
+-- Decide whether there are duplicate OverPair values in a list.
+hasDup4OverPair :: [OverPair] -> Bool
+hasDup4OverPair [] = False
+hasDup4OverPair [x] = False
+hasDup4OverPair (x:xs)
+    | elem4OverPair x xs = True
+    | otherwise = hasDup4OverPair xs
+
+-- Without considering attribute Act in PhraCate, decide whether two OverPair values are equal or not.
+equal4OverPair :: OverPair -> OverPair -> Bool
+equal4OverPair x y = equalPhra (fst3 x) (fst3 y) && equalPhra (snd3 x) (snd3 y) && thd3 x == thd3 y
+
+-- Without considering attribute Act in PhraCate, decide whether a OverPair value is in a given OverPair list.
+elem4OverPair :: OverPair -> [OverPair] -> Bool
+elem4OverPair _ [] = False
+elem4OverPair op (op1:ops) = case (equal4OverPair op op1) of
+                               True -> True
+                               False -> elem4OverPair op ops

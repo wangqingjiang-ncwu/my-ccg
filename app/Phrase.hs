@@ -64,7 +64,8 @@ module Phrase (
     quickSort,     -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
-    notElem',                     -- PhraCate -> [PhraCate] -> Bool
+    notElemForPhrase,             -- PhraCate -> [PhraCate] -> Bool
+    elemForPhrase,                -- PhraCate -> [PhraCate] -> Bool
     equalSortedPhraList,          -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
@@ -270,7 +271,7 @@ csOfActCate pc = zip (caOfActCate pc) (seOfActCate pc)
 ssOfCate :: PhraCate -> SecStart
 ssOfCate (_, _, s) = s
 
--- Without considering activities, decide two phrasal categories equal or not. Actually, the function is just operator '=='.
+-- Without considering activities, decide two phrasal categories equal or not.
 equalPhra :: PhraCate -> PhraCate -> Bool
 equalPhra pc1 pc2 = (stOfCate pc1 == stOfCate pc2)
                  && (spOfCate pc1 == spOfCate pc2)
@@ -408,11 +409,11 @@ sortPhraCateBySpan :: [PhraCate] -> [PhraCate]
 sortPhraCateBySpan pcClo = [pc| sp <- divPhraCateBySpan pcClo, pc <- sp]
 
 -- Without considering Act attribute, decide whether a phrase is NOT in a certain phrasal list.
-notElem' :: PhraCate -> [PhraCate] -> Bool
-notElem' x [] = True
-notElem' x (y:ys)
+notElemForPhrase :: PhraCate -> [PhraCate] -> Bool
+notElemForPhrase x [] = True
+notElemForPhrase x (y:ys)
     | (stx==sty)&&(spx==spy)&&(ssx==ssy)&&(ctspx==ctspy) = False
-    | otherwise = notElem' x ys
+    | otherwise = notElemForPhrase x ys
     where
       stx = stOfCate x
       spx = spOfCate x
@@ -422,6 +423,10 @@ notElem' x (y:ys)
       spy = spOfCate y
       ssy = ssOfCate y
       ctspy = ctspOfCate y
+
+-- Without considering Act attribute, decide whether a phrase is in a certain phrasal list.
+elemForPhrase :: PhraCate -> [PhraCate] -> Bool
+elemForPhrase = \x y -> not (notElemForPhrase x y)
 
 -- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
 equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool

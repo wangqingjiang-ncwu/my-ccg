@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           my-ccg
-version:        0.2.5.0
+version:        0.2.7.0
 synopsis:       A package for CCG-based Chinese language processing
 description:    Please see the README on GitHub at <https://github.com/wangqingjiang-ncwu/my-ccg#readme>
 category:       Natural Language Understanding
@@ -89,6 +89,7 @@ test-suite my-ccg-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      AmbiResolSpec
       CategorySpec
       ClusteringSpec
       CorpusSpec

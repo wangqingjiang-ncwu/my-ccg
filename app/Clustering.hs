@@ -161,7 +161,7 @@ dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList
 {- Normalized arithmetically meaned distance between two StruGenes.
  -}
 dist4StruGeneByNormArithMean :: StruGene -> StruGene -> Float
-dist4StruGeneByNormArithMean s1 s2 = (\x-> x / 6.0) $ foldl (+) 0.0 $ map (\x -> fst x / snd x) $ zip (distVect4StruGene s1 s2) [3.0, 3.0, 3.0, 3.0, 1.0, 1.0]
+dist4StruGeneByNormArithMean s1 s2 = (\x-> x / 6.0) $ foldl (+) 0.0 (distVect4StruGene s1 s2)
 
 {- 初始化随机选取1个点,初始定k=200
 

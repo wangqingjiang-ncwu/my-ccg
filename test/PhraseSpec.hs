@@ -190,3 +190,37 @@ spec = do
       let pc22 = createPhraCate 0 2 [(c22, "<", "wins' (Brave' Frank')", "SP", True)] 2
       let pcClo = [pc01,pc02,pc03,pc11,pc22]
       divPhraCateBySpan pcClo `shouldBe` [[pc01,pc02,pc03],[pc11],[pc22]]
+
+    it "The result of elemForPhrase ((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1)] is True." $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = npCate
+      let pc01 = createPhraCate 0 0 [(c01, "Desig", "Brave'", "DE", True)] 0
+      let pc02 = createPhraCate 1 0 [(c02, "Desig", "Frank'", "DE", True)] 1
+      let pcClo = [pc01,pc02]
+      elemForPhrase pc01 pcClo `shouldBe` True
+
+    it "The result of elemForPhrase ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",False)],1), [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1)] is True." $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = npCate
+      let pc01 = createPhraCate 0 0 [(c01, "Desig", "Brave'", "DE", True)] 0
+      let pc02 = createPhraCate 1 0 [(c02, "Desig", "Frank'", "DE", False)] 1
+      let pcClo = [pc01,pc02]
+      elemForPhrase pc02 pcClo `shouldBe` True
+
+    it "The result of elemForPhrase ((2,0),[(np,\"Desig\",\"Frank'\",\"DE\",False)],2), [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1)] is False." $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = npCate
+      let pc01 = createPhraCate 0 0 [(c01, "Desig", "Brave'", "DE", True)] 0
+      let pc02 = createPhraCate 1 0 [(c02, "Desig", "Frank'", "DE", False)] 1
+      let pc02' = createPhraCate 2 0 [(c02, "Desig", "Frank'", "DE", False)] 2
+      let pcClo = [pc01,pc02]
+      elemForPhrase pc02' pcClo `shouldBe` False
+
+    it "The result of notElemForPhrase ((2,0),[(np,\"Desig\",\"Frank'\",\"DE\",False)],2), [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1)] is True." $ do
+      let c01 = getCateFromString "np/.np"
+      let c02 = npCate
+      let pc01 = createPhraCate 0 0 [(c01, "Desig", "Brave'", "DE", True)] 0
+      let pc02 = createPhraCate 1 0 [(c02, "Desig", "Frank'", "DE", False)] 1
+      let pc02' = createPhraCate 2 0 [(c02, "Desig", "Frank'", "DE", False)] 2
+      let pcClo = [pc01,pc02]
+      notElemForPhrase pc02' pcClo `shouldBe` True

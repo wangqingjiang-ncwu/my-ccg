@@ -4,18 +4,12 @@ User:wqj
 Password:wqj
 Database:ccg4c
 
-# Source of parsing scripts, such as 'corpus', 'treebank1'.
+# Where parsing trees and scripts come from and go to, such as 'corpus', 'treebank1'.
+# When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
+# To now, parsing by scripts do not store parsing trees and scirpts.
 script_source:corpus
-
-# Source of parsing trees, such as 'corpus', 'treebank1'.
-# tree_source:treebank_clust_res_k200_s18000_sg_aa
-tree_source:corpus
-
-# Storage position of parsing scripts, such as 'corpus', 'treebank1'.
 script_target:corpus
-
-# Storage position of parsing trees, such as 'corpus', 'treebank1'.
-# tree_target:treebank_grammar_ambi_resol
+tree_source:corpus
 tree_target:corpus
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
@@ -26,7 +20,11 @@ cate_conv_ambig_resol_source:treebank1
 cate_conv_ambig_resol_target:treebank1
 
 # Ambiguity resolution model, such as 'stru_gene' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
-ambi_resol_model:ambi_resol1
+# Actually, no matter what ambiguity resolution model is selected, the model samples should exist for every sentence in treebanks.
+# Model 'stru_gene' should be selected when parsing tree was creatly at the first time, then other models are selected when parsing by scripts
+# with purpose that samples of those models can be obtained.
+ambi_resol_model:stru_gene
+#ambi_resol_model:ambi_resol1
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
@@ -71,6 +69,3 @@ wro:3
 wre:3
 wot:1
 wpr:1
-
-# Ambiguity resolution samples for machine syntax parsing, which is actually a MySQL table.
-ambi_resol_samples:stru_gene2

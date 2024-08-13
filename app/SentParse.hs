@@ -839,7 +839,7 @@ doTransWithScript nPCs banPCs prevOverPairs script = do
 --    putStr "Transitive result before pruning: "
 --    showNPhraCateLn (sortPhraCateBySpan nPCs2)
     putStr "New phrases before pruning: "
-    showNPhraCateLn [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
+    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
 --    putStr "Banned phrases: "
 --    showNPhraCateLn (banPCs)                      -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
@@ -871,7 +871,7 @@ doTransWithScript nPCs banPCs prevOverPairs script = do
 --    putStr "Transitive result after pruning: "
 --    showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
     putStr "New phrases after pruning: "
-    showNPhraCateLn [pc | pc <- fst nbPCs, notElemForPhrase pc nPCs]
+    showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
     putStr "Banned phrases: "
     showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
 
@@ -911,8 +911,8 @@ ambiResolByPrevOverPair currentOverPairs (pcp:pcps) prevOverPairs
 ambiResolByScript :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> Script -> [OverPair]
 ambiResolByScript _ overPairs [] _ = overPairs
 ambiResolByScript nPCs overPairs (pcp:pcps) script
-    | notElemForPhrase lp banPCs && elemForPhrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
-    | elemForPhrase lp banPCs && notElemForPhrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
+    | notElem4Phrase lp banPCs && elemForPhrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
+    | elemForPhrase lp banPCs && notElem4Phrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
     | elemForPhrase lp banPCs && elemForPhrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Noth):overPairs) pcps script
     | otherwise = ambiResolByScript nPCs overPairs pcps script
     where
@@ -1247,8 +1247,8 @@ doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distW
     let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
---    showNPhraCateLn [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
-    let pcs = [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
+--    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
+    let pcs = [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     showNPhraCateLn pcs
     let spanList = map (\x -> spOfCate x) nPCs
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1
@@ -1263,7 +1263,7 @@ doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distW
         nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
 
         putStr "New phrases after pruning: "
-        showNPhraCateLn [pc | pc <- fst nbPCs, notElemForPhrase pc nPCs]
+        showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
         putStr "Banned phrases: "
         showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
         return (rules,(fst nbPCs),(snd nbPCs))
@@ -1286,8 +1286,8 @@ doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList lengthOfClause struGen
     let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
---    showNPhraCateLn [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
-    let pcs = [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
+--    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
+    let pcs = [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     showNPhraCateLn pcs
     let spanList = map (\x -> spOfCate x) nPCs
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1
@@ -1302,7 +1302,7 @@ doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList lengthOfClause struGen
         nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
 
         putStr "New phrases after pruning: "
-        showNPhraCateLn [pc | pc <- fst nbPCs, notElemForPhrase pc nPCs]
+        showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
         putStr "Banned phrases: "
         showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
         return (rules,(fst nbPCs),(snd nbPCs))
@@ -1569,7 +1569,7 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
     let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
-    showNPhraCateLn [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
+    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
 
     let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
     let overPairs = ambiResolByStruGene nPCs2 [] pcps struGenes distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
@@ -1579,7 +1579,7 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
     nbPCs <- transWithPruning onOff nPCs banPCs overPairs                     -- Get transitive result with pruning.
 
     putStr "New phrases after pruning: "
-    showNPhraCateLn [pc | pc <- fst nbPCs, notElemForPhrase pc nPCs]
+    showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
     putStr "Banned phrases: "
     showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
 
@@ -1846,7 +1846,7 @@ doTransWithManualResol onOff nPCs banPCs prevOverPairs = do
 --               putStr "Transitive result before pruning: "
 --               showNPhraCateLn (sortPhraCateBySpan nPCs2)
                putStr "New phrases before pruning: "
-               showNPhraCateLn [pc | pc <- nPCs2, notElemForPhrase pc nPCs]
+               showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
 --               putStr "Banned phrases: "
 --               showNPhraCateLn (banPCs)                   -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
@@ -1865,7 +1865,7 @@ doTransWithManualResol onOff nPCs banPCs prevOverPairs = do
 --               putStr "Transitive result after pruning: "
 --               showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
                putStr "New phrases after pruning: "
-               showNPhraCateLn [pc | pc <- fst nbPCs, notElemForPhrase pc nPCs]
+               showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
                putStr "Banned phrases: "
                showNPhraCateLn (snd nbPCs)                  -- The banned phrases after updated.
 
@@ -2272,7 +2272,7 @@ parseClauseWithoutPruning sn transIdx rules nPCs = do
     let nPCs2 = trans rules nPCs []
     putStrLn $ "After " ++ show transIdx ++ "th transition, num. of phrasal categories = " ++ show (length nPCs2)
 --  showNPhraCateLn (sortPhraCateBySpan nPCs2)
-    if ([pc| pc <- nPCs, notElemForPhrase pc nPCs2] /= [])||([pc| pc <- nPCs2, notElemForPhrase pc nPCs] /= [])
+    if ([pc| pc <- nPCs, notElem4Phrase pc nPCs2] /= [])||([pc| pc <- nPCs2, notElem4Phrase pc nPCs] /= [])
 --  if (equalSortedPhraList (quickSort nPCs) (quickSort nPCs2))
       then parseClauseWithoutPruning sn (transIdx+1) rules nPCs2
       else do

@@ -64,7 +64,7 @@ module Phrase (
     quickSort,     -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
-    notElemForPhrase,             -- PhraCate -> [PhraCate] -> Bool
+    notElem4Phrase,             -- PhraCate -> [PhraCate] -> Bool
     elemForPhrase,                -- PhraCate -> [PhraCate] -> Bool
     equalSortedPhraList,          -- [PhraCate] -> [PhraCate] -> Bool
     ) where
@@ -409,11 +409,11 @@ sortPhraCateBySpan :: [PhraCate] -> [PhraCate]
 sortPhraCateBySpan pcClo = [pc| sp <- divPhraCateBySpan pcClo, pc <- sp]
 
 -- Without considering Act attribute, decide whether a phrase is NOT in a certain phrasal list.
-notElemForPhrase :: PhraCate -> [PhraCate] -> Bool
-notElemForPhrase x [] = True
-notElemForPhrase x (y:ys)
+notElem4Phrase :: PhraCate -> [PhraCate] -> Bool
+notElem4Phrase x [] = True
+notElem4Phrase x (y:ys)
     | (stx==sty)&&(spx==spy)&&(ssx==ssy)&&(ctspx==ctspy) = False
-    | otherwise = notElemForPhrase x ys
+    | otherwise = notElem4Phrase x ys
     where
       stx = stOfCate x
       spx = spOfCate x
@@ -426,7 +426,7 @@ notElemForPhrase x (y:ys)
 
 -- Without considering Act attribute, decide whether a phrase is in a certain phrasal list.
 elemForPhrase :: PhraCate -> [PhraCate] -> Bool
-elemForPhrase = \x y -> not (notElemForPhrase x y)
+elemForPhrase = \x y -> not (notElem4Phrase x y)
 
 -- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
 equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool

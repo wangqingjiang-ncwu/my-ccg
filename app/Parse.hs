@@ -10,7 +10,7 @@ module Parse (
     prune,             -- [PhraCate] -> [PhraCate]
 --  prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
-    findPhraWithLowestPrio,  -- [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> PhraCate
+    findPhraWithLowestPrio,  -- [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO (PhraCate, PhraCate)
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
     getPrior',         -- [OverPair] -> PhraCate -> PhraCate -> Maybe Prior
     getOverType,       -- [PhraCate] -> PhraCate -> PhraCate -> Int
@@ -528,11 +528,19 @@ cateComb onOff pc1 pc2
       ctspaBynToP = ctspaBynToP1 ++ ctspaBynToP2
       catesBynToP = [(fst5 cate, "P/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToP]
 
--- The conversion from noun to verb is ONLY allowed when the noun acts as verb.
-      n_V = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
-      ctspaBynToV = [rule cate1 cate2 | rule <- [appF], cate1 <- n_V, cate2 <- csp_2, elem Vn onOff]
+{- The conversion from noun to verb is ONLY allowed when the noun acts as verb,
+ - (1) to form VO structure;
+ - (2) to form OE structure.
+ -}
+      n_V_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
+      ctspaBynToV_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- n_V_VO, cate2 <- csp_2, elem Vn onOff]
           where
           csp_2 = removeDup [x| x<- csp2, fst3 x == npCate]
+      n_V_OE = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
+      ctspaBynToV_OE = [rule cate1 cate2 | rule <- [raiFh], cate1 <- csp_1, cate2 <- n_V_OE, elem Vn onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
+      ctspaBynToV = ctspaBynToV_VO ++ ctspaBynToV_OE
       catesBynToV = [(fst5 cate, "V/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV]
 
 {- The conversion from 'np' to 'np/.np' is ONLY allowed when a noun acts as an attribue.
@@ -775,14 +783,18 @@ cateComb onOff pc1 pc2
  - (1) the object-extractioned phrase follows a transitive verb, such as "遭到vt 老师n 批评vt".
  - (2) noun completment follows, whose typical syntactic type is np\*np,
  - (3) '的' follows，whose typical syntactic type is (np/*np)\*np,
-
+ - (4) the object-extractioned phrase follows a preposition, such as "由p 政府n 补助vt".
 
  -}
       oe_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == objectExtractionCate]
       ctspaByoeToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- oe_O_VO, elem Ooe onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == verbCate]
-      ctspaByoeToO = ctspaByoeToO_VO
+      oe_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == objectExtractionCate]
+      ctspaByoeToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- oe_O_PO, elem Ooe onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == prep2AdvCate]
+      ctspaByoeToO = ctspaByoeToO_VO ++ ctspaByoeToO_PO
       catesByoeToO = [(fst5 cate, "O/oe-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByoeToO]
 
       oe_Hn_HnC = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == objectExtractionCate]
@@ -877,7 +889,6 @@ cateComb onOff pc1 pc2
 
 {- The two adjacent types "np <verb>" convert to "<verb> np", forming structure VO, here V/n and O/v happen simultaneously.
  -}
-      n_V_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\y-> cateEqual y (fst3 csp)) [npCate])]
       ctspaBynToV_vToO = [rule cate1 cate2 | rule <- [appF], cate1 <- n_V_VO, cate2 <- v_O_VO, elem Vn onOff, elem Ov onOff]
       catesBynToV_vToO = [(fst5 cate, "V/n-O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV_vToO]
 
@@ -993,10 +1004,10 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
 trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
 trans onOff pcs banPCs = pcs2
     where
-      combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
 --    Allowing two inactive phrases to combine.
 --      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
-      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElemForPhrase cb banPCs, notElemForPhrase cb pcs]
+      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs, notElem4Phrase cb pcs]
                  -- The banned phrases might be created again, here they are filtered out.
                  -- The non-banned phrases also might be created again, here those reduplicates are removed out.
       pcs2 = pcs ++ newCbs
@@ -1007,16 +1018,16 @@ trans onOff pcs banPCs = pcs2
  -}
 transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
 transWithPruning onOff pcs banPCs overPairs = do
-    let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
+    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
 --    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
                                                                   -- Not consider phrasal activity
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElemForPhrase cb banPCs, notElemForPhrase cb pcs]
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs, notElem4Phrase cb pcs]
     if newCbs /= []
       then do
         let pcs1 = pcs ++ newCbs                                      -- Before pruning
         pcs1' <- prune overPairs pcs1 newCbs                          -- After pruning
         let pcs2 = updateAct pcs1'                                    -- Attr. activity is corrected.
-        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElemForPhrase cb pcs2]    -- Update the list of banned phrasal categories.
+        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem4Phrase cb pcs2]    -- Update the list of banned phrasal categories which are all active.
         return (pcs2, banPCs2)
       else return (pcs, banPCs)
 
@@ -1063,10 +1074,10 @@ parse onOff trans banPCs = do
 
 {- We adopt pruning method to remove those banned phrases, based on some axioms.
    Axiom 1. The pruned phrases are no longer generated.
-   Axiom 2. After pruning, Type-0 and Type-1 overlaps certainly disappear, but Type-2, -3, -4 overlaps might remain.
-   Axiom 3. Two phrases in a Type-2, -3, and -4 overlap are not construct (namely blood) relation, then one of which must be removed out.
-   Like pruning in game search, any phrasal category not appearing in the final parsing tree is removed out after
-   just generated, and any phrasal category having taken part in category combination should be set inactive, which
+   Axiom 2. After pruning, Type-1 and Type-2 overlaps certainly disappear, but Type-3, -4, -5 overlaps might remain.
+   Axiom 3. Two phrases in a Type-3, -4, and -5 overlap are not construct (namely blood) relation, then one of which must be removed out.
+   Any phrasal category not appearing in the final parsing tree does not be removed out until it overlaps other phrases incuring syntactic ambiguity.
+   Any phrasal category having taken part in category combination should be set inactive, which
    can still combine with active categories. When removing a category, its parent categories should be set active.
    After one trip of transitive computing among an unambiguous partial tree, the ambiguous overlaps only exist between new generated phrases,
    or between a new generated phrase and an old generated phrase.
@@ -1079,11 +1090,12 @@ prune overPairs pcs newCbs = do
      if pcps == []                                  -- No overlapping phrases
        then return pcs
        else do
-         pc <- findPhraWithLowestPrio pcps pcps overPairs   -- Find the phrase with lowest priority among all phrases.
-         let pcs' = removeOnePC pc pcs newCbs               -- Remove phrase <pc> and its descendants.
+         (pc1, pc2) <- findPhraWithLowestPrio pcps pcps overPairs   -- Find the phrase with lowest priority among all phrases.
+         let pcs' = removeOnePC pc1 pcs newCbs                      -- Remove phrase <pc1> and its descendants.
+         let pcs'' = removeOnePC pc2 pcs' newCbs                    -- Remove phrase <pc2> and its descendants.
          putStr "The removed phrase(s):"
-         showNPhraCate' [x| x<-pcs, notElem x pcs']         -- Show all phrases in List <pcs> but not in List <pcs'>.
-         prune overPairs pcs' newCbs
+         showNPhraCate' [x| x<-pcs, notElem x pcs'']                -- Show all phrases in List <pcs> but not in List <pcs'>.
+         prune overPairs pcs'' newCbs
 
 {- A wrapper of Function <prune> to input the phrases to be pruned and the banned phrases, return the result and
    the updated banned phrases.
@@ -1092,7 +1104,7 @@ prune overPairs pcs newCbs = do
 prune' :: [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
 prune' pcs banPCs = do
     pcs1 <- prune pcs                                              -- After pruning, Attr. activity is corrected.
-    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElemForPhrase pc pcs1]      -- Update the list of banned phrasal categories.
+    let banPCs1 = banPCs ++ [pc| pc <- pcs, notElem4Phrase pc pcs1]      -- Update the list of banned phrasal categories.
     return (pcs1, banPCs1)
  -}
 
@@ -1113,13 +1125,13 @@ getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, p
    (2) From the first pair of overlapping phrases, select the lower-priority phrase by GeneBase, get the phrase's
        related overlapping pairs from all unChecked pairs. If there is no related pair, return the phrase; otherwise
        recursively call this function on all unChecked Overlapping pairs and the low priority phrase-related overlapping pairs.
-   (3) If prior value is Noth, the further processing is same as that for prior value Lp.
+   (3) To support prior value 'Noth', which means the two checked overlapping phrases should be thrown away, this function return a tuple of phrases.
  -}
 
-findPhraWithLowestPrio :: [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO PhraCate
+findPhraWithLowestPrio :: [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO (PhraCate, PhraCate)
 findPhraWithLowestPrio unCheckedOps ops overPairs = do
     if ops == []
-      then return nilPhra      -- This is the border condition, usually not occurs.
+      then return (nilPhra, nilPhra)                                   -- This is the border condition, usually not occurs.
       else do
         let x = head ops
         let xs = [op| op <-unCheckedOps, op /= x]
@@ -1132,13 +1144,13 @@ findPhraWithLowestPrio unCheckedOps ops overPairs = do
         case pri of
           Lp -> if pcps2 /= []
                   then findPhraWithLowestPrio xs pcps2 overPairs
-                  else return pc2
+                  else return (nilPhra, pc2)
           Rp -> if pcps1 /= []
                   then findPhraWithLowestPrio xs pcps1 overPairs
-                  else return pc1
+                  else return (pc1, nilPhra)
           Noth -> if pcps /= []                                        -- Prior value Noth means the pair of phrases should be removed.
                     then findPhraWithLowestPrio xs pcps overPairs
-                    else return pc2                                    -- Without loss of generality, let left phrase be prior to the right.
+                    else return (pc1, pc2)                             -- Both Left and right phrases should be removed.
 
 {- Select <prior> from a list of 'OverPair' where matching given an overlapping pair of phrases.
    <Just Lp> means <leftOver> should remains while <rightOver> should be abandoned, and <Just Rp> means the contrary.
@@ -1191,9 +1203,9 @@ getOverType :: [PhraCate] -> PhraCate -> PhraCate -> Int
 getOverType pcs pc1 pc2
     | st1 == st2 && sp1 == sp2 = 1                                                     -- Equal overlap
     | st1 < st2  && st2 <= (st1 + sp1) && (st1 + sp1) < (st2 + sp2) = 2                -- Cross overlap
-    | st1 == st2 && st1 + sp1 < st2 + sp2 &&  notElemForPhrase pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
-    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElemForPhrase pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
-    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElemForPhrase pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
+    | st1 == st2 && st1 + sp1 < st2 + sp2 &&  notElem4Phrase pc2 (findDescen pc1 pcs) = 3      -- Left-inclusive overlap
+    | st1 < st2  && st1 + sp1 == st2 + sp2 && notElem4Phrase pc1 (findDescen pc2 pcs) = 4     -- Right-inclusive overlap
+    | st1 < st2  && st1 + sp1 > st2 + sp2 && notElem4Phrase pc1 (findDescen pc2 pcs) = 5      -- Two-end inclusive overlap
     | otherwise = 0                        -- Non-overlap or blood relation
     where
     st1 = stOfCate pc1
@@ -1208,6 +1220,7 @@ getOverType pcs pc1 pc2
  -}
 removeOnePC :: PhraCate -> [PhraCate] -> [PhraCate] -> [PhraCate]
 removeOnePC pc clo newCbs
+    | pc == nilPhra = clo
     | elem pc newCbs = [x| x <- clo, x /= pc]                                   -- Phrase <pc> is a newly genreated phrase.
     | otherwise = [x| x <- clo, notElem x (pc:descens)]
     where

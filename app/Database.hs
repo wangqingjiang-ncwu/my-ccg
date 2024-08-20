@@ -40,6 +40,7 @@ module Database (
   readStreamByText,                -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByInt,                 -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+  readStreamByInt32UText,          -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
@@ -198,12 +199,22 @@ readStreamByInt es is = do
 
 {- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,
  - until read Nothing.
- - Here [MySQLValue] is [MySQLInt32U, MySQLText].
+ - Here [MySQLValue] is [MySQLInt32, MySQLText].
  -}
 readStreamByInt32Text :: [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
 readStreamByInt32Text es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByInt32Text (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText].
+ -}
+readStreamByInt32UText :: [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
+readStreamByInt32UText es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32UText (es ++ [(fromMySQLInt32U (x!!0), fromMySQLText (x!!1))]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], append it to existed list [(Int, String, String)], then read the next,

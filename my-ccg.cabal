@@ -61,6 +61,7 @@ executable my-ccg-exe
       Phrase
       Rule
       SentParse
+      SentParse_Base
       Statistics
       Test
       Utils
@@ -111,6 +112,7 @@ test-suite my-ccg-test
       Phrase
       Rule
       SentParse
+      SentParse_Base
       Statistics
       Test
       Utils

@@ -9,6 +9,7 @@ module Corpus (
     pos,                 -- [POS]
     posCate,             -- [(POS, CateSymb)]
     phraStruList,        -- [PhraStru]
+    SentIdx,             -- Int
     getRawSentForASent,  -- Int -> IO String
     getRawSent2ForASent, -- Int -> IO String
     getCateSentForASent, -- Int -> IO String
@@ -59,7 +60,7 @@ module Corpus (
     setIpcOfRows,        -- Int -> Int -> String -> IO ()
     removeLineFeed,      -- IO ()
     removeLineFeedForOneRow,    -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
-    addClauIdxToTreeField       -- Int -> Int -> IO ()
+    addClauIdxToTreeField,      -- SentIdx -> SentIdx -> IO ()
     ) where
 
 import Control.Monad
@@ -227,8 +228,11 @@ posCate = [("n","np"),
 phraStruList :: [PhraStru]
 phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","HP","KP","DE","NR"]
 
+-- Sentence index number
+type SentIdx = Int
+
 -- Get raw part-of-speech marked sentence indicated by serial_num.
-getRawSentForASent :: Int -> IO String
+getRawSentForASent :: SentIdx -> IO String
 getRawSentForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select raw_sent from corpus where serial_num = ?"
@@ -238,7 +242,7 @@ getRawSentForASent sn = do
       Nothing -> return ""
 
 -- Get revised part-of-speech marked sentence indicated by serial_num.
-getRawSent2ForASent :: Int -> IO String
+getRawSent2ForASent :: SentIdx -> IO String
 getRawSent2ForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select raw_sent2 from corpus where serial_num = ?"
@@ -248,7 +252,7 @@ getRawSent2ForASent sn = do
       Nothing -> return ""
 
 -- Get CCG syntactic types-marked sentence indicated by serial_num.
-getCateSentForASent :: Int -> IO String
+getCateSentForASent :: SentIdx -> IO String
 getCateSentForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select cate_sent from corpus where serial_num = ?"
@@ -258,7 +262,7 @@ getCateSentForASent sn = do
       Nothing -> return ""
 
 -- Get the revised CCG syntactic types-marked sentence indicated by serial_num.
-getCateSent2ForASent :: Int -> IO String
+getCateSent2ForASent :: SentIdx -> IO String
 getCateSent2ForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select cate_sent2 from corpus where serial_num = ?"
@@ -291,7 +295,7 @@ posToCate = do
     close conn                                                    -- Explicitly close the connection.
 
 -- Another version of posToCate used to initialize the column cate_sent for one sentence.
-posToCateForASent :: Int -> IO ()
+posToCateForASent :: SentIdx -> IO ()
 posToCateForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select raw_sent2 from corpus where serial_num = ?"
@@ -363,7 +367,7 @@ copyCate = do
 {- Another version for copyCate, which complete copy column cate_sent to column cate_sent2 for given row. Actually
    cate_sent2 can be copied again from cate_sent when cate_check = 0. In other words, cate_check will be set 1 after cate_sent2 is checked by hand.
  -}
-copyCateForASent :: Int -> IO ()
+copyCateForASent :: SentIdx -> IO ()
 copyCateForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select cate_sent from corpus where cate_check = 0 and serial_num = ?"
@@ -405,7 +409,7 @@ copyRawSent = do
 
 {- Another version of copyRawSent for copying column raw_sent to column raw_sent2 for a given row. Actually raw_sent2 can be copied again from raw_sent where ps_check = 0. In other words, pos_check will be set 1 after raw_sent2 is checked by hand.
  -}
-copyRawSentForASent :: Int -> IO ()
+copyRawSentForASent :: SentIdx -> IO ()
 copyRawSentForASent sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select raw_sent from corpus where pos_check = 0 and serial_num = ?"
@@ -737,7 +741,7 @@ removeLineFeedForOneRow vs = [rs', rs2', vs!!2]
  - Clause indices make removing and paring again desiganated clauses feasible.
  - This function should be run under ghci.
  -}
-addClauIdxToTreeField :: Int -> Int -> IO ()
+addClauIdxToTreeField :: SentIdx -> SentIdx -> IO ()
 addClauIdxToTreeField sentSnOfStart sentSnOfEnd = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let tree_target = getConfProperty "tree_target" confInfo

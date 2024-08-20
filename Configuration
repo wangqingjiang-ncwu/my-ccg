@@ -19,12 +19,13 @@ tree_target:corpus
 cate_conv_ambig_resol_source:treebank1
 cate_conv_ambig_resol_target:treebank1
 
-# Ambiguity resolution model, such as 'stru_gene' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
+# Ambiguity resolution model, such as 'stru_gene', 'stru_gene_202408' and 'ambi_resol1', also is the name of MySQL table storing the samples of that model.
 # Actually, no matter what ambiguity resolution model is selected, the model samples should exist for every sentence in treebanks.
 # Model 'stru_gene' should be selected when parsing tree was creatly at the first time, then other models are selected when parsing by scripts
 # with purpose that samples of those models can be obtained.
-ambi_resol_model:stru_gene
+#ambi_resol_model:stru_gene
 #ambi_resol_model:ambi_resol1
+ambi_resol_model:stru_gene_202408
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.

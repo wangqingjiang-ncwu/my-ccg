@@ -6,25 +6,25 @@
 -- Sentential Parsing by scripts were orignally written by Qian-qian WANG at 2023, based on which modification was done by Qing-jiang WANG at 2024.
 
 module SentParse (
-    getSentFromDB,        -- Int -> IO String
-    getSentListFromDB,    -- Int -> Int -> IO [(Int, String)]
+    getSentFromDB,        -- SentIdx -> IO String
+    getSentListFromDB,    -- SentIdx -> SentIdx -> IO [(Int, String)]
     getSent,              -- String -> IO [String]
 --    getSentList,              -- String -> IO [String]
-    parseSent,            -- Int -> Int -> [String] -> IO Bool
-    dropParsingResult,    -- Int -> Int -> Int -> IO Bool
-    goBackTo,             -- Int -> Int -> IO ()
-    parseSent',           -- Int -> [String] -> IO ()
-    storeClauseParsing,   -- Int -> Int -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
+    parseSent,            -- SentIdx -> [String] -> IO Bool
+    dropParsingResult,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
+    goBackTo,             -- SentIdx -> ClauIdx -> IO ()
+    parseSent',           -- SentIdx -> [String] -> IO ()
+    storeClauseParsing,   -- SentIdx -> ClauIdx -> ([[Rule]],[PhraCate],[PhraCate]) -> IO ()
     parseClause,          -- [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
-    parseSentWithAllLexRules,          -- Int -> [String] -> IO ()
-    parseSentWithAllLexRules',         -- Int -> Int -> [String] -> IO Bool
+    parseSentWithAllLexRules,          -- SentIdx -> [String] -> IO ()
+    parseSentWithAllLexRules',         -- SentIdx -> ClauIdx -> [String] -> IO Bool
     parseClauseWithAllLexRules,        -- [PhraCate] -> IO [PhraCate]
     doTrans,              -- OnOff -> [PhraCate] -> [PhraCate] -> IO ([OnOff],[PhraCate],[PhraCate])
     updateStruGene,       -- [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
-    autoRunParseSentByScript, -- Int -> Int -> IO ()
-    parseSentByScript,    -- Int -> [String] -> IO ()
-    parseSentByScript',   -- Int -> [String] -> [Script] -> IO Bool
+    autoRunParseSentByScript, -- SentIdx -> SentIdx -> IO ()
+    parseSentByScript,    -- SentIdx -> [String] -> IO ()
+    parseSentByScript',   -- SentIdx -> [String] -> [Script] -> IO Bool
     parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
     doTransWithScript,    -- [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
     getPhraStruCSFromStruGene2,       -- Int -> Int -> IO ()
@@ -40,16 +40,16 @@ module SentParse (
     ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
     updateAmbiResol,      -- [PhraCate] -> [OverPair] -> IO ()
     updateAmbiResol',     -- [PhraCate] -> OverPair -> IO ()
-    storeClauseParsingToTreebank,     -- Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
-    storeTree,            -- Int -> String -> IO ()
-    readTree_String,      -- Int -> IO String
+    storeClauseParsingToTreebank,     -- SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+    storeTree,            -- SentIdx -> String -> IO ()
+    readTree_String,      -- SentIdx -> IO String
     sentToClauses,        -- String -> IO [String]
     dispTreeOfSent,       -- [String] -> IO ()
     dispTree,             -- [String] -> IO ()
-    dispTree',            -- Int -> [String] -> IO ()
+    dispTree',            -- ClauIdx -> [String] -> IO ()
     dispComparisonTreesOfAmbiResolResult,   -- Int -> [String] -> [String] -> String -> String -> IO ()
     getClauPhraCate,      -- String -> [PhraCate]
-    parseSentWithoutPruning      -- [Rule] -> [String] -> IO ()
+    parseSentWithoutPruning,     -- [Rule] -> [String] -> IO ()
     ) where
 
 import Control.Monad
@@ -75,9 +75,10 @@ import Output
 import Utils
 import Database
 import qualified Data.Map as Map
+import SentParse_Base
 
 -- Get a sentence from table corpus, actually the sentence is content of column cate_sent2.
-getSentFromDB :: Int -> IO String
+getSentFromDB :: SentIdx -> IO String
 getSentFromDB sn = do
     conn <- getConn
     stmt <- prepareStmt conn "select cate_sent2 from corpus where serial_num = ?"
@@ -87,7 +88,7 @@ getSentFromDB sn = do
       Nothing -> return ""
 
 -- Get some sentences from table corpus, actually the sentences are content of column cate_sent2.
-getSentListFromDB :: Int -> Int -> [(Int, String)] -> IO [(Int, String)]
+getSentListFromDB :: SentIdx -> SentIdx -> [(Int, String)] -> IO [(Int, String)]
 getSentListFromDB startSn endSn sentList = do
     conn <- getConn
     stmt <- prepareStmt conn "select serial_num, cate_sent2 from corpus where serial_num >= ? and serial_num <= ?"
@@ -117,41 +118,46 @@ getSent sent
 
 {- Parse a sentence, here every clause is a String, and parsing can start from a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'.
  -}
-parseSent :: Int -> [String] -> IO ()
+parseSent :: SentIdx -> [String] -> IO ()
 parseSent sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
 
-    let prompt1 = " There are " ++ show (length cs) ++ " clauses in total, from which clause to start? [RETURN for 1] "
-    let inputRange1 = [show x | x <- [1 .. length cs]]
+    let clauNum = length cs
+    let prompt1 = " There are " ++ show clauNum ++ " clauses in total, from which clause to start? (RETURN for 1): "
+    let inputRange1 = [show x | x <- [1 .. clauNum]]
     clauIdxOfStartStr <- getLineUntil prompt1 inputRange1 True
     let clauIdxOfStart = read clauIdxOfStartStr :: Int
 
-    let prompt2 = " to which clause to end? [RETURN for last one] "
-    let inputRange2 = [show x | x <- [1 .. length cs]]
+    let prompt2 = " to which clause to end? (RETURN for last one): "
+    let inputRange2 = [show x | x <- [1 .. clauNum]]
     clauIdxOfEndStr <- getLineUntil prompt2 inputRange2 False
+    let clauIdxOfEnd = read clauIdxOfEndStr :: Int
 
-    if clauIdxOfEndStr == "ZeroRange"
-      then putStrLn "parseSent: Clausal range is zero, and no clause is parsed."               -- Impossible.
-      else do               -- Drop trees and scripts of clause clauIdxOfStart to clause clauIdxOfEnd.
-             let clauIdxOfEnd = read clauIdxOfEndStr :: Int
-             putStrLn $ "Clause from " ++ show clauIdxOfStart ++ " to " ++ show clauIdxOfEnd ++ " will be parsed."
+    let prompt3 = " Clause(s) from " ++ clauIdxOfStartStr ++ " to " ++ clauIdxOfEndStr ++ " will begin, are you sure? [y/n] (RETURN for 'y'): "
+    answer <- getLineUntil prompt3 ["y","n"] True
+    if answer == "n"
+      then putStrLn "parseSent: cancelled."
+      else do                -- Drop trees and scripts of clause clauIdxOfStart to clause clauIdxOfEnd.
              dropFlag <- dropParsingResult sn clauIdxOfStart clauIdxOfEnd
              if dropFlag
                then do
                  finFlag <- parseSent' sn (clauIdxOfStart - 1) (drop (clauIdxOfStart - 1) (take clauIdxOfEnd cs))      -- Parse clause from clauIdxOfStart to clauIdxOfEnd.
                  if finFlag
-                   then putStrLn "parseSent: Finished parsing."
-                   else putStrLn "parseSent: Not finished parsing."
-               else putStrLn "parseSent: Parsing was cancelled."                 -- dropParsingResult failed, return upper layer calling.
+                   then putStrLn $ "parseSent: Parsing on sentence " ++ show sn ++ " was finished successfully."
+                   else putStrLn $ "parseSent: Parsing on Sentence " ++ show sn ++ " was cancelled midway."
+               else putStrLn "parseSent: dropParsingResult returns False."                 -- dropParsingResult failed, return upper layer calling.
 
 {- To prepare for parsing from clause clauIdxOfStart to clause clauIdxOfEnd, parsing trees and scripts of those clauses are removed in treebank.
  - The treebank is designated by property 'tree_target' in file Configuration.
  - For removing success, return True; otherwise return False.
  -}
-dropParsingResult :: Int -> Int -> Int -> IO Bool
+dropParsingResult :: SentIdx -> ClauIdx -> ClauIdx -> IO Bool
 dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
+    hSetBuffering stdin LineBuffering                  -- Open input buffering
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let tree_target = getConfProperty "tree_target" confInfo
+
+    removeClauTagPriorFromSynAmbiResol sn clauIdxOfStart clauIdxOfEnd           -- Remove ClauTagPrior tuples from stru_gene_202408.
 
     conn <- getConn
     let sqlstat = DS.fromString $ "select tree, script from " ++ tree_target ++ " where serial_num = ?"
@@ -181,13 +187,13 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
         ok <- executeStmt conn stmt' [toMySQLText (nTreeToString trees'), toMySQLText (nScriptToString scripts'), toMySQLInt32 sn]
         if (getOkAffectedRows ok == 1)
           then do
-            putStrLn $ "dropParsingResult: Parsing result of clause " ++ show clauIdxOfStart ++ " to clause " ++ show clauIdxOfEnd ++ " has been removed from database."
+            putStrLn $ "dropParsingResult: Parsing result of clauses " ++ show clauIdxOfStart ++ " to clause " ++ show clauIdxOfEnd ++ " were removed from database."
             return True
           else do
-            putStrLn "dropParsingResult: Parsing result failed to remove!"
+            putStrLn "dropParsingResult: Database SQL operation returned an exception."
             return False
       else do
-        putStrLn "dropParsingResult: No parsing result needs to be removed."
+        putStrLn "dropParsingResult: No parsing tree needs to be removed."
         return True
 
 {- To be ready for parsing from clause <ci>, parsing trees and scripts of clauses with index bigger than or equal to <ci> are deleted in treebank.
@@ -195,7 +201,7 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
  - For skip success, return True; otherwise return False.
  - The function is obsoleted, replaced with dropParsingResult to support parsing the designated range of clauses.
  -}
-goBackTo :: Int -> Int -> IO Bool
+goBackTo :: SentIdx -> ClauIdx -> IO Bool
 goBackTo sn ci = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let tree_target = getConfProperty "tree_target" confInfo
@@ -240,7 +246,7 @@ goBackTo sn ci = do
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', and parameter 'skn' is the number of skipped clauses.
  - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
-parseSent' :: Int -> Int -> [String] -> IO Bool
+parseSent' :: SentIdx -> Int -> [String] -> IO Bool
 parseSent' _ _ [] = return True
 parseSent' sn skn cs = do
     finFlag <- parseSent' sn skn (take (length cs - 1) cs)
@@ -253,7 +259,8 @@ parseSent' sn skn cs = do
         showNPhraCateLn nPCs
         putStr "Word semantic sequence: "
         showNSeman nPCs
-        rtbPCs' <- parseClause [] nPCs []                                       -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        let clauTag = (sn, clauIdx)
+        rtbPCs' <- parseClause clauTag [] nPCs []                               -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
         if rtbPCs' == ([],[],[])
           then return False                                                     -- False means the current clause is terminated manually.
           else do
@@ -264,7 +271,7 @@ parseSent' sn skn cs = do
         return False
 
 --  Add the parsing result of a clause into database. Now, parameter <clauIdx> has not been used for checking.
-storeClauseParsing :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+storeClauseParsing :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
 storeClauseParsing sn clauIdx rtbPCs = do
     confInfo <- readFile "Configuration"                                        -- Read configuration file
     let tree_target = getConfProperty "tree_target" confInfo
@@ -306,15 +313,15 @@ storeClauseParsing sn clauIdx rtbPCs = do
    (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  -}
 
-parseClause :: [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
-parseClause rules nPCs banPCs = do
-    rtbPCs <- doTrans [] nPCs banPCs           -- Every trip of transition begins with empty rule set.
+parseClause :: ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClause clauTag rules nPCs banPCs = do
+    rtbPCs <- doTrans clauTag [] nPCs banPCs           -- Every trip of transition begins with empty rule set.
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
       then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
       else if nPCs /= (snd3 rtbPCs)
-        then parseClause (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
+        then parseClause clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs)    -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
           putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
@@ -326,7 +333,7 @@ parseClause rules nPCs banPCs = do
 
 {- Parse a sentence which includes multiple clauses. Parsing can start from a certain clause, and end with a certain clause. The first parameter is the value of 'serial_num' in database Table 'corpus'. The parsing results would not be stored back to database, so the 'sn' is useless now.
  -}
-parseSentWithAllLexRules :: Int -> [String] -> IO ()
+parseSentWithAllLexRules :: SentIdx -> [String] -> IO ()
 parseSentWithAllLexRules sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
     let clauNum = length cs
@@ -397,7 +404,7 @@ parseSentWithAllLexRules sn cs = do
 {- Parse a sentence, here every clause is a String. Parameter 'sn' is the value of 'serial_num' in database Table 'Corpus', but not used now.
  - 'cis' is the clausal index of first clause to parse.
  -}
-parseSentWithAllLexRules' :: Int -> Int -> [String] -> IO ()
+parseSentWithAllLexRules' :: SentIdx -> ClauIdx -> [String] -> IO ()
 parseSentWithAllLexRules' _ _ [] = putStrLn ""
 parseSentWithAllLexRules' sn cis cs = do
     parseSentWithAllLexRules' sn cis $ take (length cs - 1) cs
@@ -444,47 +451,46 @@ parseClauseWithAllLexRules transIdx nPCs = do
 {- Do a trip of transition, insert or update related structural genes in Table stru_gene, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
-doTrans :: [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
-doTrans onOff nPCs banPCs = do
+doTrans :: ClauTag -> [Rule] -> [PhraCate] -> [PhraCate] -> IO ([Rule], [PhraCate], [PhraCate])
+doTrans clauTag onOff nPCs banPCs = do
     showOnOff onOff
     ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e"] True
-    if ruleSwitchOk == "n"                          -- Press key 'n'
-      then do
-        putStrLn "Enable or disable rules among"
-        putStrLn "  S/s, P/s, O/s, A/s, Hn/s, N/s,"
-        putStrLn "  S/v, O/v, A/v, Hn/v, D/v, Cn/v, Cv/v, N/v, P/vt, OE/vt, Vt/vi, A/vd,"
-        putStrLn "  S/a, P/a, V/a, O/a, D/a, Da/a, Cn/a, Cv/a, Ca/a, Hn/a, N/a,"
-        putStrLn "  P/n, V/n, A/n, Cn/n, Cv/n, D/n, Da/n, ADJ/n, S/nd, O/nd, Hn/nd,"
-        putStrLn "  S/d, O/d, A/d, Hn/d, Cv/d, N/d, ADJ/d, Da/d, Ds/d, Dx/d, Doe/d,"
-        putStrLn "  D/p,"
-        putStrLn "  O/oe, Hn/oe, N/oe,"
-        putStrLn "  N/pe,"
-        putStrLn "  A/q,"
-        putStrLn "  Jf/c, Jb/c"
-        putStrLn "  and U3d/u3,"
-        putStr "  for instance, +O/s, -A/v: (RETURN for skip) "
-        ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
-        let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
-        if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) [
-          "S/s", "P/s", "O/s", "A/s", "Hn/s", "N/s",
-          "S/v", "O/v", "A/v", "Hn/v", "D/v", "Cn/v", "Cv/v", "N/v", "P/vt", "OE/vt", "Vt/vi", "A/vd",
-          "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Da/a", "Cv/a", "Cn/a", "Ca/a",
-          "P/n", "V/n", "A/n", "Cn/n", "Cv/n", "D/n", "Da/n", "ADJ/n", "S/nd", "O/nd", "Hn/nd",
-          "S/d", "O/d", "A/d", "Hn/d", "Cv/d", "N/d", "ADJ/d", "Da/d", "Ds/d", "Dx/d", "Doe/d",
-          "D/p",
-          "O/oe", "Hn/oe", "N/oe",
-          "N/pe",
-          "A/q",
-          "Jf/c", "Jb/c",
-          "U3d/u3"]]
-           then do
-             let newOnOff = updateOnOff onOff rws
-             doTrans newOnOff nPCs banPCs                -- Redo this trip of transition by modifying rule switches.
-           else do
-             putStrLn "Rule switch expression error. Consider again!"
-             doTrans onOff nPCs banPCs
-      else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
-             then do
+    case ruleSwitchOk of
+      "n" -> do                         -- Press key 'n'
+                putStrLn "Enable or disable rules among"
+                putStrLn "  S/s, P/s, O/s, A/s, Hn/s, N/s,"
+                putStrLn "  S/v, O/v, A/v, Hn/v, D/v, Cn/v, Cv/v, N/v, P/vt, OE/vt, Vt/vi, A/vd,"
+                putStrLn "  S/a, P/a, V/a, O/a, D/a, Da/a, Cn/a, Cv/a, Ca/a, Hn/a, N/a,"
+                putStrLn "  P/n, V/n, A/n, Cn/n, Cv/n, D/n, Da/n, ADJ/n, S/nd, O/nd, Hn/nd,"
+                putStrLn "  S/d, O/d, A/d, Hn/d, Cv/d, N/d, ADJ/d, Da/d, Ds/d, Dx/d, Doe/d,"
+                putStrLn "  D/p,"
+                putStrLn "  O/oe, Hn/oe, N/oe,"
+                putStrLn "  N/pe,"
+                putStrLn "  A/q,"
+                putStrLn "  Jf/c, Jb/c"
+                putStrLn "  and U3d/u3,"
+                putStr "  for instance, +O/s, -A/v: (RETURN for skip) "
+                ruleSwitchStr <- getLine                    -- Get new onOff from input, such as "+O/s,-A/v"
+                let rws = splitAtDeliThrowSpace ',' ruleSwitchStr     -- ["+O/s","-A/v"]
+                if [] == [x| x <- rws, notElem (head x) ['+','-'] || notElem (tail x) [
+                  "S/s", "P/s", "O/s", "A/s", "Hn/s", "N/s",
+                  "S/v", "O/v", "A/v", "Hn/v", "D/v", "Cn/v", "Cv/v", "N/v", "P/vt", "OE/vt", "Vt/vi", "A/vd",
+                  "S/a", "O/a", "Hn/a", "N/a", "P/a", "V/a", "D/a", "Da/a", "Cv/a", "Cn/a", "Ca/a",
+                  "P/n", "V/n", "A/n", "Cn/n", "Cv/n", "D/n", "Da/n", "ADJ/n", "S/nd", "O/nd", "Hn/nd",
+                  "S/d", "O/d", "A/d", "Hn/d", "Cv/d", "N/d", "ADJ/d", "Da/d", "Ds/d", "Dx/d", "Doe/d",
+                  "D/p",
+                  "O/oe", "Hn/oe", "N/oe",
+                  "N/pe",
+                  "A/q",
+                  "Jf/c", "Jb/c",
+                  "U3d/u3"]]
+                   then do
+                     let newOnOff = updateOnOff onOff rws
+                     doTrans clauTag newOnOff nPCs banPCs           -- Redo this trip of transition by modifying rule switches.
+                   else do
+                     putStrLn "Rule switch expression error. Consider again!"
+                     doTrans clauTag onOff nPCs banPCs
+      "y" -> do                                             -- Press key 'y' or directly press RETURN
                let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
                putStr "Transitive result before pruning: "
                showNPhraCateLn (sortPhraCateBySpan nPCs2)
@@ -492,40 +498,38 @@ doTrans onOff nPCs banPCs = do
                showNPhraCateLn (banPCs)                       -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
-               overPairs <- updateStruGene nPCs2 [] pcps    -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+               overPairs <- updateStruGene clauTag nPCs2 [] pcps         -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
                nbPCs <- transWithPruning onOff nPCs banPCs overPairs     -- Get transitive result with pruning.
+
+               putStr "New phrases after pruning: "
+               showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
+
                putStr "Transitive result after pruning: "
                showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
                putStr "Banned phrases: "
                showNPhraCateLn (snd nbPCs)                  -- The banned phrases after updated.
 
-               putStr "This trip of transition is ok? [y/n/e]: (RETURN for 'y')"
-               transOk <- getLine                           -- Get user decision of whether to do next transition
-               if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
-                 then return (onOff,(fst nbPCs),(snd nbPCs))
-                 else if transOk == "n"
-                        then doTrans onOff nPCs banPCs      -- Redo this trip of transition.
-                        else if transOk == "e"
-                               then return ([],[],[])       -- Return from doTrans, and indicate this is terminating exit.
-                               else do
-                                 putStrLn "Please input 'y', 'n', or 'e'!"
-                                 doTrans onOff nPCs banPCs
-             else if ruleSwitchOk == "e"
-                    then return ([],[],[])                  -- Return from doTrans, and indicate this is terminating exit.
-                    else error "doTrans: Impossible input error!"
+               let prompt = "This trip of transition is ok? [y/n/e] (RETURN for 'y', 'e' for exit): "
+               transOk <- getLineUntil prompt ["y","n","e"] True
+               case transOk of
+                 "y" ->  return (onOff,(fst nbPCs),(snd nbPCs))
+                 "n" ->  do
+                           rollbackStruGene clauTag nPCs2 overPairs             -- Rollback syntax ambiguity resolution samples base.
+                           doTrans clauTag onOff nPCs banPCs      -- Redo this trip of transition.
+                 "e" ->  return ([],[],[])                        -- Return from doTrans, and indicate this is terminating exit.
+      "e" -> return ([],[],[])                                    -- Return from doTrans, and indicate this is terminating exit.
 
-{- Insert or update related structural genes in Table stru_gene, and recursively create overlapping pairs.
+{- Insert or update related structural genes in database, and recursively create overlapping pairs.
    For every pair of overlapping phrases, its overlap type, left- and right-extend phrases are found in a given set
    of phrases.
  -}
-updateStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
-updateStruGene _ overPairs [] = do
---    putStrLn "updateStruGene: End"
+updateStruGene :: ClauTag -> [PhraCate] -> [OverPair] -> [(PhraCate,PhraCate)] -> IO [OverPair]
+updateStruGene _ _ overPairs [] = do
     putStrLn ""                        -- To make output easy to read.
-    return overPairs
-updateStruGene nPCs overPairs (pcp:pcps) = do
-    newOverPairs <- updateStruGene' struGene overPairs       -- Update structural gene in Table stru_gene
-    updateStruGene nPCs newOverPairs pcps
+    return overPairs                   -- Return the collected resolution results.
+updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
+    newOverPairs <- updateStruGene' clauTag struGene overPairs       -- Update structural gene in Table stru_gene
+    updateStruGene clauTag nPCs newOverPairs pcps
     where
       lop = fst pcp
       rop = snd pcp
@@ -535,10 +539,15 @@ updateStruGene nPCs overPairs (pcp:pcps) = do
       struGene = (leps,lop,rop,reps,ot)
 
 {- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input
-   list of OverPair(s), then return the new OverPair list.
+ - list of OverPair(s), then return the new OverPair list.
+ - Model Stru_Gene :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, Prior, HitCount, PriorExCount)
+ - Model stru_gene_202408 :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
  -}
-updateStruGene' :: ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
-updateStruGene' gene overPairs = do
+updateStruGene' :: ClauTag -> ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
+updateStruGene' clauTag gene overPairs = do
+    confInfo <- readFile "Configuration"
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Find ambiguity resolution model, namely table name in MySQL.
+
     let leftExtend = fst5 gene
     let leftOver = snd5 gene
     let rightOver = thd5 gene
@@ -559,78 +568,225 @@ updateStruGene' gene overPairs = do
     let rov = doubleBackSlash (show ro)
     let rev = doubleBackSlash (show re)
     let otv = show ot
+{-
+    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
+                                          "leftOver = '" ++ show lo ++ "' && " ++
+                                         "rightOver = '" ++ show ro ++ "' && " ++
+                                       "rightExtend = '" ++ show re ++ "' && " ++
+                                          "overType = "  ++ show ot
+ -}
+    conn <- getConn
+
+    case ambi_resol_model of
+      "stru_gene" -> do
+        let sqlstat = read (show ("select id, prior, hitCount, priorExCount from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                           -- Close MySQL connection.
+                error "updateStruGene': Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let prior = fromMySQLText ((rows!!0)!!1)
+                let hitCount = fromMySQLInt32U ((rows!!0)!!2)
+                let priorExCount = fromMySQLInt16U ((rows!!0)!!3)
+                putStrLn $ "updateStruGene': (" ++ show id ++ ") prior: " ++ prior ++ ", hitCount: " ++ show hitCount ++ ", priorExCount: " ++ show priorExCount
+                putStr "Is the priority right? [y/n]: (RETURN for 'y') "
+                input <- getLine
+                if (input == "y" || input == "")       -- Press key 'y' or directly press RETURN.
+                  then do
+                    resetStmt conn stmt
+                    let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
+                    close conn                       -- Close MySQL connection.
+                    return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
+                  else do
+                    newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
+                    let newPrior = case newPriorFlag of
+                                     "1" -> "Lp"
+                                     "2" -> "Rp"
+                                     "3" -> "Noth"
+                    if newPrior /= prior                   -- Ask to modify column 'prior'.
+                      then do
+                        resetStmt conn stmt
+                        let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
+                        stmt <- prepareStmt conn sqlstat
+                        executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
+                                                                                -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
+                        close conn                                                  -- Close MySQL connection.
+                        return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+                      else do                              -- Actually, the priority is not asked to change.
+                        resetStmt conn stmt
+                        let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                        stmt <- prepareStmt conn sqlstat
+                        executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
+                        close conn                                                 -- Close MySQL connection.
+                        return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+          else do
+            putStrLn "Inquire failed."
+            newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
+            let newPrior = case newPriorFlag of
+                             "1" -> "Lp"
+                             "2" -> "Rp"
+                             "3" -> "Noth"
+            let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ newPrior ++ "')")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
+            return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+
+      "stru_gene_202408" -> do
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from stru_gene_202408 where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                           -- Close MySQL connection.
+                error "updateStruGene': Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "updateStruGene': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
+                priorFlag <- getLineUntil "please select priority from [Lp/Rp/Noth] ('1' or RETURN for Lp, '2' for Rp, '3' for Noth): " ["1","2","3"] True
+                let prior = case priorFlag of
+                              "1" -> Lp :: Prior
+                              "2" -> Rp :: Prior
+                              "3" -> Noth :: Prior
+
+                if notElem prior priorList
+                  then do
+                    resetStmt conn stmt
+                    let sqlstat = case prior of
+                                    Lp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Rp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Noth -> read (show ("update stru_gene_202408 set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    let newClauTagPriorList = (clauTag, prior):clauTagPriorList     -- Add with one ClauTagPrior value.
+                    oks <- case prior of
+                             Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount + 1)]       -- Add 'lpHitCount' by 1.
+                             Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount + 1)]       -- Add 'rpHitCount' by 1.
+                             Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount + 1)]   -- Add 'nothHitCount' by 1.
+--                  putStrLn $ "updateStruGene': getOkLastInsertID = " ++ show (getOkLastInsertID oks)
+                    putStrLn $ "updateStruGene': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
+                  else putStrLn $ "updateStruGene': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
+                close conn                       -- Close MySQL connection.
+                return ((leftOver, rightOver, prior):overPairs)
+          else do
+            putStrLn "Inquire failed."
+            priorFlag <- getLineUntil "please select priority from [Lp/Rp/Noth] ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth'): " ["1","2","3"] True
+            let prior = case priorFlag of
+                          "1" -> Lp :: Prior
+                          "2" -> Rp :: Prior
+                          "3" -> Noth :: Prior
+            let clauTagPrior = (clauTag, prior)
+            let sqlstat = case prior of
+                            Lp -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,lpHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Rp -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,rpHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Noth -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,nothHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
+            return ((leftOver, rightOver, prior):overPairs)
+
+{- Rollback the operations of function updateStruGene on database, and recursively create overlapping pairs.
+ - For every pair of overlapping phrases, its overlap type, left- and right-extend phrases are found in a given set
+ - of phrases.
+ - Model Stru_Gene does NOT need rollbacks, because its field 'prior' is always overwritten.
+ - Model stru_gene_202408 :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
+ -}
+rollbackStruGene :: ClauTag -> [PhraCate] -> [OverPair] -> IO ()
+rollbackStruGene _ _ [] = putStrLn "rollbackStruGene: End."                     -- To make output easy to read.
+rollbackStruGene clauTag nPCs (op:ops) = do
+    confInfo <- readFile "Configuration"
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Find ambiguity resolution model, namely table name in MySQL.
+
+    let leftOver = fst3 op
+    let rightOver = snd3 op
+    let prior = thd3 op
+    let overType = getOverType nPCs leftOver rightOver                          -- Get overlapping type
+    let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs                  -- Get all left-extend phrases
+    let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs              -- Get all right-entend phrases
+
+    let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
+    let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+    let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
+    let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
+    let ot = overType                                   -- Overlap type
+
+    let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
+    let lov = doubleBackSlash (show lo)
+    let rov = doubleBackSlash (show ro)
+    let rev = doubleBackSlash (show re)
+    let otv = show ot
 
     putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
                                           "leftOver = '" ++ show lo ++ "' && " ++
                                          "rightOver = '" ++ show ro ++ "' && " ++
                                        "rightExtend = '" ++ show re ++ "' && " ++
                                           "overType = "  ++ show ot
-    conn <- getConn
-    let sqlstat = read (show ("select id, prior, hitCount, priorExCount from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
-    stmt <- prepareStmt conn sqlstat
-    (defs, is) <- queryStmt conn stmt []
 
-    rows <- S.toList is
-    if rows /= []
-      then
-        if length rows > 1
-          then do
-            close conn                           -- Close MySQL connection.
-            error "updateStruGene': Find duplicate structural genes."
-          else do
-            let id = fromMySQLInt32U ((rows!!0)!!0)
-            let prior = fromMySQLText ((rows!!0)!!1)
-            let hitCount = fromMySQLInt32U ((rows!!0)!!2)
-            let priorExCount = fromMySQLInt16U ((rows!!0)!!3)
-            putStrLn $ "updateStruGene': (" ++ show id ++ ") prior: " ++ prior ++ ", hitCount: " ++ show hitCount ++ ", priorExCount: " ++ show priorExCount
-            putStr "Is the priority right? [y/n]: (RETURN for 'y') "
-            input <- getLine
-            if (input == "y" || input == "")       -- Press key 'y' or directly press RETURN.
+    case ambi_resol_model of
+      "stru_gene" -> putStrLn "rollbackStruGene: Model StruGene does not need rollbacking."
+      "stru_gene_202408" -> do
+        conn <- getConn
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from stru_gene_202408 where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
               then do
-                resetStmt conn stmt
-                let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
-                stmt <- prepareStmt conn sqlstat
-                executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
-                close conn                       -- Close MySQL connection.
-                return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
+                close conn                           -- Close MySQL connection.
+                error "rollbackStruGene: Find duplicate structural genes."
               else do
-                newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
-                let newPrior = case newPriorFlag of
-                                 "1" -> "Lp"
-                                 "2" -> "Rp"
-                                 "3" -> "Noth"
-                if newPrior /= prior                   -- Ask to modify column 'prior'.
-                  then do
-                    resetStmt conn stmt
-                    let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
-                    stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
-                                                                                -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
-                    close conn                                                  -- Close MySQL connection.
-                    return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
-                  else do                              -- Actually, the priority is not asked to change.
-                    resetStmt conn stmt
-                    let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
-                    stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
-                    close conn                                                 -- Close MySQL connection.
-                    return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
-      else do
-        putStrLn "Inquire failed."
-        newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
-        let newPrior = case newPriorFlag of
-                         "1" -> "Lp"
-                         "2" -> "Rp"
-                         "3" -> "Noth"
-        let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ newPrior ++ "')")) :: Query
-        stmt1 <- prepareStmt conn sqlstat
-        oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
-        putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
-        close conn                                   -- Close MySQL connection.
-        return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "rollbackStruGene: (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let newClauTagPriorList = [x | x <- clauTagPriorList, x /= (clauTag, prior)]     -- Remove one ClauTagPrior value.
+
+                resetStmt conn stmt
+                let sqlstat = case prior of
+                                Lp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                Rp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                Noth -> read (show ("update stru_gene_202408 set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                stmt <- prepareStmt conn sqlstat
+                oks <- case prior of
+                         Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount - 1)]       -- 1 subtracted from 'lpHitCount'
+                         Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount - 1)]       -- 1 subtracted from 'rpHitCount'
+                         Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount - 1)]   -- 1 subtracted from 'nothHitCount'
+                putStrLn $ "rollbackStruGene: " ++ show (clauTag, prior) ++ " was removed from row " ++ show id
+                close conn                       -- Close MySQL connection.
+          else do
+            putStrLn "rollbackStruGene: Inquire failed. It is impossible!"
+    rollbackStruGene clauTag nPCs ops
 
 -- Recursively parse sentences according scripts, such that samples of category-conversional ambiguity resolution model SLR can be created.
-autoRunParseSentByScript :: Int -> Int -> IO ()
+autoRunParseSentByScript :: SentIdx -> SentIdx -> IO ()
 autoRunParseSentByScript startSn endSn = do
     putStrLn $ "Sentence No." ++ show startSn ++ " start to create SLR samples."
     getSentFromDB startSn >>= getSent >>= parseSentByScript startSn
@@ -648,7 +804,7 @@ type TagOfClauAnaly = (NumOfClauEqual, ClauIdxOfClauUnequal)      -- 相等小�
  - The first parameter is the value of 'serial_num' in database Table 'corpus'.
  - This function is used to create some side-products, such as samlpes of category conversion ambiguity resolution model SLR.
  -}
-parseSentByScript :: Int -> [String] -> IO ()
+parseSentByScript :: SentIdx -> [String] -> IO ()
 parseSentByScript sn cs = do
     hSetBuffering stdin LineBuffering                  -- Open input buffering
     confInfo <- readFile "Configuration"
@@ -659,20 +815,35 @@ parseSentByScript sn cs = do
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
-    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                     --([ColumnDef], InputStream [MySQLValue])
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
     record <- S.read is
     let scriptStr = case record of
                       Just x -> x
                       Nothing -> [MySQLText "[]"]
     let script = fromMySQLText (scriptStr!!0)
-    skipToEof is                                                            -- Go to the end of the stream.
+    skipToEof is                                                                -- Go to the end of the stream.
     closeStmt conn stmt
 
     let script' = readScripts $ script
     putStr "Parsing script: "
     showScript script'
 
-    putStr $ " There are " ++ show (length cs) ++ " clauses in total."
+    let clauNum = length cs
+    putStrLn $ " There are " ++ show clauNum ++ " clauses in total."
+
+{- Parsing by scripts can be conducted multiple times. Sometimes parsing includes errors, corresponding syntax ambiguity resolution samples are wrong.
+ - If during parsing by scripts, syntax ambiguity resolution samples are written into database, then whenever a new parsing for a sentence begins,
+ - the ambiguity samples for the sentence should be removed from database.
+ - If during parsing by scripts, ambiguity samples are NOT created and written into database, which possibly are created during manually parsing,
+ - PLEASE comment out the following codes.
+ -}
+    hasCTPSample <- hasSentSampleInSynAmbiResol sn 1 clauNum
+    if hasCTPSample
+      then removeClauTagPriorFromSynAmbiResol sn 1 clauNum                      -- Remove all samples of this sentence in syntax ambiguity resolution database.
+      else putStrLn "parseSentByScript: No syntax ambiguity resolution sample."
+{-
+ - Code End
+ -}
 
     finFlagAndSLRAndTree <- parseSentByScript' sn cs script'
     if (fst4 finFlagAndSLRAndTree)
@@ -701,7 +872,7 @@ parseSentByScript sn cs = do
 
         putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
         putStrLn $ "Sentence No."++ show sn ++" has "++ show (length origTrees) ++" clauses, in which "++ show ((fst . fth4) finFlagAndSLRAndTree) ++ " clauses are the same with the origial clauses."
-      else putStrLn "parseSentByScript: Not finished parsing."
+      else putStrLn $ "parseSentByScript: Sentence " ++ show sn ++ " was NOT finished in parsing."
 
 {- Re-parse a sentence according the previously created parsing script.
  - Here every clause is a String.
@@ -714,7 +885,7 @@ parseSentByScript sn cs = do
  - Tree ::= (ClauIdx, [PhraCate]) is parsing result of one clause.
  - TagOfClauAnaly ::= (NumOfClauEqual, ClauIdxOfClauUnequal)      -- 相等小句的个数，不等小句的编号
  -}
-parseSentByScript' :: Int -> [String] -> [Script] -> IO (Bool, SLROfSent, [Tree], TagOfClauAnaly)
+parseSentByScript' :: SentIdx -> [String] -> [Script] -> IO (Bool, SLROfSent, [Tree], TagOfClauAnaly)
 parseSentByScript' _ [] _ = return (True, [], [], (0,[]))
 parseSentByScript' sn cs scripts = do
     finFlagAndSLRAndTree <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts)     -- 前递归，即先分析第一个小句。
@@ -737,6 +908,7 @@ parseSentByScript' sn cs scripts = do
 
         confInfo <- readFile "Configuration"
         let tree_source = getConfProperty "tree_source" confInfo                -- Tree source is for retrieving correct parsing trees.
+        let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo      -- Syntax Ambiguity Resolution Model
 
         conn <- getConn
         let query = DS.fromString ("select tree from " ++ tree_source ++ " where serial_num = ?")       -- Prepare to read Tree field.
@@ -747,7 +919,7 @@ parseSentByScript' sn cs scripts = do
         let origClauIdxTree = origTrees!!(clauIdx-1)                            -- (ClauIdx, [PhraCate]) of the last clause.
         close conn
 
-        rtbPCs <- parseClauseWithScript [] nPCs [] [] lastScript []             -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        rtbPCs <- parseClauseWithScript (sn, clauIdx) [] nPCs [] [] lastScript []                -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
         let newClauIdxTree = snd4 rtbPCs
         let judgeClauIdxTree = [x | x <- (snd origClauIdxTree), elem x newClauIdxTree]     -- [PhraCate]
         let numOfClauEqual' = case (length judgeClauIdxTree == length (snd origClauIdxTree)) of
@@ -788,12 +960,21 @@ type SLROfSent = [SLROfClause]
  -     Otherwise, return the quadruple ([[Rule]], resultant tree PCs, accumulated banned PCs, SLR List Of This Clause).
  - 'overPairs' records the overlapping phrases and their ambiguity resolution in previous rounds of transitions. Before the first round, it should be empty.
  -}
-parseClauseWithScript :: [[Rule]] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], [PhraCate], SLROfClause)
-parseClauseWithScript rules nPCs banPCs overPairs script origSLRSample = do
-    rtboPCs <- doTransWithScript nPCs banPCs overPairs script
+parseClauseWithScript :: ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], [PhraCate], SLROfClause)
+parseClauseWithScript clauTag rules nPCs banPCs overPairs script origSLRSample = do
+    rtboPCs <- doTransWithScript clauTag nPCs banPCs overPairs script
                                                -- Tree = (ClauIdx, [PhraCate])
                                                -- <rtboPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs, accumulated overlapping phrases)
                                                -- [Rule] is the set of rules used in this trip of transition.
+{-
+    putStrLn $ "parseClauseWithScript: fst4 rtboPCs (Rules): " ++ show (fst4 rtboPCs)
+    putStr "parseClauseWithScript: snd4 rtboPCs (nPCs): "
+    showNPhraCateLn (snd4 rtboPCs)
+    putStr "parseClauseWithScript: thd4 rtboPCs (banPCs): "
+    showNPhraCateLn (thd4 rtboPCs)
+    putStrLn $ "parseClauseWithScript: fth4 rtboPCs (OverPairs): " ++ show (fth4 rtboPCs)
+ -}
+
     let ruleOfATrans = fst4 rtboPCs
     let sLROfATrans = (nPCs, ruleOfATrans)
     let newSLRSample = origSLRSample ++ [sLROfATrans]
@@ -807,7 +988,7 @@ parseClauseWithScript rules nPCs banPCs overPairs script origSLRSample = do
                               (clauIdx, [x], bPCs) -> (clauIdx, [], bPCs)       -- Remove the head element of OnOff list in parsing script.
                               (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, bPCs)
 
-          parseClauseWithScript (rules ++ [fst4 rtboPCs]) (snd4 rtboPCs) (thd4 rtboPCs) (fth4 rtboPCs) scriptTail newSLRSample        -- Do the next trip of transition
+          parseClauseWithScript clauTag (rules ++ [fst4 rtboPCs]) (snd4 rtboPCs) (thd4 rtboPCs) (fth4 rtboPCs) scriptTail newSLRSample        -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, accumulated banned PCs, and accumulate overlapping phrasal pairs.
         else do                                -- Phrasal closure has been formed.
           putStrLn $ "Num. of phrasal categories in closure is " ++ (show $ length nPCs)
@@ -824,8 +1005,8 @@ parseClauseWithScript rules nPCs banPCs overPairs script origSLRSample = do
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[],[]) as the terminating flag.
  - 'prevOverPairs' is so far known overlapping phrasal pairs and their ambiguity resolution.
  -}
-doTransWithScript :: [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
-doTransWithScript nPCs banPCs prevOverPairs script = do
+doTransWithScript :: ClauTag -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
+doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
                       [] -> [] :: OnOff             -- No script of rule switches to use
@@ -850,17 +1031,20 @@ doTransWithScript nPCs banPCs prevOverPairs script = do
 --      else putStrLn "ambiResolByScript: prevOverPairs does NOT include duplicate elements."
 
     let overPairsByPrev = ambiResolByPrevOverPair [] pcps prevOverPairs         -- [OverPair], phrasal pairs appearing in the previous rounds of transitions.
-    putStr "ambiResolByScript: overPairsByPrev: "
-    showNOverPair overPairsByPrev
+--    putStr "ambiResolByScript: overPairsByPrev: "
+--    showNOverPair overPairsByPrev
 
     let pcpsWithPrior1 = map (\x->(fst3 x, snd3 x)) overPairsByPrev
     let pcps1 = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior1]
     let overPairsByScript = ambiResolByScript nPCs2 [] pcps1 script             -- [OverPair], phrasal pairs are resoluted by script.
-    putStr "ambiResolByScript: overPairsByScript: "
-    showNOverPair overPairsByScript
+--    putStr "ambiResolByScript: overPairsByScript: "
+--    showNOverPair overPairsByScript
 
     let pcpsWithPrior2 = map (\x->(fst3 x, snd3 x)) overPairsByScript
     let pcps2 = [pcp | pcp <- pcps1, notElem pcp pcpsWithPrior2]                -- [(PhraCate, PhraCate)] not resolved by script.
+    if pcps2 /= []
+      then putStrLn "ambiResolByManualResol: Begin manual resolution ..."
+      else putStr ""
     overPairsByManual <- ambiResolByManualResol nPCs2 [] pcps2                  -- [OverPair], phrasal pairs are resoluted manually.
     putStr "ambiResolByManualResol: overPairsByManual: "
     showNOverPair overPairsByManual
@@ -873,18 +1057,20 @@ doTransWithScript nPCs banPCs prevOverPairs script = do
     putStr "New phrases after pruning: "
     showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
     putStr "Banned phrases: "
-    showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+    showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated, which can NOT be sorted by spans!
 
     transOk <- getLineUntil "This trip of transition is ok? [y/n/e]: (RETURN for 'y') " ["y","n","e"] True   -- Get user decision of whether to do next transition
-    if transOk == "y" || transOk == ""             -- Press key 'y' or directly press RETURN
-      then do
-          updateAmbiResol (fst nbPCs) (overPairsByScript ++ overPairsByManual)        -- Record new ambiguity resolution fragments.
-          return (onOff,sortPhraCateBySpan (fst nbPCs),sortPhraCateBySpan (snd nbPCs), removeDup4OverPair (prevOverPairs ++ overPairsByScript ++ overPairsByManual))
-      else if transOk == "n"
-             then doTransWithManualResol onOff nPCs banPCs prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
-             else if transOk == "e"
-                    then return ([],[],[],[])      -- Return from doTrans, and indicate this is terminating exit.
-                    else error "doTransWithScript: Impossible input error!"
+    case transOk of
+      "y" -> do                             -- Press key 'y' or directly press RETURN
+{- When NOT hope to create syntax ambiguity resolution samples, and write them into database, then comment out the following line of codes.
+ -}
+               updateAmbiResol clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)        -- Record new ambiguity resolution fragments.
+{-
+ - Code End
+ -}
+               return (onOff,sortPhraCateBySpan (fst nbPCs), snd nbPCs, removeDup4OverPair (prevOverPairs ++ overPairsByScript ++ overPairsByManual))
+      "n" -> doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
+      "e" -> return ([],[],[],[])      -- Return from doTrans, and indicate this is terminating exit.
 
 {- Resolve ambiguities by the known ambiguity resolution pairs.
  - The overlapping phrasal pairs appeared and were resoluted in the previous rounds of transition, identified as prevOverPairs.
@@ -1338,7 +1524,7 @@ ambiResolByGrammarAmbiResol nPCs overPairs (pcp:pcps) struGeneSamples distWeiRat
     id = fst7 pcOfMinDist
     overPairs' = (lop, rop, pri',id):overPairs
 
-autoRunCollectPhraSyn :: Int -> Int -> IO ()
+autoRunCollectPhraSyn :: SentIdx -> SentIdx -> IO ()
 autoRunCollectPhraSyn startSn endSn = do
     collectPhraSynFromTreebank1 startSn
     let startSn' = startSn +1
@@ -1800,8 +1986,8 @@ findMachAmbiResolRes' clauseNo (s:cs) (s':cs') script script' origMachAmbiResolR
  - rules used in this trip, the resultant phrases, and the banned phrases.
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
-doTransWithManualResol :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
-doTransWithManualResol onOff nPCs banPCs prevOverPairs = do
+doTransWithManualResol :: ClauTag -> [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
+doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs = do
     putStr "Rule switches: "
     showOnOff onOff
     ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e"] True
@@ -1836,10 +2022,10 @@ doTransWithManualResol onOff nPCs banPCs prevOverPairs = do
           "U3d/u3"]]
            then do
              let newOnOff = updateOnOff onOff rws
-             doTransWithManualResol newOnOff nPCs banPCs prevOverPairs          -- Redo this trip of transition by modifying rule switches.
+             doTransWithManualResol clauTag newOnOff nPCs banPCs prevOverPairs          -- Redo this trip of transition by modifying rule switches.
            else do
              putStrLn "Rule switch expression error. Consider again!"
-             doTransWithManualResol onOff nPCs banPCs prevOverPairs
+             doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs
       else if ruleSwitchOk == "y" || ruleSwitchOk == ""     -- Press key 'y' or directly press RETURN
              then do
                let nPCs2 = trans onOff nPCs banPCs          -- Without pruning, get transitive result.
@@ -1872,10 +2058,10 @@ doTransWithManualResol onOff nPCs banPCs prevOverPairs = do
                transOk <- getLineUntil "This trip of transition is ok? [y/n/e]: (RETURN for 'y') " ["y","n","e"] True  -- Get user decision of whether to do next transition
                if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
                  then do
-                     updateAmbiResol (fst nbPCs) overPairsByManual                           -- Record new ambiguity resolution fragments.
+                     updateAmbiResol clauTag (fst nbPCs) overPairsByManual                           -- Record new ambiguity resolution fragments.
                      return (onOff, (fst nbPCs), (snd nbPCs), removeDup4OverPair (prevOverPairs ++ overPairsByManual))
                  else if transOk == "n"
-                        then doTransWithManualResol onOff nPCs banPCs prevOverPairs          -- Redo this trip of transition.
+                        then doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs          -- Redo this trip of transition.
                         else if transOk == "e"
                                then return ([],[],[],[])                        -- Return from doTrans, and indicate this is terminating exit.
                                else error "doTransWithManualResol: Impossible input error!"
@@ -1911,6 +2097,11 @@ ambiResolByManualResol' nPCs (lp, rp) = do
         let reps = getPhraByStart (enOfCate rp + 1) nPCs      -- Get all right-entend phrases
         putStr "Find structural fragment: "
         showStruFrag leps lp rp reps ot
+      "stru_gene_202408" -> do
+        let leps = getPhraByEnd (stOfCate lp - 1) nPCs        -- Get all left-extend phrases
+        let reps = getPhraByStart (enOfCate rp + 1) nPCs      -- Get all right-entend phrases
+        putStr "Find structural fragment: "
+        showStruFrag leps lp rp reps ot
       _ -> error "ambiResolByManualResol': ambi_resol_model is set wrongly."
 
     priorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
@@ -1922,19 +2113,19 @@ ambiResolByManualResol' nPCs (lp, rp) = do
 {- Insert new or update old ambiguity resolution fragments in ambiguity resolution database.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
  -}
-updateAmbiResol :: [PhraCate] -> [OverPair] -> IO ()
-updateAmbiResol _ [] = do
-    putStrLn "updateAmbiResol: Update finshed."              -- To make output easy to read.
-updateAmbiResol nPCs (op:ops) = do
-    updateAmbiResol' nPCs op
-    updateAmbiResol nPCs ops
+updateAmbiResol :: ClauTag -> [PhraCate] -> [OverPair] -> IO ()
+updateAmbiResol _ _ [] = do
+    putStrLn "updateAmbiResol: Update finished."              -- To make output easy to read.
+updateAmbiResol clauTag nPCs (op:ops) = do
+    updateAmbiResol' clauTag nPCs op
+    updateAmbiResol clauTag nPCs ops
 
 {- Insert or update one ambiguity resolution fragment in MySQL tables storing ambiguity resolution samples.
  - Ambiguity resolution model also is the name of MySQL table storing the samples of that model.
  - To now, models include 'stru_gene' and 'ambi_resol1'.
  -}
-updateAmbiResol' :: [PhraCate] -> OverPair -> IO ()
-updateAmbiResol' nPCs overPair = do
+updateAmbiResol' :: ClauTag -> [PhraCate] -> OverPair -> IO ()
+updateAmbiResol' clauTag nPCs overPair = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
 
@@ -1944,6 +2135,74 @@ updateAmbiResol' nPCs overPair = do
     let prior = thd3 overPair                                -- Get prior selection of the two overlapping phrases.
 
     case ambi_resol_model of
+      "stru_gene_202408" -> do
+        let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs          -- Get all left-extend phrases
+        let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs      -- Get all right-entend phrases
+
+        let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
+        let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+        let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
+        let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
+        let ot = overType                                   -- Overlap type
+
+        let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
+        let lov = doubleBackSlash (show lo)
+        let rov = doubleBackSlash (show ro)
+        let rev = doubleBackSlash (show re)
+        let otv = show overType
+
+        conn <- getConn
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from stru_gene_202408 where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                           -- Close MySQL connection.
+                error "updateAmbiResol': Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "updateAmbiResol': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
+
+                if elem prior priorList
+                  then putStrLn $ "updateAmbiResol': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
+                  else do
+                    resetStmt conn stmt
+                    let sqlstat = case prior of
+                                    Lp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Rp -> read (show ("update stru_gene_202408 set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Noth -> read (show ("update stru_gene_202408 set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    let newClauTagPriorList = (clauTag, prior):clauTagPriorList     -- Add with one ClauTagPrior value.
+                    case prior of
+                      Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount + 1)]    -- Add 'lpHitCount' by 1.
+                      Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount + 1)]    -- Add 'rpHitCount' by 1.
+                      Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount + 1)]   -- Add 'nothHitCount' by 1.
+                    putStrLn $ "updateAmbiResol': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
+                close conn                       -- Close MySQL connection.
+
+          else do
+            putStrLn "Inquire failed."
+            let clauTagPrior = (clauTag, prior)
+            let sqlstat = case prior of
+                            Lp -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,lpHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Rp -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,rpHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Noth -> read (show ("insert stru_gene_202408 (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,nothHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateAmbiResol': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
+
       "stru_gene" -> do
         let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs          -- Get all left-extend phrases
         let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs      -- Get all right-entend phrases
@@ -1959,17 +2218,7 @@ updateAmbiResol' nPCs overPair = do
         let rov = doubleBackSlash (show ro)
         let rev = doubleBackSlash (show re)
         let otv = show overType
-        let priorv = show prior
-{-
-        putStr "Find structural fragment: "
-        showStruFrag leftExtend leftOver rightOver rightExtend overType
 
-        putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
-                                              "leftOver = '" ++ show lo ++ "' && " ++
-                                             "rightOver = '" ++ show ro ++ "' && " ++
-                                           "rightExtend = '" ++ show re ++ "' && " ++
-                                              "overType = "  ++ show ot
- -}
         conn <- getConn
         let sqlstat = read (show ("select id, prior, hitCount, priorExCount from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
         stmt <- prepareStmt conn sqlstat
@@ -1981,29 +2230,36 @@ updateAmbiResol' nPCs overPair = do
             if length rows > 1
               then do
                 close conn                           -- Close MySQL connection.
-                error "updateAmbiResol': Find duplicate structural genes."
+                error "updateStruGene': Find duplicate structural genes."
               else do
                 let id = fromMySQLInt32U ((rows!!0)!!0)
                 let origPrior = fromMySQLText ((rows!!0)!!1)
                 let hitCount = fromMySQLInt32U ((rows!!0)!!2)
                 let priorExCount = fromMySQLInt16U ((rows!!0)!!3)
---                putStrLn $ "updateAmbiResol': (" ++ show id ++ ") origPrior: " ++ origPrior ++ ", newPrior: " ++ priorv
-                if origPrior /= priorv
-                  then do
-                    let sqlstat = DS.fromString $ "update stru_gene set prior = ?, priorExCount = ? where id = " ++ show id
-                    stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText priorv, toMySQLInt16U (priorExCount + 1)]                -- Add column 'priorExCount' by 1.
-                  else do
-                    let sqlstat = DS.fromString $ "update stru_gene set hitCount = ? where id = " ++ show id
-                    stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]                -- Add column 'hitCount' by 1.
-          else do
---            putStr "Inquire failed, Insert the ambiguity resolution fragment ..."
-            let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ priorv ++ "')")) :: Query
-            stmt <- prepareStmt conn sqlstat
-            executeStmt conn stmt []             -- Insert the described structural gene.
+                putStrLn $ "updateStruGene': (" ++ show id ++ ") origPrior: " ++ origPrior ++ ", hitCount: " ++ show hitCount ++ ", priorExCount: " ++ show priorExCount
 
-        close conn                       -- Close MySQL connection.
+                let newPrior = show prior
+                if newPrior == origPrior
+                  then do
+                    resetStmt conn stmt
+                    let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
+                    close conn                       -- Close MySQL connection.
+                  else do
+                    resetStmt conn stmt
+                    let sqlstat = read (show ("update stru_gene set prior = ?, hitCount = ?, priorExCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
+                                                                                -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
+                    close conn                                                  -- Close MySQL connection.
+          else do
+            putStrLn "Inquire failed."
+            let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ show prior ++ "')")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
 
       "ambi_resol1" -> do
         let context =  sortPhraCateBySpan [x | x <- nPCs, x /= leftOver, x /= rightOver]     -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
@@ -2047,7 +2303,7 @@ updateAmbiResol' nPCs overPair = do
                     resetStmt conn stmt
                     let sqlstat = DS.fromString $ "update ambi_resol1 set prior = ? where id = " ++ show id
                     stmt <- prepareStmt conn sqlstat
-                    executeStmt conn stmt [toMySQLText priorv]                      -- Add column 'hitCount' by 1.
+                    executeStmt conn stmt [toMySQLText priorv]
                     putStrLn ", modification is done."
                   else do
                     putStrLn ", no modification is to do."
@@ -2064,7 +2320,7 @@ updateAmbiResol' nPCs overPair = do
 {- Add the parsing result of a clause into treebank designated by <Configuration>.
  - Now, parameter <clauIdx> has not been used for checking.
  -}
-storeClauseParsingToTreebank :: Int -> Int -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+storeClauseParsingToTreebank :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
 storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     confInfo <- readFile "Configuration"
     let tree_target = getConfProperty "tree_target" confInfo
@@ -2116,7 +2372,7 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
 {- Store the parsing tree of a clause into database. Actually, here is an append operation.
    The function is obsoleted, and replaced with Function storeClauseParsing.
  -}
-storeTree :: Int -> String -> IO ()
+storeTree :: SentIdx -> String -> IO ()
 storeTree sn treeStr = do
     confInfo <- readFile "Configuration"               -- Read the local configuration file
     let tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
@@ -2133,7 +2389,7 @@ storeTree sn treeStr = do
 {- Read the tree String of designated sentence in treebank.
  - There are several treebanks stored in database, their table names are corpus, treebank1, and so on.
  -}
-readTree_String :: Int -> String -> IO String
+readTree_String :: SentIdx -> String -> IO String
 readTree_String sn tree_source = do
 --    dfe <- doesFileExist "Configuration"
 --    if dfe
@@ -2185,7 +2441,7 @@ dispTree (s:cs) = do
 {- Display trees' structure of remaining clauses of a sentence, one tree per clause, and the 'idx' is ordered number of first clause among remaining clauses.
  - The function is obsoleted.
  -}
-dispTree' :: Int -> [String] -> IO ()
+dispTree' :: ClauIdx -> [String] -> IO ()
 dispTree' _ [] = putStr ""                      -- Nothing to display.
 dispTree' idx (s:cs) = do
     putStrLn $ "Clause No.: " ++ show idx

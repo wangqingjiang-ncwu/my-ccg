@@ -24,9 +24,9 @@ module AmbiResol (
     AmbiResol1Sample,    -- (SIdx, LeftPhra, RightPhra, Context, OverType, Prior)
     readPriorFromStr,    -- String -> Prior
     readAmbiResol1FromStr,   -- String -> AmbiResol1
-    readPhraSynFromStr,  -- String -> PhraSyn
-    readPhraSynListFromStr,  -- String -> [PhraSyn]
-    readStruGeneFromStr,      -- String -> StruGene
+    readPhraSynFromStr,      -- String -> PhraSyn
+    readPhraSynListFromStr,       -- String -> [PhraSyn]
+    readStruGeneFromStr,          -- String -> StruGene
     readStruGeneListFromStr,      -- String -> [StruGene]
     scdToString,         -- Scd -> String
     nScdToString,        -- [Scd] -> String
@@ -37,7 +37,7 @@ module AmbiResol (
     removeDup4OverPair,  -- [OverPair] -> [OverPair]
     hasDup4OverPair,     -- [OverPair] -> [OverPair]
     equal4OverPair,      -- OverPair -> OverPair -> Bool
-    elem4OverPair        -- OverPair -> [OverPair] -> Bool
+    elem4OverPair,       -- OverPair -> [OverPair] -> Bool
     ) where
 
 import Category
@@ -45,7 +45,6 @@ import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFr
 import Utils
 import Data.Tuple.Utils
 import Text.Printf
--- import Clustering
 
 -- Syntactic attribues of a phrase, including its syntactic category, tag of rule by which the phrase is obtained, and structural type of the phrase.
 -- In Chinese, sentential parsing includes morphological parsing, so rule 'A/n->' contains the two aspects.

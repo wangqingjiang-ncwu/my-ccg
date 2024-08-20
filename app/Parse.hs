@@ -540,7 +540,11 @@ cateComb onOff pc1 pc2
       ctspaBynToV_OE = [rule cate1 cate2 | rule <- [raiFh], cate1 <- csp_1, cate2 <- n_V_OE, elem Vn onOff]
           where
           csp_1 = removeDup [x| x<- csp1, fst3 x == npCate]
-      ctspaBynToV = ctspaBynToV_VO ++ ctspaBynToV_OE
+      n_V_DHv = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp2, (fst3 csp) == npCate]
+      ctspaBynToV_DHv = [rule cate1 cate2 | rule <- [comFh], cate1 <- csp_1, cate2 <- n_V_DHv, elem Vn onOff]
+          where
+          csp_1 = removeDup [x| x<- csp1, fst3 x == advCate]
+      ctspaBynToV = ctspaBynToV_VO ++ ctspaBynToV_OE ++ ctspaBynToV_DHv
       catesBynToV = [(fst5 cate, "V/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToV]
 
 {- The conversion from 'np' to 'np/.np' is ONLY allowed when a noun acts as an attribue.
@@ -1063,10 +1067,10 @@ transWithPruning onOff pcs banPCs overPairs = do
 parse :: OnOff -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
 parse onOff trans banPCs = do
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- trans, pc2 <- trans, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]     -- At least one is active.
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem cb banPCs]
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs]
     let trans1 = trans ++ newCbs                                    -- Before pruning
     trans2 <- prune $ updateAct $ trans1                            -- After pruning, Attr. activity is corrected.
-    let banPCs2 = banPCs ++ [cb| cb <-trans1, notElem cb trans2]    -- Update the list of banned phrasal categories.
+    let banPCs2 = banPCs ++ [cb| cb <-trans1, notElem4Phrase cb trans2]    -- Update the list of banned phrasal categories.
     if newCbs == []
       then return trans                  -- No new combination
       else parse onOff trans2 banPCs2

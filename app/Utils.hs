@@ -57,6 +57,7 @@ module Utils (
     stringToList',     -- String -> [String]
     listToString,      -- [String] -> String
     stringToTuple,     -- String -> (String,String)
+    stringToIntTuple,  -- String -> (Int, Int)
     stringToTriple,    -- String -> (String,String,String)
     stringToFiveTuple,  -- String -> (String,String,String,String,String)
     stringToSixTuple,  -- String -> (String,String,String,String,String,String)
@@ -70,6 +71,7 @@ module Utils (
     getConfProperty,   -- String -> String -> String
     getLineUntil,      -- String -> [String] -> Bool -> IO String
     acceptOrNot,       -- a -> String -> IO Maybe a
+    compFiveLists,     -- [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
     ) where
 
 import Data.Tuple
@@ -441,6 +443,12 @@ stringToTuple str = (first, second)
       first = listHead str'
       second = listLast str'
 
+-- Get (Int, Int) from its string.
+stringToIntTuple :: String -> (Int, Int)
+stringToIntTuple str = (read first :: Int, read second :: Int)
+    where
+    (first, second) = stringToTuple str
+
 -- Get (String, String, String) from the String of a triple.
 stringToTriple :: String -> (String, String, String)
 stringToTriple str = (first, second, third)
@@ -590,3 +598,12 @@ acceptOrNot a prompt = do
     if yn == "y"
       then return (Just a)
       else return Nothing
+
+-- Composite corresponding elements from five lists to form a list of lists.
+compFiveLists :: [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
+compFiveLists [] _ _ _ _ = []
+compFiveLists _ [] _ _ _ = []
+compFiveLists _ _ [] _ _ = []
+compFiveLists _ _ _ [] _ = []
+compFiveLists _ _ _ _ [] = []
+compFiveLists (a:as) (b:bs) (c:cs) (d:ds) (e:es) = [a,b,c,d,e] : compFiveLists as bs cs ds es

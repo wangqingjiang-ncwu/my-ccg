@@ -64,12 +64,15 @@ module Phrase (
     quickSort,     -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
+    divPhraCateBySpan',           -- [PhraCate] -> [[PhraCate]]
+    sortPhraCateBySpan',          -- [PhraCate] -> [PhraCate]
     notElem4Phrase,             -- PhraCate -> [PhraCate] -> Bool
-    elemForPhrase,                -- PhraCate -> [PhraCate] -> Bool
+    elem4Phrase,                -- PhraCate -> [PhraCate] -> Bool
     equalSortedPhraList,          -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
 import Data.Tuple
+import Data.List
 import Data.String.Utils
 import Category
 import Utils
@@ -399,14 +402,26 @@ quickSort [x] = [x]
 quickSort (x:xs) = (quickSort [y|y<-xs, pclt y x]) ++ [x] ++ (quickSort [y|y<-xs, pclt x y])
 
 {- Divide a set of phrases into groups such that phrases in identical group have equivalent span.
-   These groups are ordered by increasing spans, and phrases in each group are ordered by relation "less than".
+ - These groups are ordered by increasing spans, and phrases in each group are ordered by relation "less than".
+ - This function is ONLY used for phrase set including all initial words.
  -}
 divPhraCateBySpan :: [PhraCate] -> [[PhraCate]]
-divPhraCateBySpan t = map quickSort (map (\sp -> getPhraBySpan sp t) [0..(getNuOfInputCates t - 1)])
+divPhraCateBySpan t = map quickSort (map (\sp -> getPhraBySpan sp t) [0 .. getNuOfInputCates t - 1])
 
--- Sort phrasal categories according phrasal spans.
+{- This function is another implemention of function 'divPhraCateBySpan', which does NOT require phrasal set includes all initial words.
+ -}
+divPhraCateBySpan' :: [PhraCate] -> [[PhraCate]]
+divPhraCateBySpan' pcs = map quickSort (map (\sp -> getPhraBySpan sp pcs) sps)
+    where
+    sps = (sort . nub) $ map spOfCate pcs
+
+-- Sort phrasal categories according phrasal spans, and phrases SHOULD include all initial words.
 sortPhraCateBySpan :: [PhraCate] -> [PhraCate]
 sortPhraCateBySpan pcClo = [pc| sp <- divPhraCateBySpan pcClo, pc <- sp]
+
+-- Sort phrasal categories according phrasal spans, and phrases does NOT require phrasal set includes all initial words.
+sortPhraCateBySpan' :: [PhraCate] -> [PhraCate]
+sortPhraCateBySpan' pcClo = [pc| sp <- divPhraCateBySpan' pcClo, pc <- sp]
 
 -- Without considering Act attribute, decide whether a phrase is NOT in a certain phrasal list.
 notElem4Phrase :: PhraCate -> [PhraCate] -> Bool
@@ -425,8 +440,8 @@ notElem4Phrase x (y:ys)
       ctspy = ctspOfCate y
 
 -- Without considering Act attribute, decide whether a phrase is in a certain phrasal list.
-elemForPhrase :: PhraCate -> [PhraCate] -> Bool
-elemForPhrase = \x y -> not (notElem4Phrase x y)
+elem4Phrase :: PhraCate -> [PhraCate] -> Bool
+elem4Phrase = \x y -> not (notElem4Phrase x y)
 
 -- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
 equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool

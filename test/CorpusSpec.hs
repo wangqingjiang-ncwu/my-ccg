@@ -6,6 +6,7 @@ module CorpusSpec where
 import Category
 import Phrase
 import Corpus
+import Maintain
 import Test.Hspec
 import Utils
 
@@ -89,3 +90,33 @@ spec = do
         let pc0 = createPhraCate 0 0 [(c0, "Desig", "Brave'", "DE", True)] 0
         let tree = (1,[pc0])
         treeToString tree `shouldBe` "(1,[((0,0),[(np/.np,Desig,Brave',DE,True)],0)])"
+
+    it "The addHX2Tree4ASent result of [(1,[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)])] is [(1,[((0,1),[(np\\*np,\">\",\"、' 你'\",\"HX\",True)],1)])] " $ do
+        let c01 = getCateFromString "np\\*np"
+        let pc01 = createPhraCate 0 1 [(c01, ">", "、' 你'", "XX", True)] 1
+        let pc01' = createPhraCate 0 1 [(c01, ">", "、' 你'", "HX", True)] 1
+        let tree = (1,[pc01])
+        let tree' = (1,[pc01'])
+        addHX2Tree4ASent [tree] `shouldBe` [tree']
+
+    it "The addHX2Script4ASent result of [(1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)])] is [(1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"HX\",True)],1)])] " $ do
+        let c01 = getCateFromString "np\\*np"
+        let pc01 = createPhraCate 0 1 [(c01, ">", "、' 你'", "XX", True)] 1
+        let pc01' = createPhraCate 0 1 [(c01, ">", "、' 你'", "HX", True)] 1
+        let script = (1,[],[pc01])
+        let script' = (1,[],[pc01'])
+        addHX2Script4ASent [script] `shouldBe` [script']
+
+    it "The readScript result of \"(1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)])\" is (1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)]) " $ do
+        let c01 = getCateFromString "np\\*np"
+        let pc01 = createPhraCate 0 1 [(c01, ">", "、' 你'", "XX", True)] 1
+        let script = (1,[],[pc01])
+        let scriptStr = "(1,[],[((0,1),[(np\\*np,>,、' 你',XX,True)],1)])"
+        readScript scriptStr `shouldBe` script
+
+    it "The readScripts result of \"[(1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)])]\" is [(1,[],[((0,1),[(np\\*np,\">\",\"、' 你'\",\"XX\",True)],1)])] " $ do
+        let c01 = getCateFromString "np\\*np"
+        let pc01 = createPhraCate 0 1 [(c01, ">", "、' 你'", "XX", True)] 1
+        let scripts = [(1,[],[pc01])]
+        let scriptsStr = "[(1,[],[((0,1),[(np\\*np,>,、' 你',XX,True)],1)])]"
+        readScripts scriptsStr `shouldBe` scripts

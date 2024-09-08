@@ -54,6 +54,7 @@ executable my-ccg-exe
       Clustering
       Corpus
       Database
+      Maintain
       NeuralNetwork
       Output
       OutputTest
@@ -95,16 +96,19 @@ test-suite my-ccg-test
       ClusteringSpec
       CorpusSpec
       DatabaseSpec
+      MaintainSpec
       OutputSpec
       ParseSpec
       PhraseSpec
       RuleSpec
+      StatisticsSpec
       AmbiResol
       Category
       Clustering
       Corpus
       Database
       Main
+      Maintain
       NeuralNetwork
       Output
       OutputTest

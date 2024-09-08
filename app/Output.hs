@@ -365,6 +365,7 @@ showNOverPairid' (op:ops) = do
     putStr ", "
     showNOverPairid' ops
 
+-- Comparing with showScript', this function adds external square brackets and a line feed.
 showScript :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
 showScript [] = putStrLn ""
 showScript (s:ss) = do
@@ -406,7 +407,7 @@ showTrees [] = putStrLn "[]"
 showTrees ts = do
     putStr "["
     showTrees' ts
-    putStr "]"
+    putStrLn "]"
 
 showTrees' :: [Tree] -> IO ()
 showTrees' [] = putStr ""

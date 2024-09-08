@@ -60,7 +60,7 @@ appF :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag
 appF cate1 cate2
     | isPrimitive ca1 = (nilCate, ">", "", "", False)
     | ca1 == aux6Cate = (lca, ">", semComb se1 se2, "U6P", True)
-    | ca1 == conjCate = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "XX", True)
+    | ca1 == conjCate = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "HX", True)
     | ca1 == conjCate4Forward = (ca2, ">", semComb se1 se2, "CC", True)
     | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)
     | isAvail && cateEqual ca1 verbCate = (lca, ">", semComb se1 se2, "VO", True)
@@ -94,20 +94,20 @@ appB cate1 cate2
     | ca2 == aux5Cate =  (ca1, "<", semComb se2 se1, "U5P", True)
     | ca2 == toneCate = (ca1, "<", semComb se2 se1, "TP", True)
     | ca2 == conjCate4Backward = (ca1, "<", semComb se2 se1, "CC", True)
-    | isAvail && ca1 == numeralCate && ca2 == quantifierCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
-    | isAvail' && ca1 == adjCate && ca2 == quantifierCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
-    | isAvail' && ca1 == numeralCate && ca2 == adjCompCate && ps2 /= "XX" = (ca1, "<", semComb se2 se1, "HmC", True)
+    | isAvail && ca1 == numeralCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
+    | isAvail' && ca1 == adjCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
+    | isAvail' && ca1 == numeralCate && ca2 == adjCompCate && ps2 /= "HX" = (ca1, "<", semComb se2 se1, "HmC", True)
     | isAvail' && ca1 == pronCate4Numeral && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
     | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb se2 se1, "U2P", True)
-    | isAvail && ca1 == adjCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
+    | isAvail && ca1 == adjCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
     | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
-    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsolted!
+    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsoleted!
     | isAvail && cateEqual ca2 predCate = (leftCate ca2, "<", semComb se2 se1, "SP", True)
-    | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "XX" = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
+    | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
     | isAvail' && ca2 == verbCompCate = (leftCate ca2, "<", semComb se2 se1, "HvC", True)                             -- For '把' phrase, isAvail' is used.
     | isAvail && ca2 == postfixCate = (npCate, "<", semComb se2 se1, "KP", True)
     | isAvail && ca2 == prep4BeiCate = (leftCate ca2, "<", semComb se2 se1, "MOs", True)
-    | (isAvail || isAvail') && ps2 == "XX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
+    | (isAvail || isAvail') && ps2 == "HX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
     | isAvail =  (leftCate ca2, "<", semComb se2 se1, "NR", True)
     | otherwise = (nilCate, "<", "", "", False)
     where

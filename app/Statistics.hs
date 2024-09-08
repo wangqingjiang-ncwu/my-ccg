@@ -11,7 +11,10 @@ module Statistics (
     searchInScript,                 -- Int -> Int -> Int -> IO ()
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
     truncDescListByProportion,      -- Float -> [(String, Int)] -> [(String, Int)]
-    filterByString,                 -- [(Int, String)] -> String -> [(Int, String)]
+    filterByString,                 -- String -> [(Int, String)] -> [(Int, String)]
+    filterTagInSentTrees,           -- Tag -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+    filterTagInTrees,               -- Tag -> [Tree] -> [Tree]
+    hasTagInTree,                   -- Tag -> Tree -> Bool
     ) where
 
 import Control.Monad
@@ -475,25 +478,35 @@ searchInTree bottomSn topSn funcIndex = do
     let sqlstat = DS.fromString $ "select serial_num, tree from " ++ tree_source ++ " where serial_num >= ? and serial_num < ?"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
-    snTreeList <- readStreamByInt32Text [] is                           -- [(Int, String)], storing serial_num and parsing tree of every sentence.
+    snTreesStrList <- readStreamByInt32Text [] is                           -- [(SentIdx, TreesStr)], storing serial_num and parsing tree of every sentence.
+    let snTreesList = map (\row -> (fst row, readTrees (snd row))) snTreesStrList             -- [(SendIdx, [Tree]], namely [(SendIdx, [(ClauIdx, [PhraCate])])]
     if funcIndex == 1                                                   -- To get serial_num list indicating those parsing trees which include given CCG tags.
        then do
          putStr "Please input the C2CCG tag used in parsing sentence: "
          tag <- getLine
-         let snListMatchTag = filterByString snTreeList tag             -- [(Int, String)], matching given CCG tag.
+         let snListMatchTag = filterByString tag snTreesStrList              -- [(Int, String)], matching given CCG tag.
          putStrLn $ "searchInTree: The serial_num list of trees which use tag \"" ++ tag ++ "\": " ++ show (map fst snListMatchTag)
        else putStr ""
 
-    if funcIndex == 2                                                   -- To display parsing trees of all clauses of all sentences.
+    if funcIndex == 2                                                   -- Display parsing trees of all clauses of all sentences.
       then do
-        dispTreeListOnStdout snTreeList
+        dispTreeListOnStdout snTreesStrList
       else putStr ""
 
-{-    if funcIndex == 3                                                   -- To do.
+    if funcIndex == 3                                                   -- Display parsing trees in which include given grammatic rule.
+      then do
+         putStr "Please input the C2CCG tag used in parsing sentence: "
+         tag <- getLine
+         let snTreesList' = filterTagInSentTrees tag snTreesList        -- [(SentIdx, [Tree]], matching given C2CCG tag.
+         let snTreesStrList' = map (\row -> (fst row, nTreeToString (snd row))) snTreesList'
+         dispTreeListOnStdout snTreesStrList'
+      else putStr ""
+
+    if funcIndex == 4                                                   -- To do.
       then do
         putStr "To do."
       else putStr ""
- -}
+
 {- Get search result in field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
  - bigger than or equal to 'bottomSn', here 'funcIndex' indicates which statistics will be done.
  - <script_source> is the value of attribue "script_source" in file Configuration.
@@ -786,12 +799,38 @@ readFloat0to1 = do
 
 {- Filter [(Int, String)], and remain the elements which match pattern string.
  -}
-filterByString :: [(Int, String)] -> String -> [(Int, String)]
-filterByString [] _ = []
-filterByString [(i1, s1)] patt
+filterByString :: String -> [(SentIdx, String)] -> [(SentIdx, String)]
+filterByString _ [] = []
+filterByString patt [(i1, s1)]
     | isSubstr patt s1 patt s1 = [(i1, s1)]
     | otherwise = []
-filterByString (kv:kvs) patt = (filterByString [kv] patt) ++ (filterByString kvs patt)
+filterByString patt (kv:kvs) = (filterByString patt [kv]) ++ (filterByString patt kvs)
+
+{- Filter [(SentIdx, [Tree]], and remain the elements in which Tree inlcudes given C2CCG tag.
+ -}
+filterTagInSentTrees :: Tag -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+filterTagInSentTrees tag trees = filter (\st -> snd st /= []) $ map (\st -> (fst st, filterTagInTrees tag (snd st))) trees
+
+{- If filter parsing trees with a given C2CCG tag.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+filterTagInTrees :: Tag -> [Tree] -> [Tree]
+filterTagInTrees _ [] = []
+filterTagInTrees tag (t:ts)
+    | hasTagInTree tag t = t : filterTagInTrees tag ts
+    | otherwise = filterTagInTrees tag ts
+
+{- If phrasal categories among a parsing tree include a given C2CCG tag, return True.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+hasTagInTree :: Tag -> Tree -> Bool
+hasTagInTree tag (_, []) = False
+hasTagInTree tag (clauIdx, (pc:pcs))
+    | hasTag = True
+    | otherwise = hasTagInTree tag (clauIdx, pcs)
+    where
+      tags = taOfCate pc
+      hasTag = elem tag tags
 
 {- Display parsing trees of every sentence in a set of sentences, usually every sentence includes multiple clauses, and every clause has its parsing tree.
  - The input is [(sn,treeStr)], here 'sn' is serial number of a sentence which has parsing trees represented by string 'treeStr'.

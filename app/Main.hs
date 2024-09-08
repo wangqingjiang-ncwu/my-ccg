@@ -21,6 +21,7 @@ import Statistics
 import Utils
 import AmbiResol
 import Clustering
+import Maintain
 import Text.Printf
 
 {- This program create syntactic and semantic parsing results for Chinese sentences. Please run MySQL Workbench or other similiar tools, connecting MySQL database 'ccg4c', and querying table 'corpus' for revising parts of speech as well as CCG syntactic types, and the MySQL server is running on a certain compute in Hua-shui campus. The program includes commands for parsing sentences and storing results in database 'ccg4c', as following.
@@ -84,7 +85,7 @@ login n = do
         return (username, True)
 
 -- Check whether current user is intellectual property creator (IPC) of the row indicated by serial_num.
-checkIpc :: Int -> String -> IO Bool
+checkIpc :: SentIdx -> String -> IO Bool
 checkIpc sn username = do
     conn <- getConn
     stmt <- prepareStmt conn "select ipc from corpus where serial_num = ? "
@@ -101,6 +102,21 @@ checkIpc sn username = do
       else do
         if (fromMySQLText (row'!!0) == username)
           then return True
+          else return False
+
+{- Check whether current user is intellectual property creator (IPC) of the rows indicated by start serial_num and end serial_num.
+ - When 'startSn' > 'endSn', return True.
+ -}
+checkIpc4MultiSent :: SentIdx -> SentIdx -> String -> IO Bool
+checkIpc4MultiSent startSn endSn username = do
+    if startSn > endSn
+      then return True
+      else do
+        ok <- checkIpc startSn username
+        if ok
+          then if startSn == endSn
+                 then return True
+                 else checkIpc4MultiSent (startSn + 1) endSn username >>= return
           else return False
 
 -- Command interpreter for given user.
@@ -348,10 +364,17 @@ doParseSentByHumanMind username = do
  -}
 doParseSentByScript :: String -> IO ()
 doParseSentByScript username = do
-    putStr "Please input value of 'serial_num': "
-    line <- getLine
-    let sn = read line :: Int
-    getSentFromDB sn >>= getSent >>= parseSentByScript sn
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else parseSentsByScript startSn endSn
+
     doParseSent username
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
@@ -518,14 +541,15 @@ doSearchInTreebank username = do
     putStrLn " ? -> Display command list"
     putStrLn " t1 -> Get serial_num list indicating those parsing trees which include given C2CCG calculus tags"
     putStrLn " t2 -> Display parsing trees of all clauses of all sentences."
-    putStrLn " t3 -> To do."
+    putStrLn " t3 -> Display parsing trees in which include given grammatic rule."
+    putStrLn " t4 -> To do."
     putStrLn " s1 -> ...."
     putStrLn " s2 -> ...."
     putStrLn " 0 -> Go back to the upper layer"
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","t1","t2","s1","s2","0"]
+    if notElem line ["?","t1","t2","t3","s1","s2","0"]
       then do
         putStrLn "Invalid input."
         doSearchInTreebank username
@@ -534,6 +558,7 @@ doSearchInTreebank username = do
         "t1" -> doSearchInTree username 1
         "t2" -> doSearchInTree username 2
         "t3" -> doSearchInTree username 3
+        "t4" -> doSearchInTree username 4
         "s1" -> doSearchInScript username 1
         "s2" -> doSearchInScript username 2
         "0" -> interpreter username
@@ -608,12 +633,13 @@ doParseSentWithAllLexRules username = do
 doMaintenance :: String -> IO ()
 doMaintenance username = do
     putStrLn " ? -> Display command list"
-    putStrLn " 1 -> Rearrange auto-increment values of 'id' in Table stru_gene"
-    putStrLn " 2 -> Rearrange auto-increment values of 'id' in Table ambi_resol1"
+    putStrLn " 1 -> Rearrange auto-increment values of 'id' in a certain database table"
+    putStrLn " 2 -> Sort phrases in corpus field 'tree' and 'script' according to span ascending"
+    putStrLn " 3 -> Add phrasal structure Half-juXtaposition to corpus field 'tree' and 'script'"
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","0"]
+    if notElem line ["?","1","2","3","0"]
       then do
         putStrLn "Invalid input."
         doMaintenance username
@@ -623,9 +649,44 @@ doMaintenance username = do
                  putStrLn $ "Function " ++ line ++ " has not been implemented."
                  doMaintenance username
         "2" -> do
-                 putStrLn $ "Function " ++ line ++ " has not been implemented."
+                 doSortPhraseInTreeAndScript username
+                 doMaintenance username
+        "3" -> do
+                 doAddHX2TreeAndScript username
                  doMaintenance username
         "0" -> interpreter username
+
+-- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.
+doSortPhraseInTreeAndScript :: String -> IO ()
+doSortPhraseInTreeAndScript username = do
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else checkIpc4MultiSent startSn endSn username >>= \ok -> if ok
+               then sortPhraseInTreeAndScript startSn endSn
+               else putStrLn "You are not the complete owner of intellectual property of these sentences."
+
+-- C_3. Add phrasal structure Half juXtaposition to parsing result.
+doAddHX2TreeAndScript :: String -> IO ()
+doAddHX2TreeAndScript username = do
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else checkIpc4MultiSent startSn endSn username >>= \ok -> if ok
+               then addHX2TreeAndScript startSn endSn
+               else putStrLn "You are not the complete owner of intellectual property of these sentences."
 
 -- D. 测试聚类模块的相关函数.
 doClustering :: String -> IO ()

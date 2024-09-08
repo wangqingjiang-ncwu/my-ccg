@@ -57,10 +57,7 @@ module Corpus (
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
     nForestToString,     -- [Forest] -> String
-    setIpcOfRows,        -- Int -> Int -> String -> IO ()
-    removeLineFeed,      -- IO ()
-    removeLineFeedForOneRow,    -- [MySQLValue, MySQLValue, MySQLValue] -> [MySQLValue, MySQLValue, MySQLValue]
-    addClauIdxToTreeField,      -- SentIdx -> SentIdx -> IO ()
+
     ) where
 
 import Control.Monad
@@ -71,7 +68,7 @@ import Data.List.Utils
 import Data.List
 import Data.Tuple.Utils
 import Category
-import Phrase (Tag,stOfCate,spOfCate,ssOfCate,getPhraBySpan,PhraStru,Act,PhraCate,getPhraCateFromString,nPhraCateToString)
+import Phrase
 import Rule
 import Utils
 import Database
@@ -187,7 +184,8 @@ posCate = [("n","np"),
 {- To now, the recognizable phrasal structures are as following.
    MQ: Numeral Quantifier phrase
    PQ: Pronoun Quantifier phrase, such as "这r 个q", "这r 筐q"
-   XX: Conjunction phrase
+   XX: Juxtapostion phrase, such as "(和' 你') 我'"
+   HX: Half juXtaposition phrase, such as "和' 你'"
    CC: Clause Coordination
    DHv: Adverbial-verb (headword) phrase
    HvC: Verb (headword)-complement phrase
@@ -491,10 +489,10 @@ readScripts str = map readScript (stringToList str)
 
 -- Read a Script from a String.
 readScript :: String -> Script
-readScript str = (cid, ruleSets, banPCs)
+readScript str = (clauIdx, ruleSets, banPCs)
     where
       str' = stringToTriple str
-      cid = read (fst3 str') :: Int
+      clauIdx = read (fst3 str') :: Int
       ruleSets = map readRuleSet (stringToList (snd3 str'))
       banPCs = readPCList (thd3 str')
 
@@ -677,123 +675,3 @@ forestToString forest = listToString (map nPhraCateToString forest)
 -- Get the String from a [Forest] value.
 nForestToString :: [Forest] -> String
 nForestToString nForest = listToString (map forestToString nForest)
-
-{- Set attribue 'ipc' of certain rows as an user of this software. In table corpus,
-   column 'ipc' records the intellectual property creator (IPC), who will complete or have
-   completed the parsing of one row (namely sentence).
-   ONLY user 'wqj' can execute this function to designate a certain software user as IPC of certain rows,
-   but this access control has not implemented.
- -}
-setIpcOfRows :: Int -> Int -> String -> IO ()
-setIpcOfRows startRow endRow username = do
-    conn <- getConnByUserWqj
-    stmt <- prepareStmt conn "select * from user where name = ?"
-    (defs, is) <- queryStmt conn stmt [toMySQLText username]
-    row <- S.read is                -- Get Just [MySQLText]
-    let username' = case row of
-                      Just x -> fromMySQLText (x!!0)     -- The first element of x is MySQLText 'name'
-                      Nothing -> error "setIpcOfRows: No this user."
-    skipToEof is        -- Go to the end of the stream, consuming result set before executing next SQL statement.
-    closeStmt conn stmt
-    if (username' /= username)
-      then error "setIpcOfRows: Unexpected failure."
-      else do
-        stmt1 <- prepareStmt conn "update corpus set ipc = ? where serial_num >= ? && serial_num <= ?"
-        ok <- executeStmt conn stmt1 [toMySQLText username, toMySQLInt32 startRow, toMySQLInt32 endRow]   -- Update column ipc.
-        putStrLn $ show (getOkAffectedRows ok) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
-        closeStmt conn stmt1
-    close conn                       -- Close the connection.
-
-{- There might be line feed character '\r', '\n', or "\r\n" in field raw_sent and raw_sent2, which makes the csv file
-   exported from table corpus can't be used directly for importing. The function removeLineFeed removes these line-
-   terminated characters.
-   ONLY user 'wqj' can execute this function to designate a certain software user as IPC of certain rows,
-   but this access control has not implemented.
-  -}
-removeLineFeed :: IO ()
-removeLineFeed = do
-    conn <- getConnByUserWqj
-    stmt <- prepareStmt conn "select raw_sent, raw_sent2, serial_num from corpus"
-    (defs, is) <- queryStmt conn stmt []
-    rows <- S.toList is
-    let rows' = map removeLineFeedForOneRow rows
-    let stmt1 = "update corpus set raw_sent = ?, raw_sent2 = ? where serial_num = ?"
-    oks <- executeMany conn stmt1 rows'
-    putStrLn $ show (length oks) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
-    closeStmt conn stmt
-    close conn                       -- Close the connection.
-
-{- Remove line-terminated characters '\r', '\n', or "\r\n" from MySQL values.
- - The input is raw_sent, raw_sent2, and serial_num for one row in Table corpus.
- -}
-removeLineFeedForOneRow :: [MySQLValue] -> [MySQLValue]
-removeLineFeedForOneRow vs = [rs', rs2', vs!!2]
-    where
-    rsStr = fromMySQLText (vs!!0)                      -- The field raw_sent
-    rs2Str = fromMySQLText (vs!!1)                     -- The field raw_sent2
-    rsStrNoLF = replace "\n" "" $ replace "\r" "" rsStr
-    rs2StrNoLF = replace "\n" "" $ replace "\r" "" rs2Str
-    rs' = toMySQLText rsStrNoLF
-    rs2' = toMySQLText rs2StrNoLF
-
-{- Add clause index to field tree in treebank. Treebank is selected by property 'tree_target' in configuration file.
- - The serial number range of sentences are designated by input parameter 'sentSnOfStart' and 'sentSnOfEnd'.
- - Clause indices make removing and paring again desiganated clauses feasible.
- - This function should be run under ghci.
- -}
-addClauIdxToTreeField :: SentIdx -> SentIdx -> IO ()
-addClauIdxToTreeField sentSnOfStart sentSnOfEnd = do
-    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let tree_target = getConfProperty "tree_target" confInfo
-
-    conn <- getConn
-    let sqlstat = DS.fromString $ "select tree, serial_num from " ++ tree_target ++ " where serial_num >= ? && serial_num <= ?"
-    stmt <- prepareStmt conn sqlstat
-    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sentSnOfStart, toMySQLInt32 sentSnOfEnd]           -- read rows whose serial_nums are in designated range.
-    rows <- S.toList is
-
-    if (rows == [])
-      then
-        putStrLn "addClauIdxToTreeField: No sentence is asked to do this operation."
-      else do
-        let bracketSnList = map (\row -> (((!!1) . fromMySQLText . (!!0)) row, (fromMySQLInt32 . (!!1)) row)) $ filter (\row -> (fromMySQLText . (!!0)) row /= "[]") rows
-                                             -- [(Char, Int)], the 2nd char i.e. bracket and serial_num
-                                             -- The rows with 'tree' value "[]" are filtered out.
---        putStrLn $ "addClauIdxToTreeField: bracketSnList: " ++ show bracketSnList
-        prevRes <- someFinished False bracketSnList
-        if prevRes
-          then putStrLn "addClauIdxToTreeField: This operation was cancelled."
-          else do
-            let rows' = map addClauIdxForOneRow rows                        -- [[MySQLValue]]
-            let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ? where serial_num = ?"
-            oks <- executeMany conn sqlstat1 rows'
-            putStrLn $ show (length oks) ++ " rows have been updated."             -- Only rows with their values changed are affected rows.
-
-    closeStmt conn stmt
-    close conn                       -- Close the connection.
-
-{- Check the first element of every tuple.
- - If the first element is '(', then the sentence indicated by the second element might have finished operation 'addClauIdxToTreeField'; Otherwise, it might not.
- - If some sentences might finish the operation, return True; Otherwise, return False.
- - From the previous transition, 'prevRes' is True for some previous sentences finishing this operation, and False for no previous sentences finishes this operation.
- - So at the beginning, 'prevRes' should be False.
- -}
-someFinished :: Bool -> [(Char, Int)] -> IO Bool
-someFinished prevRes [] = return prevRes
-someFinished prevRes (ci:cis)
-    | fst ci == '[' = someFinished prevRes cis
-    | fst ci == '(' = do
-                        putStrLn $ "someFinished: Sentence " ++ show (snd ci) ++ " have finished operation 'addClauIdxToTreeField'."
-                        someFinished True cis
-    | otherwise = error "someFinished: Exception."
-
-{- For [MySQLText tree, MySQLInt32 serial_num] in querying result from treebank, 'tree' is transformed into [[PhraCate]], then introduce clausal indices to
- - form [(Int, [PhraCate])]. 'serial_num' remain same.
- -}
-addClauIdxForOneRow :: [MySQLValue] -> [MySQLValue]
-addClauIdxForOneRow vs = [tree'', vs!!1]
-    where
-    treeStr = fromMySQLText (vs!!0)                            -- The field tree
-    tree = map readPCList $ stringToList treeStr               -- [[PhraCate]]
-    tree' = zip ([1..] :: [ClauIdx]) tree                      -- [(ClauIdx, [PhraCate])], namely [Tree]
-    tree'' = (toMySQLText . listToString) $ map treeToString tree'

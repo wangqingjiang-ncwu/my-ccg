@@ -295,7 +295,7 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The number of different categories: " ++ show (Map.size type2TagStruMap)
 --         putStrLn $ "countInTree: type2TagStruMapList: " ++ show type2TagStruMapList
          putStrLn $ "countInTree: The number of different category pairs: " ++ show (length typePair2SimList)
-         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
          if cOrS == "c"
            then do
              putStr $ "countInTree: complete typePair2SimList: "
@@ -318,7 +318,7 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The number of different grammatic rule tags: " ++ show (Map.size tag2TypeStruMap)
 --         putStrLn $ "countInTree: tag2TypeStruMapList: " ++ show tag2TypeStruMapList
          putStrLn $ "countInTree: The number of different tag pairs: " ++ show (length tagPair2SimList)
-         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
          if cOrS == "c"
            then do
              putStr $ "countInTree: complete tagPair2SimList: "
@@ -341,7 +341,7 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The number of different phrasal structures: " ++ show (Map.size stru2TypeTagMap)
 --         putStrLn $ "countInTree: stru2TypeTagMapList: " ++ show stru2TypeTagMapList
          putStrLn $ "countInTree: The number of different pairs of phrasal structures: " ++ show (length struPair2SimList)
-         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
          if cOrS == "c"
            then do
              putStr $ "countInTree: complete struPair2SimList: "

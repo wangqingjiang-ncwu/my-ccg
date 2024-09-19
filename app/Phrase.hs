@@ -61,7 +61,7 @@ module Phrase (
     deactOnePC,    -- PhraCate -> PhraCate
     actOnePC,      -- PhraCate -> PhraCate
     pclt,          -- PhraCate -> PhraCate -> Bool
-    quickSort,     -- [PhraCate] -> [PhraCate]
+    quickSort4Phrase ,           -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
     divPhraCateBySpan',           -- [PhraCate] -> [[PhraCate]]
@@ -396,22 +396,22 @@ pclt x y
         acy = (acOfCate y)!!0
 
 -- Quick sort a list of phrasal categoies. This is a stable sort.
-quickSort :: [PhraCate] -> [PhraCate]
-quickSort [] = []
-quickSort [x] = [x]
-quickSort (x:xs) = (quickSort [y|y<-xs, pclt y x]) ++ [x] ++ (quickSort [y|y<-xs, pclt x y])
+quickSort4Phrase  :: [PhraCate] -> [PhraCate]
+quickSort4Phrase  [] = []
+quickSort4Phrase  [x] = [x]
+quickSort4Phrase  (x:xs) = (quickSort4Phrase  [y|y<-xs, pclt y x]) ++ [x] ++ (quickSort4Phrase  [y|y<-xs, not (pclt y x)])
 
 {- Divide a set of phrases into groups such that phrases in identical group have equivalent span.
  - These groups are ordered by increasing spans, and phrases in each group are ordered by relation "less than".
  - This function is ONLY used for phrase set including all initial words.
  -}
 divPhraCateBySpan :: [PhraCate] -> [[PhraCate]]
-divPhraCateBySpan t = map quickSort (map (\sp -> getPhraBySpan sp t) [0 .. getNuOfInputCates t - 1])
+divPhraCateBySpan t = map quickSort4Phrase  (map (\sp -> getPhraBySpan sp t) [0 .. getNuOfInputCates t - 1])
 
 {- This function is another implemention of function 'divPhraCateBySpan', which does NOT require phrasal set includes all initial words.
  -}
 divPhraCateBySpan' :: [PhraCate] -> [[PhraCate]]
-divPhraCateBySpan' pcs = map quickSort (map (\sp -> getPhraBySpan sp pcs) sps)
+divPhraCateBySpan' pcs = map quickSort4Phrase  (map (\sp -> getPhraBySpan sp pcs) sps)
     where
     sps = (sort . nub) $ map spOfCate pcs
 

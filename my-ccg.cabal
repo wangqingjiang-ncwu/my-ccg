@@ -26,6 +26,8 @@ source-repository head
   location: https://github.com/wangqingjiang-ncwu/my-ccg
 
 library
+  exposed-modules:
+      Lib
   other-modules:
       Paths_my_ccg
   hs-source-dirs:

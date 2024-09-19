@@ -73,3 +73,7 @@ spec = do
       let op2 = (pc3, pc4, prior2)
       let opClo = [op1, op2]
       hasDup4OverPair opClo `shouldBe` True
+
+    it "The result of (==) (np, \">\", \"AHn\") (np, \">\", \"AHn\") is True." $ do
+      let phraSyn1 = (npCate, ">", "AHn")
+      (==) phraSyn1 phraSyn1 `shouldBe` True

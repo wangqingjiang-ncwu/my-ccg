@@ -52,7 +52,10 @@ module Output (
     showForestCateStartPos,      -- [[PhraCate]] -> IO ()
     showCateStartPos,            -- [[PhraCate]] -> [[PhraCate]] -> IO ()
     drawLine,         -- Int -> IO ()
-    nSpace            -- Int -> IO ()
+    nSpace,           -- Int -> IO ()
+    showCatePair2SimList,   -- [((Category, Category), String)] -> IO ()
+    showTagPair2SimList,    -- [((Tag, Tag), String)] -> IO ()
+    showStruPair2SimList,   -- [((PhraStru, PhraStru), String)] -> IO ()
     ) where
 
 import Category
@@ -728,3 +731,51 @@ showForestCateStartPos (t:ts) = do
     showForestCateStartPos ts
     where
     spls = divPhraCateBySpan t
+
+-- Print catePair2SimList in Module Statistics, where similarity bewteen every pair of categories is the formated string of a float value.
+showCatePair2SimList :: [((Category, Category), String)] -> IO ()
+showCatePair2SimList [] = putStrLn "[]"
+showCatePair2SimList (s:ss) = do
+    putStr "["
+    showCatePair2SimList' (s:ss)
+    putStrLn "]"
+
+showCatePair2SimList' :: [((Category, Category), String)] -> IO ()
+showCatePair2SimList' [] = putStr ""
+showCatePair2SimList' [s] = putStr $ "((" ++ show ((fst . fst) s) ++ ", " ++ show ((snd . fst) s) ++ "), " ++ snd s ++ ")"
+showCatePair2SimList' (s:ss) = do
+    showCatePair2SimList' [s]
+    putStr ", "
+    showCatePair2SimList' ss
+
+-- Print tagPair2SimList in Module Statistics, where similarity bewteen every pair of grammatic rules is the formated string of a float value.
+showTagPair2SimList :: [((Tag, Tag), String)] -> IO ()
+showTagPair2SimList [] = putStrLn "[]"
+showTagPair2SimList (s:ss) = do
+    putStr "["
+    showTagPair2SimList' (s:ss)
+    putStrLn "]"
+
+showTagPair2SimList' :: [((Tag, Tag), String)] -> IO ()
+showTagPair2SimList' [] = putStr ""
+showTagPair2SimList' [s] = putStr $ "((" ++ (fst . fst) s ++ ", " ++ (snd . fst) s ++ "), " ++ snd s ++ ")"
+showTagPair2SimList' (s:ss) = do
+    showTagPair2SimList' [s]
+    putStr ", "
+    showTagPair2SimList' ss
+
+-- Print struPair2SimList in Module Statistics, where similarity bewteen every pair of phrasal structures is the formated string of a float value.
+showStruPair2SimList :: [((PhraStru, PhraStru), String)] -> IO ()
+showStruPair2SimList [] = putStrLn "[]"
+showStruPair2SimList (s:ss) = do
+    putStr "["
+    showStruPair2SimList' (s:ss)
+    putStrLn "]"
+
+showStruPair2SimList' :: [((PhraStru, PhraStru), String)] -> IO ()
+showStruPair2SimList' [] = putStr ""
+showStruPair2SimList' [s] = putStr $ "((" ++ (fst . fst) s ++ ", " ++ (snd . fst) s ++ "), " ++ snd s ++ ")"
+showStruPair2SimList' (s:ss) = do
+    showStruPair2SimList' [s]
+    putStr ", "
+    showStruPair2SimList' ss

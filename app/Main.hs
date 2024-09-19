@@ -442,6 +442,9 @@ doCountInTreebank username = do
     putStrLn " t9 -> Get frequency of type conversions used in parsing every clause"
     putStrLn " tA -> Get frequency total and normalized frequencies of different phrasal structures"
     putStrLn " tB -> Get frequency total and normalized frequencies of different type-tag-stru(s)"
+    putStrLn " tC -> Get similarity between every pair of categories"
+    putStrLn " tD -> Get similarity between every pair of grammatic rules"
+    putStrLn " tE -> Get similarity between every pair of phrasal structures"
     putStrLn " s1 -> Get transitive times of every clause in all sentences"
     putStrLn " s2 -> Get frequencies of different ransitive times in all clause parsing"
     putStrLn " s3 -> Get the list of transitive times for every different clausal length"
@@ -454,7 +457,7 @@ doCountInTreebank username = do
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","s1","s2","s3","s4","s5","s6","s7","s8","0"]
+    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","s1","s2","s3","s4","s5","s6","s7","s8","0"]
        then do
          putStrLn "Invalid input."
          doCountInTreebank username
@@ -471,6 +474,9 @@ doCountInTreebank username = do
          "t9" -> doCountInTree username 9
          "tA" -> doCountInTree username 10
          "tB" -> doCountInTree username 11
+         "tC" -> doCountInTree username 12
+         "tD" -> doCountInTree username 13
+         "tE" -> doCountInTree username 14
          "s1" -> doCountInScript username 1
          "s2" -> doCountInScript username 2
          "s3" -> doCountInScript username 3
@@ -539,17 +545,21 @@ doCountInStruGene' username funcIndex = do
 doSearchInTreebank :: String -> IO ()
 doSearchInTreebank username = do
     putStrLn " ? -> Display command list"
-    putStrLn " t1 -> Get serial_num list indicating those parsing trees which include given C2CCG calculus tags"
-    putStrLn " t2 -> Display parsing trees of all clauses of all sentences."
-    putStrLn " t3 -> Display parsing trees in which include given grammatic rule."
-    putStrLn " t4 -> To do."
+    putStrLn " t1 -> Get serial_num list indicating those parsing trees which include given C2CCG calculus tag"
+    putStrLn " t2 -> Get serial_num list indicating those parsing trees which include given phrasal structure"
+    putStrLn " t3 -> Get serial_num list indicating those parsing trees which include given syntactic category"
+    putStrLn " t4 -> Display parsing trees of all clauses of all sentences."
+    putStrLn " t5 -> Display parsing trees in which include given grammatic rule."
+    putStrLn " t6 -> Display parsing trees in which include given phrasal structure."
+    putStrLn " t7 -> Display parsing trees in which include given syntactic category."
+    putStrLn " t8 -> To do."
     putStrLn " s1 -> ...."
     putStrLn " s2 -> ...."
     putStrLn " 0 -> Go back to the upper layer"
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","t1","t2","t3","s1","s2","0"]
+    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","s1","s2","0"]
       then do
         putStrLn "Invalid input."
         doSearchInTreebank username
@@ -559,6 +569,10 @@ doSearchInTreebank username = do
         "t2" -> doSearchInTree username 2
         "t3" -> doSearchInTree username 3
         "t4" -> doSearchInTree username 4
+        "t5" -> doSearchInTree username 5
+        "t6" -> doSearchInTree username 6
+        "t7" -> doSearchInTree username 7
+        "t8" -> doSearchInTree username 8
         "s1" -> doSearchInScript username 1
         "s2" -> doSearchInScript username 2
         "0" -> interpreter username
@@ -567,24 +581,34 @@ doSearchInTreebank username = do
 doSearchInTree :: String -> Int -> IO ()
 doSearchInTree username funcIndex = do
     putStr "Please input the value of 'serial_num' of start sentence: "
-    line <- getLine
-    let bottomSn = read line :: Int
+    bottomSnStr <- getLine
+    let bottomSn = read bottomSnStr :: Int
     putStr "Please input the value of 'serial_num' of end sentence: "
-    line <- getLine
-    let topSn = (read line :: Int) + 1
-    searchInTree bottomSn topSn funcIndex
+    topSnStr <- getLine
+    let topSn = (read topSnStr :: Int) + 1
+
+    let prompt = " Sentence(s) from " ++ bottomSnStr ++ " to " ++ topSnStr ++ " will be searched, are you sure? [y/n] (RETURN for 'y'): "
+    answer <- getLineUntil prompt ["y","n"] True
+    if answer == "n"
+      then putStrLn "doSearchInTree: cancelled."
+      else searchInTree bottomSn topSn funcIndex
     doSearchInTreebank username
 
 -- A3_2. Display search results from field 'script' in table 'corpus'.
 doSearchInScript :: String -> Int -> IO ()
 doSearchInScript username funcIndex = do
     putStr "Please input the value of 'serial_num' of start sentence: "
-    line <- getLine
-    let bottomSn = read line :: Int
+    bottomSnStr <- getLine
+    let bottomSn = read bottomSnStr :: Int
     putStr "Please input the value of 'serial_num' of end sentence: "
-    line <- getLine
-    let topSn = (read line :: Int) + 1
-    searchInScript bottomSn topSn funcIndex
+    topSnStr <- getLine
+    let topSn = (read topSnStr :: Int) + 1
+
+    let prompt = " Sentence(s) from " ++ bottomSnStr ++ " to " ++ topSnStr ++ " will be searched, are you sure? [y/n] (RETURN for 'y'): "
+    answer <- getLineUntil prompt ["y","n"] True
+    if answer == "n"
+      then putStrLn "doSearchInScript: cancelled."
+      else searchInScript bottomSn topSn funcIndex
     doSearchInTreebank username
 
 -- B. Do experiments.

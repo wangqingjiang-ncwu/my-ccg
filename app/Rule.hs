@@ -62,21 +62,16 @@ appF cate1 cate2
     | ca1 == aux6Cate = (lca, ">", semComb se1 se2, "U6P", True)
     | ca1 == conjCate = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "HX", True)
     | ca1 == conjCate4Forward = (ca2, ">", semComb se1 se2, "CC", True)
-    | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)
-    | isAvail && cateEqual ca1 verbCate = (lca, ">", semComb se1 se2, "VO", True)
-    | isAvail && cateEqual ca1 verbCate2 = (lca, ">", semComb se1 se2, "VO", True)
+    | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)                    -- np/*np in structure U1P is ok.
+    | isAvail && (cateEqual ca1 verbCate || cateEqual ca1 verbCate2) = (lca, ">", semComb se1 se2, "VO", True)
     | isAvail && (ca1 == advCate || ca1 == baPhraseCate) = (lca, ">", semComb se1 se2, "DHv", True)
-    | isAvail && ca1 == baPhraseCate = (lca, ">", semComb se1 se2, "DHv", True)
-    | isAvail && ca1 == prep2AdvCate = (leftCate ca1, ">", semComb se1 se2, "PO", True)
+    | isAvail && (ca1 == prep2AdvCate || ca1 == prep2CompCate) = (lca, ">", semComb se1 se2, "PO", True)
     | isAvail' && ca1 == advCate4Adj = (lca, ">", semComb se1 se2, "DHa", True)
     | isAvail && (ca1 == aux3Cate || ca1 == aux3dCate) = (leftCate ca1, ">", semComb se1 se2, "U3P", True)
     | isAvail && ca1 == advCate4Sent = (sCate, ">", semComb se1 se2, "DHs", True)
-    | isAvail && ca1 == advCate4OE = (ca2, ">", semComb se1 se2, "DHv", True)
     | isAvail && ca1 == prefixCate = (lca, ">", semComb se1 se2, "HP", True)
     | isAvail && ca1 == advCate4OE = (lca, ">", semComb se1 se2, "DHoe", True)
-    | isAvail && cateEqual ca1 (getCateFromString "s/.np") = (sCate, ">", semComb se1 se2, "NR", True)
-    | isAvail && ca1 == prep2CompCate = (lca, ">", semComb se1 se2, "PO", True)
-    | isAvail =  (leftCate ca1, ">", semComb se1 se2, "NR", True)
+    | isAvail =  (lca, ">", semComb se1 se2, "NR", True)
     | otherwise = (nilCate, ">", "", "", False)
     where
     ca1 = fst3 cate1
@@ -97,10 +92,10 @@ appB cate1 cate2
     | isAvail && ca1 == numeralCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
     | isAvail' && ca1 == adjCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
     | isAvail' && ca1 == numeralCate && ca2 == adjCompCate && ps2 /= "HX" = (ca1, "<", semComb se2 se1, "HmC", True)
-    | isAvail' && ca1 == pronCate4Numeral && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
+--    | isAvail' && ca1 == pronCate4Numeral && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
+    | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb se2 se1, "U2P", True)
     | isAvail && ca1 == adjCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
-    | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
     | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsoleted!
     | isAvail && cateEqual ca2 predCate = (leftCate ca2, "<", semComb se2 se1, "SP", True)
     | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
@@ -190,7 +185,7 @@ comBc :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Ta
 comBc cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, "<Bx", "", "", False)
     | isAvail && (ca1 == predCate || ca1 == verbCate || ca1 == verbCate2) && ca2 == verbCompCate = (ca1, "<Bx", semComb se2 se1, "HvC", True)
-    | isAvail && (ca1 == advCate4DirecVerb && ca2 == verbCompCate) = (ca1, "<Bx", semComb se2 se1, "NR", True)     -- 没有形成短语DHx
+--  | isAvail && (ca1 == advCate4DirecVerb && ca2 == verbCompCate) = (ca1, "<Bx", semComb se2 se1, "NR", True)     -- 没有形成短语DHx
 --  | isAvail && cateEqual ca1 adjCate && cateEqual ca2 (getCateFromString "np\\.np") = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb se2 se1, "HaC", True)
     | isAvail = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb se2 se1, "NR", True)
     | otherwise = (nilCate, "<Bx", "", "", False)
@@ -254,7 +249,7 @@ raiBh cate1 cate2
 {- CCG backward type raising and backward harmonic composition^2:  ((Y/X)\Z)/W X-> ((Y/X)\Z)/W Y\(Y/X)-> (Y\Z)/W
  - Here, backward harmonic composition^2 is not pure, because the two parameters are not all backward.
  - To now, the rule is only used for '把' phrase.
- - For examples, ((s/.np)\#np)/#((s\.np)/.np) np => ((s/.np)\#np)/#((s\.np)/.np) s\.(s/.np) => (s\#np)/#((s\.np)/.np)
+ - For examples, ((s/.np)\.np)/#((s\.np)/.np) np => ((s/.np)\.np)/#((s\.np)/.np) s\.(s/.np) => (s\.np)/#((s\.np)/.np)
  - Similarly, the functional name should be "raiBB2".
  -}
 raiBh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)

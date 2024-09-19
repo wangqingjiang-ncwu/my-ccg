@@ -30,8 +30,8 @@ module Corpus (
     BanPCs,              -- [PhraCate]
     Script,              -- (ClauIdx,[[Rule]],BanPCs)
     Tree,                -- (ClauIdx, [PhraCate])
-    quickSortForTree,    -- [Tree] -> [Tree]
-    quickSortForScript,  -- [Script] -> [Script]
+    quickSort4Tree,    -- [Tree] -> [Tree]
+    quickSort4Script,  -- [Script] -> [Script]
     Closure,             -- [PhraCate]
     Forest,              -- [[PhraCate]]
     readScripts,         -- String -> [Script]
@@ -474,14 +474,14 @@ type Script = (ClauIdx, [[Rule]], BanPCs)
 type Tree = (ClauIdx, [PhraCate])
 
 -- Quick sort for [Tree] according their ClauIdx field, where Tree :: (ClauIdx, [PhraCate]).
-quickSortForTree :: [Tree] -> [Tree]
-quickSortForTree [] = []
-quickSortForTree (t:ts) = (quickSortForTree [x|x<-ts, fst x < fst t]) ++ [t] ++ (quickSortForTree [x|x<-ts, fst x >= fst t])
+quickSort4Tree :: [Tree] -> [Tree]
+quickSort4Tree [] = []
+quickSort4Tree (t:ts) = (quickSort4Tree [x|x<-ts, fst x < fst t]) ++ [t] ++ (quickSort4Tree [x|x<-ts, fst x >= fst t])
 
 -- Quick sort for [Script] according ClauIdx field, where Script :: (ClauIdx,[[Rule]],BanPCs).
-quickSortForScript :: [Script] -> [Script]
-quickSortForScript [] = []
-quickSortForScript (s:ss) = (quickSortForScript [x|x<-ss, fst3 x < fst3 s]) ++ [s] ++ (quickSortForScript [x|x<-ss, fst3 x >= fst3 s])
+quickSort4Script :: [Script] -> [Script]
+quickSort4Script [] = []
+quickSort4Script (s:ss) = (quickSort4Script [x|x<-ss, fst3 x < fst3 s]) ++ [s] ++ (quickSort4Script [x|x<-ss, fst3 x >= fst3 s])
 
 -- Read Scripts from a String.
 readScripts :: String -> [Script]

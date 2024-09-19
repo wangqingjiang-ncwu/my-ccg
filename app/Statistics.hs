@@ -9,12 +9,23 @@ module Statistics (
     countInStruGene,                -- Int -> IO ()
     searchInTree,                   -- Int -> Int -> Int -> IO ()
     searchInScript,                 -- Int -> Int -> Int -> IO ()
+    stringToPhraSyn,                -- String -> PhraSyn
+    toTypeTagStru2FreqMap',         -- [[[PhraCate]]] -> Map PhraSyn Int -> Map PhraSyn Int
+    insertPhraList2TtsFreqMap',     -- [PhraCate] -> Map PhraSyn Int -> Map PhraSyn Int
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
     truncDescListByProportion,      -- Float -> [(String, Int)] -> [(String, Int)]
     filterByString,                 -- String -> [(Int, String)] -> [(Int, String)]
     filterTagInSentTrees,           -- Tag -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
     filterTagInTrees,               -- Tag -> [Tree] -> [Tree]
     hasTagInTree,                   -- Tag -> Tree -> Bool
+    filterPhraStruInSentTrees,      -- PhraStru -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+    filterPhraStruInTrees,          -- PhraStru -> [Tree] -> [Tree]
+    hasPhraStruInTree,              -- PhraStru -> Tree -> Bool
+    filterCateInSentTrees,          -- Category -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+    filterCateInTrees,              -- Category -> [Tree] -> [Tree]
+    hasCateInTree,                  -- Category -> Tree -> Bool
+    quickSort4PhraSyn,              -- [PhraSyn] -> [PhraSyn]
+    phraSynLt,                      -- PhraSyn -> PhraSyn -> Bool
     ) where
 
 import Control.Monad
@@ -27,12 +38,20 @@ import Text.Printf
 import qualified Data.Tuple as Tuple
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Category
 import Phrase
 import Utils
 import Database
 import Corpus
 import SentParse (sentToClauses, dispTreeOfSent)
-import Output(showScript, showScript')
+import AmbiResol (PhraSyn)
+import Output(showScript, showScript', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList)
+
+type Clau = [PhraCate]
+type Sent = [Clau]
+type Sents = [Sent]
 
 {- The following functions read field 'tree' of table 'corpus', then count all clauses according the input index.
  - 1. Get total number of sentences;
@@ -46,6 +65,9 @@ import Output(showScript, showScript')
  - 9. Get frequencies of type conversions used in parsing every clause;
  - A. Get frequency total and normalized frequencies of different phrasal structures;
  - B. Get frequency total and normalized frequencies of different type-tag-stru(s);
+ - C. Get similarity between every pair of categories;
+ - D. Get similarity between every pair of grammatic rules;
+ - E. Get similarity between every pair of phrasal structures;
 
  - The following functions read field 'script' of table 'corpus', then count all clauses according the input index.
  - 1. Get transitive times of every clause in all sentences;
@@ -247,15 +269,86 @@ countInTree bottomSn topSn funcIndex = do
     if funcIndex == 11                                          -- To get the frequency of every triple (Syntactic type, CCG rule tag, Phrasal structure) in all sentences.
        then do
          let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty            -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
-         let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap        -- [(String, Int)]
+         let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                          -- [(String, Int)]
          let typeTagStruFreqTotal = foldl (+) 0 (map snd typeTagStru2FreqMapList)
          let descListOfTTSByValue = toDescListOfMapByValue typeTagStru2FreqMapList
          let typeTagStruNormFreqDescList = map (\x -> (fst x, ((/(fromIntegral typeTagStruFreqTotal)). fromIntegral) (snd x))) descListOfTTSByValue                                   -- Normalized frequencies of different CCG tags.
-         putStrLn $ "countInTree: The number of different type-tag-stru structures: " ++ show (length typeTagStru2FreqMapList)
+         putStrLn $ "countInTree: The number of different type-tag-stru structures: " ++ show (Map.size typeTagStru2FreqMap)
          putStrLn $ "countInTree: The frequency total of different type-tag-stru(s): " ++ show typeTagStruFreqTotal
          putStrLn $ "countInTree: The frequencies of different type-tag-stru(s): " ++ show descListOfTTSByValue
 --       putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show typeTagStruNormFreqDescList
          putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show (formatMapListWithFloatValue typeTagStruNormFreqDescList 4)
+       else putStr ""
+
+    if funcIndex == 12                                          -- To calculate similarities between every pair of Categories.
+       then do
+         let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+         let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+         let phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+         let type2TagStruMap = toType2TagStruMap phraSynList Map.empty                          -- Map Category [(Tag, PhraStru)]
+         let type2TagStruMapList = Map.toList type2TagStruMap                                   -- [(Category, [(Tag, PhraStru)])]
+         let type2TagStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) type2TagStruMapList       -- [(Category, Set (Tag, PhraStru))]
+         let typePair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-type2TagStruSetList, y<-type2TagStruSetList]
+         let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (Map.size typeTagStru2FreqMap)
+--         putStrLn $ "countInTree: phraSynList: " ++ show phraSynList
+         putStrLn $ "countInTree: The number of different categories: " ++ show (Map.size type2TagStruMap)
+--         putStrLn $ "countInTree: type2TagStruMapList: " ++ show type2TagStruMapList
+         putStrLn $ "countInTree: The number of different category pairs: " ++ show (length typePair2SimList)
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInTree: complete typePair2SimList: "
+             showCatePair2SimList (formatMapListWithFloatValue typePair2SimList 4)
+           else do
+             putStr $ "countInTree: sparse typePair2SimList: "
+             showCatePair2SimList (formatMapListWithFloatValue sparseTypePair2SimList 4)
+       else putStr ""
+
+    if funcIndex == 13                                          -- To calculate similarities between every pair of grammatic rules.
+       then do
+         let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+         let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+         let phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+         let tag2TypeStruMap = toTag2TypeStruMap phraSynList Map.empty                          -- Map Tag [(Category, PhraStru)]
+         let tag2TypeStruMapList = Map.toList tag2TypeStruMap                                   -- [(Tag, [(Category, PhraStru)])]
+         let tag2TypeStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) tag2TypeStruMapList       -- [(Tag, Set (Category, PhraStru))]
+         let tagPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-tag2TypeStruSetList, y<-tag2TypeStruSetList]
+         let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInTree: The number of different grammatic rule tags: " ++ show (Map.size tag2TypeStruMap)
+--         putStrLn $ "countInTree: tag2TypeStruMapList: " ++ show tag2TypeStruMapList
+         putStrLn $ "countInTree: The number of different tag pairs: " ++ show (length tagPair2SimList)
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInTree: complete tagPair2SimList: "
+             showTagPair2SimList (formatMapListWithFloatValue tagPair2SimList 4)
+           else do
+             putStr $ "countInTree: sparse tagPair2SimList: "
+             showTagPair2SimList (formatMapListWithFloatValue sparseTagPair2SimList 4)
+       else putStr ""
+
+    if funcIndex == 14                                          -- To calculate similarities between every pair of phrasal structures.
+       then do
+         let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+         let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+         let phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+         let stru2TypeTagMap = toStru2TypeTagMap phraSynList Map.empty                          -- Map PhraStru [(Category, Tag)]
+         let stru2TypeTagMapList = Map.toList stru2TypeTagMap                                   -- [(PhraStru, [(Category, Tag)])]
+         let stru2TypeTagSetList = map (\x -> (fst x, (Set.fromList . snd) x)) stru2TypeTagMapList       -- [(PhraStru, Set (Category, Tag))]
+         let struPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-stru2TypeTagSetList, y<-stru2TypeTagSetList]
+         let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInTree: The number of different phrasal structures: " ++ show (Map.size stru2TypeTagMap)
+--         putStrLn $ "countInTree: stru2TypeTagMapList: " ++ show stru2TypeTagMapList
+         putStrLn $ "countInTree: The number of different pairs of phrasal structures: " ++ show (length struPair2SimList)
+         cOrS <- getLineUntil "Print complete matrix or print sparse matrix? ['c' or RETURN for complete, 's' for sparse]" ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInTree: complete struPair2SimList: "
+             showStruPair2SimList (formatMapListWithFloatValue struPair2SimList 4)
+           else do
+             putStr $ "countInTree: sparse struPair2SimList: "
+             showStruPair2SimList (formatMapListWithFloatValue sparseStruPair2SimList 4)
        else putStr ""
 
 {- Get statistics about field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
@@ -488,12 +581,28 @@ searchInTree bottomSn topSn funcIndex = do
          putStrLn $ "searchInTree: The serial_num list of trees which use tag \"" ++ tag ++ "\": " ++ show (map fst snListMatchTag)
        else putStr ""
 
-    if funcIndex == 2                                                   -- Display parsing trees of all clauses of all sentences.
+    if funcIndex == 2                                                   -- To get serial_num list indicating those parsing trees which include given phrasal structure.
+       then do
+         putStr "Please input the phrasal structure used in parsing sentence: "
+         ps <- getLine
+         let snListMatchTag = filterByString ps snTreesStrList              -- [(Int, String)], matching given phrasal structure.
+         putStrLn $ "searchInTree: The serial_num list of trees in which there are phrasal structure \"" ++ ps ++ "\": " ++ show (map fst snListMatchTag)
+       else putStr ""
+
+    if funcIndex == 3                                                   -- To get serial_num list indicating those parsing trees which include given syntactic category.
+       then do
+         putStr "Please input a syntactic category used in parsing sentence: "
+         cateStr <- getLine
+         let snListMatchTag = filterByString cateStr snTreesStrList              -- [(Int, String)], matching given phrasal structure.
+         putStrLn $ "searchInTree: The serial_num list of trees in which there are syntactic category \"" ++ cateStr ++ "\": " ++ show (map fst snListMatchTag)
+       else putStr ""
+
+    if funcIndex == 4                                                   -- Display parsing trees of all clauses of all sentences.
       then do
         dispTreeListOnStdout snTreesStrList
       else putStr ""
 
-    if funcIndex == 3                                                   -- Display parsing trees in which include given grammatic rule.
+    if funcIndex == 5                                                   -- Display parsing trees in which include given grammatic rule.
       then do
          putStr "Please input the C2CCG tag used in parsing sentence: "
          tag <- getLine
@@ -502,7 +611,26 @@ searchInTree bottomSn topSn funcIndex = do
          dispTreeListOnStdout snTreesStrList'
       else putStr ""
 
-    if funcIndex == 4                                                   -- To do.
+    if funcIndex == 6                                                   -- Display parsing trees in which include given phrasal structure.
+      then do
+         putStr "Please input the phrasal structure used in parsing sentence: "
+         ps <- getLine
+         let snTreesList' = filterPhraStruInSentTrees ps snTreesList        -- [(SentIdx, [Tree]], matching given phrasal structure.
+         let snTreesStrList' = map (\row -> (fst row, nTreeToString (snd row))) snTreesList'
+         dispTreeListOnStdout snTreesStrList'
+      else putStr ""
+
+    if funcIndex == 7                                                   -- Display parsing trees in which include given syntactic category.
+      then do
+         putStr "Please input a syntactic category used in parsing sentence: "
+         cateStr <- getLine
+         let cate = getCateFromString cateStr
+         let snTreesList' = filterCateInSentTrees cate snTreesList      -- [(SentIdx, [Tree]], matching given syntactic category.
+         let snTreesStrList' = map (\row -> (fst row, nTreeToString (snd row))) snTreesList'
+         dispTreeListOnStdout snTreesStrList'
+      else putStr ""
+
+    if funcIndex == 8                                                   -- To do.
       then do
         putStr "To do."
       else putStr ""
@@ -685,6 +813,75 @@ insertPhraList2TtsFreqMap [x] tts2FreqMap
     ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
 insertPhraList2TtsFreqMap (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap xs (insertPhraList2TtsFreqMap [x] tts2FreqMap)
 
+{- Get the frequencies of various triple PhraSyn (Category, Tag, PhraStru).
+ - The various triples and their frequencies are stored in Map PhraSyn Int.
+ - The input is the list of sentential categories.
+ -}
+toTypeTagStru2FreqMap' :: Sents -> Map PhraSyn Int -> Map PhraSyn Int
+toTypeTagStru2FreqMap' sents tts2FreqMap
+   | sents == []  = tts2FreqMap                                                 -- No sentence
+   | length sents == 1 && fstSent == [] = tts2FreqMap                        -- One sentence without clause to deal with.
+   | length sents == 1 && fstSent /= [] = toTypeTagStru2FreqMap' [tail fstSent] (insertPhraList2TtsFreqMap' (head fstSent) tts2FreqMap)
+   | otherwise = toTypeTagStru2FreqMap' (tail sents) (toTypeTagStru2FreqMap' [fstSent] tts2FreqMap)
+   where
+     fstSent = head sents
+
+{- Insert a series of '(type, tag, stru)' into a Map to count the frequency of every '(type, tag, stru)'.
+ - Map.insert might have a bug when deciding whether there has been a given PhraSyn value (key) in a certain map.
+ -}
+insertPhraList2TtsFreqMap' :: Clau -> Map PhraSyn Int -> Map PhraSyn Int
+insertPhraList2TtsFreqMap' [] tts2FreqMap = tts2FreqMap
+insertPhraList2TtsFreqMap' [x] tts2FreqMap
+    | tag == "Desig" = tts2FreqMap
+    | otherwise = Map.insert type_tag_stru ttsNum tts2FreqMap
+    where
+    cate = ((!!0) . caOfCate) x
+    tag = ((!!0) . taOfCate) x
+    phraStru = ((!!0) . psOfCate) x
+    type_tag_stru = (cate, tag, phraStru)
+    ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
+insertPhraList2TtsFreqMap' (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap' xs (insertPhraList2TtsFreqMap' [x] tts2FreqMap)
+
+{- The string format is "type_tag_stru", type is category, tag is grammatic rule tag, and stru is phrasal structure.
+ -}
+stringToPhraSyn :: String -> PhraSyn
+stringToPhraSyn tts = (getCateFromString (tts'!!0), tts'!!1, tts'!!2)
+    where
+    tts' = splitAtDeli '_' tts
+
+{- Get Map Category [(Tag, PhraStru)] from PhraSyn list.
+ -}
+toType2TagStruMap :: [PhraSyn] -> Map Category [(Tag, PhraStru)] -> Map Category [(Tag, PhraStru)]
+toType2TagStruMap [] c2TsListMap = c2TsListMap
+toType2TagStruMap [phraSyn] c2TsListMap = Map.insert cate newTs c2TsListMap
+    where
+    cate = fst3 phraSyn
+    ts = (snd3 phraSyn, thd3 phraSyn)
+    newTs = maybe [ts] (ts:) (Map.lookup cate c2TsListMap)
+toType2TagStruMap (ps:pss) c2TsListMap = toType2TagStruMap pss (toType2TagStruMap [ps] c2TsListMap)
+
+{- Get Map Tag [(Category, PhraStru)] from PhraSyn list.
+ -}
+toTag2TypeStruMap :: [PhraSyn] -> Map Tag [(Category, PhraStru)] -> Map Tag [(Category, PhraStru)]
+toTag2TypeStruMap [] t2CsListMap = t2CsListMap
+toTag2TypeStruMap [phraSyn] t2CsListMap = Map.insert tag newCs t2CsListMap
+    where
+    tag = snd3 phraSyn
+    cs = (fst3 phraSyn, thd3 phraSyn)
+    newCs = maybe [cs] (cs:) (Map.lookup tag t2CsListMap)
+toTag2TypeStruMap (ps:pss) t2CsListMap = toTag2TypeStruMap pss (toTag2TypeStruMap [ps] t2CsListMap)
+
+{- Get Map PhraStru [(Category, Tag)] from PhraSyn list.
+ -}
+toStru2TypeTagMap :: [PhraSyn] -> Map PhraStru [(Category, Tag)] -> Map PhraStru [(Category, Tag)]
+toStru2TypeTagMap [] s2CtListMap = s2CtListMap
+toStru2TypeTagMap [phraSyn] s2CtListMap = Map.insert stru newCt s2CtListMap
+    where
+    stru = thd3 phraSyn
+    ct = (fst3 phraSyn, snd3 phraSyn)
+    newCt = maybe [ct] (ct:) (Map.lookup stru s2CtListMap)
+toStru2TypeTagMap (ps:pss) s2CtListMap = toStru2TypeTagMap pss (toStru2TypeTagMap [ps] s2CtListMap)
+
 {- Get the frequencies of various transtive times, which is Data.Map.
  - The input is the list of sentential parsing scripts, and the output is Map <transTimes> <ttNum>.
  -}
@@ -811,7 +1008,7 @@ filterByString patt (kv:kvs) = (filterByString patt [kv]) ++ (filterByString pat
 filterTagInSentTrees :: Tag -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
 filterTagInSentTrees tag trees = filter (\st -> snd st /= []) $ map (\st -> (fst st, filterTagInTrees tag (snd st))) trees
 
-{- If filter parsing trees with a given C2CCG tag.
+{- Filter parsing trees with a given C2CCG tag.
  - Tree :: (ClauIdx, [PhraCate])
  -}
 filterTagInTrees :: Tag -> [Tree] -> [Tree]
@@ -832,6 +1029,58 @@ hasTagInTree tag (clauIdx, (pc:pcs))
       tags = taOfCate pc
       hasTag = elem tag tags
 
+{- Filter [(SentIdx, [Tree]], and remain the elements in which Tree inlcudes given phrasal structure.
+ -}
+filterPhraStruInSentTrees :: PhraStru -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+filterPhraStruInSentTrees ps trees = filter (\st -> snd st /= []) $ map (\st -> (fst st, filterPhraStruInTrees ps (snd st))) trees
+
+{- Filter parsing trees with a given phrasal structure.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+filterPhraStruInTrees :: PhraStru -> [Tree] -> [Tree]
+filterPhraStruInTrees _ [] = []
+filterPhraStruInTrees ps (t:ts)
+    | hasPhraStruInTree ps t = t : filterPhraStruInTrees ps ts
+    | otherwise = filterPhraStruInTrees ps ts
+
+{- If phrasal categories among a parsing tree include a given phrasal structure, return True.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+hasPhraStruInTree :: PhraStru -> Tree -> Bool
+hasPhraStruInTree ps (_, []) = False
+hasPhraStruInTree ps (clauIdx, (pc:pcs))
+    | hasPhraStru = True
+    | otherwise = hasPhraStruInTree ps (clauIdx, pcs)
+    where
+      ps' = psOfCate pc
+      hasPhraStru = elem ps ps'
+
+{- Filter [(SentIdx, [Tree]], and remain the elements in which Tree inlcudes given syntactic category.
+ -}
+filterCateInSentTrees :: Category -> [(SentIdx, [Tree])] -> [(SentIdx, [Tree])]
+filterCateInSentTrees cate trees = filter (\st -> snd st /= []) $ map (\st -> (fst st, filterCateInTrees cate (snd st))) trees
+
+{- Filter parsing trees with a given syntactic category.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+filterCateInTrees :: Category -> [Tree] -> [Tree]
+filterCateInTrees _ [] = []
+filterCateInTrees cate (t:ts)
+    | hasCateInTree cate t = t : filterCateInTrees cate ts
+    | otherwise = filterCateInTrees cate ts
+
+{- If phrasal categories among a parsing tree include a given syntactic category, return True.
+ - Tree :: (ClauIdx, [PhraCate])
+ -}
+hasCateInTree :: Category -> Tree -> Bool
+hasCateInTree cate (_, []) = False
+hasCateInTree cate (clauIdx, (pc:pcs))
+    | hasCate = True
+    | otherwise = hasCateInTree cate (clauIdx, pcs)
+    where
+      cas = caOfCate pc
+      hasCate = elem cate cas
+
 {- Display parsing trees of every sentence in a set of sentences, usually every sentence includes multiple clauses, and every clause has its parsing tree.
  - The input is [(sn,treeStr)], here 'sn' is serial number of a sentence which has parsing trees represented by string 'treeStr'.
  -}
@@ -843,3 +1092,19 @@ dispTreeListOnStdout [(sn, treeStr)] = do
 dispTreeListOnStdout (t:ts) = do
     dispTreeListOnStdout [t]
     dispTreeListOnStdout ts
+
+{- Ascendingly sort (Category, Tag, PhraStru).
+ - Result is stable, that is, if ctp1 equals with ctp2, then their order is same between before ordering and after ordering.
+ -}
+quickSort4PhraSyn :: [PhraSyn] -> [PhraSyn]
+quickSort4PhraSyn  [] = []
+quickSort4PhraSyn  [x] = [x]
+quickSort4PhraSyn  (x:xs) = (quickSort4PhraSyn  [y|y<-xs, phraSynLt y x]) ++ [x] ++ (quickSort4PhraSyn  [y|y<-xs, not (phraSynLt y x)])
+
+{- Define relation 'less than' between two values of PhraSyn, so any set of PhraSyns can be linearly ordered.
+ -}
+phraSynLt :: PhraSyn -> PhraSyn -> Bool
+phraSynLt (ca1, ta1, ps1) (ca2, ta2, ps2) =
+      (ca1 < ca2)
+      || (ca1 == ca2) && (ta1 < ta2)
+      || (ca1 == ca2) && (ta1 == ta2) && (ps1 < ps2)

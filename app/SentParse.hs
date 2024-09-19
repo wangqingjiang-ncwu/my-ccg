@@ -174,7 +174,7 @@ dropParsingResult sn clauIdxOfStart clauIdxOfEnd = do
     let trees = readTrees $ fromMySQLText (row'!!0)
     let scripts = readScripts $ fromMySQLText (row'!!1)
 
-    let clauIdxRange = quickSortForInt [ fst t | t <- trees]
+    let clauIdxRange = quickSort4Int [ fst t | t <- trees]
     putStrLn $ "dropParsingResult: The indices of parsed clauses are " ++ show clauIdxRange
 
     let trees' = [ t | t <- trees, notElem (fst t) [clauIdxOfStart..clauIdxOfEnd]]            -- Element order in [Tree] is kept.
@@ -294,8 +294,8 @@ storeClauseParsing sn clauIdx rtbPCs = do
 --    putStrLn $ "storeClauseParsing: tree: " ++ (nTreeToString tree)
 --    putStrLn $ "storeClauseParsing: script: " ++ (nScriptToString script)
 
-    let tree' = quickSortForTree $ tree ++ [(clauIdx, snd3 rtbPCs)]
-    let script' = quickSortForScript $ script ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
+    let tree' = quickSort4Tree $ tree ++ [(clauIdx, snd3 rtbPCs)]
+    let script' = quickSort4Script $ script ++ [(clauIdx, fst3 rtbPCs, thd3 rtbPCs)]
 
 --    putStrLn $ "storeClauseParsing: tree': " ++ (nTreeToString tree')
 --    putStrLn $ "storeClauseParsing: script': " ++ (nScriptToString script')
@@ -1078,8 +1078,8 @@ doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     nbPCs' <- transWithPruning onOff nPCs banPCs overPairs                      -- Get transitive result with pruning.
 
     let nbPCs = cleanupNbPCs nbPCs' (thd3 script)                               -- According to banned phrases in script, move unwanted phrases in 'nbPCs'.
-    let pcs1 = quickSort [x | x <- fst nbPCs', notElem4Phrase x (fst nbPCs)]    -- The phrases moved away from original parsing tree.
-    let pcs2 = quickSort [x | x <- snd nbPCs, notElem4Phrase x (snd nbPCs')]    -- The phrases newly banned in original parsing tree.
+    let pcs1 = quickSort4Phrase  [x | x <- fst nbPCs', notElem4Phrase x (fst nbPCs)]    -- The phrases moved away from original parsing tree.
+    let pcs2 = quickSort4Phrase  [x | x <- snd nbPCs, notElem4Phrase x (snd nbPCs')]    -- The phrases newly banned in original parsing tree.
     if pcs1 == pcs2
       then do
         putStr "ambiResolByManualResol: cleanupNbPCs: Phrases moved from parsing tree to banned phrasal set: "
@@ -2586,7 +2586,7 @@ parseClauseWithoutPruning sn transIdx rules nPCs = do
     putStrLn $ "After " ++ show transIdx ++ "th transition, num. of phrasal categories = " ++ show (length nPCs2)
 --  showNPhraCateLn (sortPhraCateBySpan nPCs2)
     if ([pc| pc <- nPCs, notElem4Phrase pc nPCs2] /= [])||([pc| pc <- nPCs2, notElem4Phrase pc nPCs] /= [])
---  if (equalSortedPhraList (quickSort nPCs) (quickSort nPCs2))
+--  if (equalSortedPhraList (quickSort4Phrase  nPCs) (quickSort4Phrase  nPCs2))
       then parseClauseWithoutPruning sn (transIdx+1) rules nPCs2
       else do
         putStrLn $ "Num. of phrasal categories in closure is " ++ show (length nPCs)

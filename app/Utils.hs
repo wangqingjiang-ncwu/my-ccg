@@ -63,7 +63,7 @@ module Utils (
     stringToSixTuple,  -- String -> (String,String,String,String,String,String)
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
     rewriteBackSlash,  -- String -> string
-    quickSortForInt,   -- [Int] -> [Int]
+    quickSort4Int,   -- [Int] -> [Int]
     toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
     toAscListOfMapByValue,  -- [(String,Int)] -> [(String,Int)]
     isSubstr,          -- String -> String -> String -> String -> Bool
@@ -505,9 +505,9 @@ rewriteBackSlash (x:xs) = x : rewriteBackSlash xs
 rewriteBackSlash ""           = ""
 
 -- Quick sort for Integers.
-quickSortForInt :: [Int] -> [Int]
-quickSortForInt [] = []
-quickSortForInt (i:is) = (quickSortForInt [x|x<-is, x<i]) ++ [i] ++ (quickSortForInt [x|x<-is, x>=i])
+quickSort4Int :: [Int] -> [Int]
+quickSort4Int [] = []
+quickSort4Int (i:is) = (quickSort4Int [x|x<-is, x<i]) ++ [i] ++ (quickSort4Int [x|x<-is, x>=i])
 
 -- Get ascending list of a Map by its values.
 toAscListOfMapByValue :: Eq k => [(k, Int)] -> [(k, Int)]

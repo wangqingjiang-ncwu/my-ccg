@@ -442,9 +442,10 @@ doCountInTreebank username = do
     putStrLn " t9 -> Get frequency of type conversions used in parsing every clause"
     putStrLn " tA -> Get frequency total and normalized frequencies of different phrasal structures"
     putStrLn " tB -> Get frequency total and normalized frequencies of different type-tag-stru(s)"
-    putStrLn " tC -> Get similarity between every pair of categories"
-    putStrLn " tD -> Get similarity between every pair of grammatic rules"
-    putStrLn " tE -> Get similarity between every pair of phrasal structures"
+    putStrLn " tC -> Get similarity degree between every pair of categories"
+    putStrLn " tD -> Get similarity degree between every pair of grammatic rules"
+    putStrLn " tE -> Get similarity degree between every pair of phrasal structures"
+    putStrLn " tF -> Get similarity degree between every two phrases in their grammatic features"
     putStrLn " s1 -> Get transitive times of every clause in all sentences"
     putStrLn " s2 -> Get frequencies of different ransitive times in all clause parsing"
     putStrLn " s3 -> Get the list of transitive times for every different clausal length"
@@ -457,7 +458,7 @@ doCountInTreebank username = do
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","s1","s2","s3","s4","s5","s6","s7","s8","0"]
+    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","tF","s1","s2","s3","s4","s5","s6","s7","s8","0"]
        then do
          putStrLn "Invalid input."
          doCountInTreebank username
@@ -477,6 +478,7 @@ doCountInTreebank username = do
          "tC" -> doCountInTree username 12
          "tD" -> doCountInTree username 13
          "tE" -> doCountInTree username 14
+         "tF" -> doCountInTree username 15
          "s1" -> doCountInScript username 1
          "s2" -> doCountInScript username 2
          "s3" -> doCountInScript username 3

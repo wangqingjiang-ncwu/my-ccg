@@ -5,6 +5,7 @@
 -- All rights reserved.
 -- This module was written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
 -- To complete clustering, the distances between phrases shoule be defined firstly. Unfortunately it is not a simple problem.
+-- To evaluate similarity between two values of every grammatic attribute, mutual explanation was proposed by Qing-jiang WANG at 2024 autumn.
 
 module Clustering (
     distPhraSyn,               -- PhraSyn -> PhraSyn -> Int
@@ -41,6 +42,14 @@ module Clustering (
     getRandomsList,                           -- Int -> Int -> Int -> [Int] -> IO [Int]
     getAmbiResolAccuracyOfAClustRes,          -- IO Float
     getAmbiResolSamples,                      -- IO [StruGeneSample]
+
+    SentClauPhraList,        -- [[[PhraCate]]]
+    getTypePairSim,          -- SentClauPhraList -> (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+    getTagPairSim,           -- SentClauPhraList -> (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+    getStruPairSim,          -- SentClauPhraList -> (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+    toTypeTagStru2FreqMap,   -- [[[PhraCate]]] -> Map String Int -> Map String Int
+    stringToPhraSyn,         -- String -> PhraSyn
+    getPhraSynPairSim,
     ) where
 
 import Category
@@ -49,7 +58,6 @@ import AmbiResol
 import Utils
 import Output
 import Data.Tuple.Utils
-import Prelude
 import Data.List
 import Data.Tuple.Utils
 import Data.Time.Clock
@@ -58,10 +66,14 @@ import Database.MySQL.Base
 import System.IO
 import qualified System.IO.Streams as S
 import qualified Data.String as DS
+import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
 import Control.Monad
+import Data.Massiv.Array hiding (map, zip, maximum, minimum, read)
+import qualified Data.Massiv.Array as A
 --import System.Random.Stateful
 
 {- The distance between two phrases, where only grammatical factors are considered,
@@ -1026,3 +1038,161 @@ getAmbiResolSamples = do
         else do
           putStrLn "getAmbiResolSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
           return []
+
+type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
+type SimDeg = Float           -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
+type NumOfPhraSyn = Int       -- PhraSyn :: (Category, Tag, PhraStru)
+type NumOfCate = Int
+type NumOfCatePair = Int
+type NumOfTag = Int
+type NumOfTagPair = Int
+type NumOfPhraStru = Int
+type NumOfStruPair = Int
+
+{- Get similarity degree bewteen any two syntatic types (namely categories).
+ - numOfPhraSyn: Number of different PhraSyns, namely (Category, Tag, PhraStru).
+ - numOfCate: Number of different categories.
+ - numOfCatePair: Number of different category pairs.
+ -}
+getTypePairSim :: SentClauPhraList -> (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+getTypePairSim sentClauPhraList = (numOfPhraSyn, numOfCate, numOfCatePair, typePair2SimList)
+    where
+    typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+    typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+    phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+    type2TagStruMap = toType2TagStruMap phraSynList Map.empty                          -- Map Category [(Tag, PhraStru)]
+    type2TagStruMapList = Map.toList type2TagStruMap                                   -- [(Category, [(Tag, PhraStru)])]
+    type2TagStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) type2TagStruMapList       -- [(Category, Set (Tag, PhraStru))]
+    typePair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-type2TagStruSetList, y<-type2TagStruSetList]
+    numOfPhraSyn = Map.size typeTagStru2FreqMap
+    numOfCate = Map.size type2TagStruMap
+    numOfCatePair = length typePair2SimList
+
+{- Get the frequencies of various triple (syntactic type, CCG rule tag, Phrasal structure), actually the triple is represented by string <type_tag_stru>,
+ - because the frequencies of various triples are stored in a Data.Map, where these triples need change as keys, and frequencies are thought as corrresponding values.
+ - The input is the list of sentential categories, and the output is Map <type_tag_stru> <ttsNum>.
+ -}
+toTypeTagStru2FreqMap :: [[[PhraCate]]] -> Map String Int -> Map String Int
+toTypeTagStru2FreqMap [] tts2FreqMap = tts2FreqMap                              -- No sentence
+toTypeTagStru2FreqMap [[]] tts2FreqMap = tts2FreqMap                            -- One sentence has no clause to deal with.
+toTypeTagStru2FreqMap [(c:cs)] tts2FreqMap = toTypeTagStru2FreqMap [cs] (insertPhraList2TtsFreqMap c tts2FreqMap)
+                                                                      -- 'c' is a clause, a list of phrasal categories.
+toTypeTagStru2FreqMap (sent:sents) tts2FreqMap = Map.unionWith (+) mapHead mapTail      -- "sent" means a sentence.
+    where
+    mapHead = toTypeTagStru2FreqMap [sent] tts2FreqMap
+    mapTail = toTypeTagStru2FreqMap sents tts2FreqMap
+
+{- Insert a series of 'type_tag_stru' into a Map to count the frequency of every 'type_tag_stru'.
+ -}
+insertPhraList2TtsFreqMap :: [PhraCate] -> Map String Int -> Map String Int
+insertPhraList2TtsFreqMap [] tts2FreqMap = tts2FreqMap
+insertPhraList2TtsFreqMap [x] tts2FreqMap
+    | ruleTag == "Desig" = tts2FreqMap
+    | otherwise = Map.insert type_tag_stru ttsNum tts2FreqMap
+    where
+    syntaxType = show $ ((!!0) . caOfCate) x
+                          -- Apply 'caOfCate' to every phrasal category, and take the first element from the above result.
+    ruleTag = ((!!0) . taOfCate) x
+                          -- Apply 'taOfCate' to every phrasal category, and take the first element from the above result.
+    phraStru = ((!!0) . psOfCate) x
+                          -- Apply 'psOfCate' to every phrasal category, and take the first element from the above result.
+    type_tag_stru = syntaxType ++ "_" ++ ruleTag ++ "_" ++ phraStru
+    ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
+insertPhraList2TtsFreqMap (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap xs (insertPhraList2TtsFreqMap [x] tts2FreqMap)
+
+{- The string format is "type_tag_stru", type is category, tag is grammatic rule tag, and stru is phrasal structure.
+ -}
+stringToPhraSyn :: String -> PhraSyn
+stringToPhraSyn tts = (getCateFromString (tts'!!0), tts'!!1, tts'!!2)
+    where
+    tts' = splitAtDeli '_' tts
+
+{- Get similarity degree bewteen any two grammtic rules (namely tags).
+ - numOfPhraSyn: Number of different PhraSyns, namely (Category, Tag, PhraStru).
+ - numOfTag: Number of different grammatic rules.
+ - numOfTagPair: Number of different rule pairs.
+ -}
+getTagPairSim :: SentClauPhraList -> (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+getTagPairSim sentClauPhraList = (numOfPhraSyn, numOfTag, numOfTagPair, tagPair2SimList)
+    where
+    typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+    typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+    phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+    tag2TypeStruMap = toTag2TypeStruMap phraSynList Map.empty                          -- Map Tag [(Category, PhraStru)]
+    tag2TypeStruMapList = Map.toList tag2TypeStruMap                                   -- [(Tag, [(Category, PhraStru)])]
+    tag2TypeStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) tag2TypeStruMapList       -- [(Tag, Set (Category, PhraStru))]
+    tagPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-tag2TypeStruSetList, y<-tag2TypeStruSetList]
+    numOfPhraSyn = Map.size typeTagStru2FreqMap
+    numOfTag = Map.size tag2TypeStruMap
+    numOfTagPair = length tagPair2SimList
+
+{- Get Map Category [(Tag, PhraStru)] from PhraSyn list.
+ -}
+toType2TagStruMap :: [PhraSyn] -> Map Category [(Tag, PhraStru)] -> Map Category [(Tag, PhraStru)]
+toType2TagStruMap [] c2TsListMap = c2TsListMap
+toType2TagStruMap [phraSyn] c2TsListMap = Map.insert cate newTs c2TsListMap
+    where
+    cate = fst3 phraSyn
+    ts = (snd3 phraSyn, thd3 phraSyn)
+    newTs = maybe [ts] (ts:) (Map.lookup cate c2TsListMap)
+toType2TagStruMap (ps:pss) c2TsListMap = toType2TagStruMap pss (toType2TagStruMap [ps] c2TsListMap)
+
+{- Get Map Tag [(Category, PhraStru)] from PhraSyn list.
+ -}
+toTag2TypeStruMap :: [PhraSyn] -> Map Tag [(Category, PhraStru)] -> Map Tag [(Category, PhraStru)]
+toTag2TypeStruMap [] t2CsListMap = t2CsListMap
+toTag2TypeStruMap [phraSyn] t2CsListMap = Map.insert tag newCs t2CsListMap
+    where
+    tag = snd3 phraSyn
+    cs = (fst3 phraSyn, thd3 phraSyn)
+    newCs = maybe [cs] (cs:) (Map.lookup tag t2CsListMap)
+toTag2TypeStruMap (ps:pss) t2CsListMap = toTag2TypeStruMap pss (toTag2TypeStruMap [ps] t2CsListMap)
+
+{- Get Map PhraStru [(Category, Tag)] from PhraSyn list.
+ -}
+toStru2TypeTagMap :: [PhraSyn] -> Map PhraStru [(Category, Tag)] -> Map PhraStru [(Category, Tag)]
+toStru2TypeTagMap [] s2CtListMap = s2CtListMap
+toStru2TypeTagMap [phraSyn] s2CtListMap = Map.insert stru newCt s2CtListMap
+    where
+    stru = thd3 phraSyn
+    ct = (fst3 phraSyn, snd3 phraSyn)
+    newCt = maybe [ct] (ct:) (Map.lookup stru s2CtListMap)
+toStru2TypeTagMap (ps:pss) s2CtListMap = toStru2TypeTagMap pss (toStru2TypeTagMap [ps] s2CtListMap)
+
+{- Get similarity degree bewteen any two phrasal structures.
+ - numOfPhraSyn: Number of different PhraSyns, namely (Category, Tag, PhraStru).
+ - numOfPhraStru: Number of different phrasal structures.
+ - numOfStruPair: Number of different phrase structure pairs.
+ -}
+getStruPairSim :: SentClauPhraList -> (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+getStruPairSim sentClauPhraList = (numOfPhraSyn, numOfPhraStru, numOfStruPair, struPair2SimList)
+    where
+    typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty             -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+    typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                           -- [(String, Int)]
+    phraSynList = map stringToPhraSyn $ map fst typeTagStru2FreqMapList                -- [PhraSyn]
+    stru2TypeTagMap = toStru2TypeTagMap phraSynList Map.empty                          -- Map PhraStru [(Category, Tag)]
+    stru2TypeTagMapList = Map.toList stru2TypeTagMap                                   -- [(PhraStru, [(Category, Tag)])]
+    stru2TypeTagSetList = map (\x -> (fst x, (Set.fromList . snd) x)) stru2TypeTagMapList       -- [(PhraStru, Set (Category, Tag))]
+    struPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-stru2TypeTagSetList, y<-stru2TypeTagSetList]
+    numOfPhraSyn = Map.size typeTagStru2FreqMap
+    numOfPhraStru = Map.size stru2TypeTagMap
+    numOfStruPair = length struPair2SimList
+
+{- Get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru).
+ - numOfPhraSyn: Number of different PhraSyns.
+ - numOfPhraSynPair: Number of different PhraSyn pairs.
+ -}
+--getPhraSynPairSim :: SentClauPhraList -> [((PhraSyn, PhraSyn), SimDeg)])
+getPhraSynPairSim :: SentClauPhraList -> (NumOfCatePair, NumOfTagPair, NumOfPhraStru, [(((Category, Category), SimDeg), ((Tag, Tag), SimDeg), ((PhraStru, PhraStru), SimDeg))])
+getPhraSynPairSim sentClauPhraList = (numOfCatePair, numOfTagPair, numOfStruPair, sparseSimMatrix)
+    where
+    typePair2SimTuple = getTypePairSim sentClauPhraList                   -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+    typePair2Sim = fth4 typePair2SimTuple
+    numOfCatePair = thd4 typePair2SimTuple
+    tagPair2SimTuple = getTagPairSim sentClauPhraList                     -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+    tagPair2Sim = fth4 tagPair2SimTuple
+    numOfTagPair = thd4 tagPair2SimTuple
+    struPair2SimTuple = getStruPairSim sentClauPhraList                   -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+    struPair2Sim = fth4 struPair2SimTuple
+    numOfStruPair = thd4 struPair2SimTuple
+    sparseSimMatrix = [(ccSim, ttSim, ssSim) | ccSim <- typePair2Sim, ttSim <- tagPair2Sim, ssSim <- struPair2Sim, (snd ccSim + snd ttSim + snd ssSim) /= 0]

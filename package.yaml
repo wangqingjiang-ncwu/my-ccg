@@ -33,6 +33,7 @@ dependencies:
 - random
 - hmatrix
 - hmatrix-gsl
+- massiv
 #- hmatrix-glpk
 
 library:

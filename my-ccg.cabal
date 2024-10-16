@@ -42,6 +42,7 @@ library
     , hmatrix-gsl
     , hspec
     , io-streams
+    , massiv
     , mysql-haskell
     , random
     , text
@@ -82,6 +83,7 @@ executable my-ccg-exe
     , hmatrix-gsl
     , hspec
     , io-streams
+    , massiv
     , my-ccg
     , mysql-haskell
     , random
@@ -137,6 +139,7 @@ test-suite my-ccg-test
     , hmatrix-gsl
     , hspec
     , io-streams
+    , massiv
     , my-ccg
     , mysql-haskell
     , random

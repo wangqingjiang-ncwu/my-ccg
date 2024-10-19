@@ -87,34 +87,36 @@ data Category = Nil | X | Primitive Prim | Derivative Category Slash Category de
 instance Ord Category where
     Nil < Nil = False
     X < X = False
-    Primitive a < Primitive b = (a<b)
-    Derivative a s1 b < Derivative c s2 d = (a < c)||((a==c)&&(b<d))||((a==c)&&(b==d)&&(s1<s2))
+    Primitive a < Primitive b = a < b
+    Derivative a s1 b < Derivative c s2 d = (a < c) || (a == c && b < d) || (a == c && b ==d && s1 < s2)
     Nil < X = True
     Nil < Primitive _ = True
     Nil < Derivative _ _ _ = True
+    X < Nil = False
     X < Primitive _ = True
     X < Derivative _ _ _ = True
-    Primitive _ < Derivative _ _ _ = True
-    X < Nil = False
     Primitive _ < Nil = False
-    Derivative _ _ _ < Nil = False
     Primitive _ < X = False
+    Primitive _ < Derivative _ _ _ = True
+    Derivative _ _ _ < Nil = False
     Derivative _ _ _ < X = False
     Derivative _ _ _ < Primitive _ = False
-    Nil <= X = False
-    Nil <= Primitive _ = False
-    Nil <= Derivative _ _ _ = False
+    Nil <= Nil = True                   -- Appended in 2024-10-19
+    Nil <= X = True                     -- The original value is False, changed in 2024-10-19.
+    Nil <= Primitive _ = True           -- The original value is False, changed in 2024-10-19.
+    Nil <= Derivative _ _ _ = True      -- The original value is False, changed in 2024-10-19.
     X <= Nil = False
-    X <= Primitive _ = False
-    X <= Derivative _ _ _ = False
+    X <= Primitive _ = True             -- The original value is False, changed in 2024-10-19.
+    X <= Derivative _ _ _ = True        -- The original value is False, changed in 2024-10-19.
     Primitive _ <= Nil = False
     Primitive _ <= X = False
-    Primitive a <= Primitive c = (a < c)||(a==c)
-    Primitive _ <= Derivative _ _ _ = False
+    Primitive a <= Primitive c = a < c || a == c
+    Primitive _ <= Derivative _ _ _ = True           -- The original value is False, changed in 2024-10-19.
     Derivative _ _ _ <= Nil = False
     Derivative _ _ _ <= X = False
     Derivative _ _ _ <= Primitive _ = False
-    Derivative a s1 b <= Derivative c s2 d = (a < c)||((a==c)&&(b<d))||((a==c)&&(b==d)&&(s1==s2))
+    Derivative a s1 b <= Derivative c s2 d = (Derivative a s1 b < Derivative c s2 d) || (Derivative a s1 b == Derivative c s2 d)
+                                          -- Original value: (a < c) || (a == c && b < d)||(a == c && b == d && s1 == s2)
 
 -- Define how a category shows as a letter string.
 instance Show Category where

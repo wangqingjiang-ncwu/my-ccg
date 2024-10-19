@@ -282,7 +282,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 12                                          -- To calculate similarities between every pair of Categories.
        then do
-         let typePair2SimTuple = getTypePairSim sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+         let typePair2SimTuple = getTypePair2Sim sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
          let typePair2SimList = fth4 typePair2SimTuple
          let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 typePair2SimTuple)
@@ -300,7 +300,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 13                                          -- To calculate similarities between every pair of grammatic rules.
        then do
-         let tagPair2SimTuple = getTagPairSim sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+         let tagPair2SimTuple = getTagPair2Sim sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
          let tagPair2SimList = fth4 tagPair2SimTuple
          let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 tagPair2SimTuple)
@@ -318,7 +318,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 14                                          -- To calculate similarities between every pair of phrasal structures.
        then do
-         let struPair2SimTuple = getStruPairSim sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+         let struPair2SimTuple = getStruPair2Sim sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
          let struPair2SimList = fth4 struPair2SimTuple
          let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 struPair2SimTuple)
@@ -336,12 +336,14 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 15       -- To calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
        then do
-         let phraSynPairSimTuple = getPhraSynPairSim sentClauPhraList
-         putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show (length (fth4 phraSynPairSimTuple))
-         putStrLn $ "countInTree: No. of categorial pairs: " ++ show (fst4 phraSynPairSimTuple)
-         putStrLn $ "countInTree: No. of grammar rule tags: " ++ show (snd4 phraSynPairSimTuple)
-         putStrLn $ "countInTree: No. of phrasal structures: " ++ show (thd4 phraSynPairSimTuple)
-         putStrLn $ "countInTree: The first 10 elements of phraSynPairSim: " ++ show (take 10 (fth4 phraSynPairSimTuple))
+         let origSimVectorTuple = getPhraSynPairSim sentClauPhraList
+         putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show (length (fth6 origSimVectorTuple))
+         putStrLn $ "countInTree: No. of categorial pairs: " ++ show (fst6 origSimVectorTuple)
+         putStrLn $ "countInTree: No. of grammar rule tags: " ++ show (snd6 origSimVectorTuple)
+         putStrLn $ "countInTree: No. of phrasal structures: " ++ show (thd6 origSimVectorTuple)
+         putStrLn $ "countInTree: The first 10 elements of origSimVector: " ++ show (take 10 (fth6 origSimVectorTuple))
+         putStrLn $ "countInTree: The first 10 elements of phraSynPairVector: " ++ show (take 10 (fif6 origSimVectorTuple))
+         putStrLn $ "countInTree: The first 10 elements of origSimMatrix: " ++ show (sth6 origSimVectorTuple)
        else putStr ""
 
 {- Get statistics about field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
@@ -786,6 +788,38 @@ toTypeTagStru2FreqMap' sents tts2FreqMap
    | otherwise = toTypeTagStru2FreqMap' (tail sents) (toTypeTagStru2FreqMap' [fstSent] tts2FreqMap)
    where
      fstSent = head sents
+
+{- Get the frequencies of various triple (syntactic type, CCG rule tag, Phrasal structure), actually the triple is represented by string <type_tag_stru>,
+ - because the frequencies of various triples are stored in a Data.Map, where these triples need change as keys, and frequencies are thought as corrresponding values.
+ - The input is the list of sentential categories, and the output is Map <type_tag_stru> <ttsNum>.
+ -}
+toTypeTagStru2FreqMap :: [[[PhraCate]]] -> Map String Int -> Map String Int
+toTypeTagStru2FreqMap [] tts2FreqMap = tts2FreqMap                              -- No sentence
+toTypeTagStru2FreqMap [[]] tts2FreqMap = tts2FreqMap                            -- One sentence has no clause to deal with.
+toTypeTagStru2FreqMap [(c:cs)] tts2FreqMap = toTypeTagStru2FreqMap [cs] (insertPhraList2TtsFreqMap c tts2FreqMap)
+                                                                      -- 'c' is a clause, a list of phrasal categories.
+toTypeTagStru2FreqMap (sent:sents) tts2FreqMap = Map.unionWith (+) mapHead mapTail      -- "sent" means a sentence.
+    where
+    mapHead = toTypeTagStru2FreqMap [sent] tts2FreqMap
+    mapTail = toTypeTagStru2FreqMap sents tts2FreqMap
+
+{- Insert a series of 'type_tag_stru' into a Map to count the frequency of every 'type_tag_stru'.
+ -}
+insertPhraList2TtsFreqMap :: [PhraCate] -> Map String Int -> Map String Int
+insertPhraList2TtsFreqMap [] tts2FreqMap = tts2FreqMap
+insertPhraList2TtsFreqMap [x] tts2FreqMap
+    | ruleTag == "Desig" = tts2FreqMap
+    | otherwise = Map.insert type_tag_stru ttsNum tts2FreqMap
+    where
+    syntaxType = show $ ((!!0) . caOfCate) x
+                          -- Apply 'caOfCate' to every phrasal category, and take the first element from the above result.
+    ruleTag = ((!!0) . taOfCate) x
+                          -- Apply 'taOfCate' to every phrasal category, and take the first element from the above result.
+    phraStru = ((!!0) . psOfCate) x
+                          -- Apply 'psOfCate' to every phrasal category, and take the first element from the above result.
+    type_tag_stru = syntaxType ++ "_" ++ ruleTag ++ "_" ++ phraStru
+    ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
+insertPhraList2TtsFreqMap (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap xs (insertPhraList2TtsFreqMap [x] tts2FreqMap)
 
 {- Insert a series of '(type, tag, stru)' into a Map to count the frequency of every '(type, tag, stru)'.
  - Map.insert might have a bug when deciding whether there has been a given PhraSyn value (key) in a certain map.

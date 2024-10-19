@@ -45,5 +45,9 @@ spec = do
       isPrimitive (getCateFromString "s") `shouldBe` (True :: Bool)
     it "Result isDerivative (getCateFromString \"(s\\.np)/#(s\\.np)\") is True" $ do
       isDerivative (getCateFromString "(s\\.np)/#(s\\.np)") `shouldBe` (True :: Bool)
-
-
+    it "Result (<) npCate objectExtractionCate is True" $ do
+      (<) npCate objectExtractionCate `shouldBe` True
+    it "Result (<) sCate adjCate is True" $ do
+      (<) sCate adjCate `shouldBe` True
+    it "Result (>) predCate objectExtractionCate is True" $ do
+      (>) predCate objectExtractionCate `shouldBe` True

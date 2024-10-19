@@ -77,3 +77,18 @@ spec = do
     it "The result of (==) (np, \">\", \"AHn\") (np, \">\", \"AHn\") is True." $ do
       let phraSyn1 = (npCate, ">", "AHn")
       (==) phraSyn1 phraSyn1 `shouldBe` True
+
+    it "The result of (<) (np, \">\", \"AHn\") (s/.np, \">\", \"AHn\") is True." $ do
+      let phraSyn1 = (npCate, ">", "AHn")
+      let phraSyn2 = (objectExtractionCate, ">", "AHn")
+      (<) phraSyn1 phraSyn2 `shouldBe` True
+
+    it "The result of (<) (s, \">\", \"AHn\") (np/.np, \">\", \"AHn\") is True." $ do
+      let phraSyn1 = (sCate, ">", "AHn")
+      let phraSyn2 = (adjCate, ">", "AHn")
+      (<) phraSyn1 phraSyn2 `shouldBe` True
+
+    it "The result of (>) (np, \">\", \"AHn\") (np, \"<\", \"AHn\") is True." $ do
+      let phraSyn1 = (npCate, ">", "AHn")
+      let phraSyn2 = (npCate, "<", "AHn")
+      (>) phraSyn1 phraSyn2 `shouldBe` True

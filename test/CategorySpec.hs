@@ -51,3 +51,5 @@ spec = do
       (<) sCate adjCate `shouldBe` True
     it "Result (>) predCate objectExtractionCate is True" $ do
       (>) predCate objectExtractionCate `shouldBe` True
+    it "Result (>) predCate verbCate is True" $ do
+      (>) predCate verbCate `shouldBe` False

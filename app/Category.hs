@@ -86,26 +86,27 @@ data Category = Nil | X | Primitive Prim | Derivative Category Slash Category de
 -- Maybe the following instance is redundant, if deriving Category from type class Ord.
 instance Ord Category where
     Nil < Nil = False
-    X < X = False
-    Primitive a < Primitive b = a < b
-    Derivative a s1 b < Derivative c s2 d = (a < c) || (a == c && b < d) || (a == c && b ==d && s1 < s2)
     Nil < X = True
     Nil < Primitive _ = True
     Nil < Derivative _ _ _ = True
     X < Nil = False
+    X < X = False
     X < Primitive _ = True
     X < Derivative _ _ _ = True
     Primitive _ < Nil = False
     Primitive _ < X = False
+    Primitive a < Primitive b = a < b
     Primitive _ < Derivative _ _ _ = True
     Derivative _ _ _ < Nil = False
     Derivative _ _ _ < X = False
     Derivative _ _ _ < Primitive _ = False
+    Derivative a s1 b < Derivative c s2 d = (a < c) || (a == c && b < d) || (a == c && b == d && s1 < s2)
     Nil <= Nil = True                   -- Appended in 2024-10-19
     Nil <= X = True                     -- The original value is False, changed in 2024-10-19.
     Nil <= Primitive _ = True           -- The original value is False, changed in 2024-10-19.
     Nil <= Derivative _ _ _ = True      -- The original value is False, changed in 2024-10-19.
     X <= Nil = False
+    X <= X = True                       -- Appended in 2024-10-19
     X <= Primitive _ = True             -- The original value is False, changed in 2024-10-19.
     X <= Derivative _ _ _ = True        -- The original value is False, changed in 2024-10-19.
     Primitive _ <= Nil = False

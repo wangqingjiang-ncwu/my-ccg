@@ -47,6 +47,7 @@ import Corpus
 import SentParse (sentToClauses, dispTreeOfSent)
 import AmbiResol (PhraSyn)
 import Clustering
+import Numeric.LinearAlgebra.Data
 import Output(showScript, showScript', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList)
 
 type Clau = [PhraCate]
@@ -292,10 +293,10 @@ countInTree bottomSn topSn funcIndex = do
          if cOrS == "c"
            then do
              putStr $ "countInTree: The whole typePair2SimList: "
-             showCatePair2SimList (formatMapListWithFloatValue typePair2SimList 4)
+             showCatePair2SimList (formatMapListWithDoubleValue typePair2SimList 4)
            else do
              putStr $ "countInTree: sparse typePair2SimList: "
-             showCatePair2SimList (formatMapListWithFloatValue sparseTypePair2SimList 4)
+             showCatePair2SimList (formatMapListWithDoubleValue sparseTypePair2SimList 4)
        else putStr ""
 
     if funcIndex == 13                                          -- To calculate similarities between every pair of grammatic rules.
@@ -310,10 +311,10 @@ countInTree bottomSn topSn funcIndex = do
          if cOrS == "c"
            then do
              putStr $ "countInTree: The whole tagPair2SimList: "
-             showTagPair2SimList (formatMapListWithFloatValue tagPair2SimList 4)
+             showTagPair2SimList (formatMapListWithDoubleValue tagPair2SimList 4)
            else do
              putStr $ "countInTree: sparse tagPair2SimList: "
-             showTagPair2SimList (formatMapListWithFloatValue sparseTagPair2SimList 4)
+             showTagPair2SimList (formatMapListWithDoubleValue sparseTagPair2SimList 4)
        else putStr ""
 
     if funcIndex == 14                                          -- To calculate similarities between every pair of phrasal structures.
@@ -328,22 +329,35 @@ countInTree bottomSn topSn funcIndex = do
          if cOrS == "c"
            then do
              putStr $ "countInTree: The whole struPair2SimList: "
-             showStruPair2SimList (formatMapListWithFloatValue struPair2SimList 4)
+             showStruPair2SimList (formatMapListWithDoubleValue struPair2SimList 4)
            else do
              putStr $ "countInTree: sparse struPair2SimList: "
-             showStruPair2SimList (formatMapListWithFloatValue sparseStruPair2SimList 4)
+             showStruPair2SimList (formatMapListWithDoubleValue sparseStruPair2SimList 4)
        else putStr ""
 
     if funcIndex == 15       -- To calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
        then do
          let origSimVectorTuple = getPhraSynPairSim sentClauPhraList
-         putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show (length (fth6 origSimVectorTuple))
-         putStrLn $ "countInTree: No. of categorial pairs: " ++ show (fst6 origSimVectorTuple)
-         putStrLn $ "countInTree: No. of grammar rule tags: " ++ show (snd6 origSimVectorTuple)
-         putStrLn $ "countInTree: No. of phrasal structures: " ++ show (thd6 origSimVectorTuple)
-         putStrLn $ "countInTree: The first 10 elements of origSimVector: " ++ show (take 10 (fth6 origSimVectorTuple))
-         putStrLn $ "countInTree: The first 10 elements of phraSynPairVector: " ++ show (take 10 (fif6 origSimVectorTuple))
-         putStrLn $ "countInTree: The first 10 elements of origSimMatrix: " ++ show (sth6 origSimVectorTuple)
+--         putStrLn $ "countInTree: No. of categorial pairs: " ++ show (fst7 origSimVectorTuple)
+--         putStrLn $ "countInTree: No. of grammar rule tags: " ++ show (snd7 origSimVectorTuple)
+--         putStrLn $ "countInTree: No. of phrasal structures: " ++ show (thd7 origSimVectorTuple)
+         putStrLn $ "countInTree: No. of phrasal syntax triples (phraSyns): " ++ show (fst7 origSimVectorTuple)
+         putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show (length (snd7 origSimVectorTuple))
+         if (length (snd7 origSimVectorTuple) > 10)
+           then do
+             putStrLn $ "countInTree: The first 10 elements of origSimVector: " ++ show (take 10 (snd7 origSimVectorTuple))
+             putStrLn $ "countInTree: The first 10 elements of phraSynPairVector: " ++ show (take 10 (thd7 origSimVectorTuple))
+             putStrLn $ "countInTree: The first 10 elements of origSimMatrix: " ++ show (fth7 origSimVectorTuple ?? (Take 10, Drop 0))
+             putStrLn $ "countInTree: The first 10 elements of centredSimMatrix: " ++ show (fif7 origSimVectorTuple ?? (Take 10, Drop 0))
+             putStrLn $ "countInTree: The first 10 rows of covSimMatrix: " ++ show (sth7 origSimVectorTuple ?? (Take 10, Drop 0))
+             putStrLn $ "countInTree: The first 10 rows of orthSimMatrix: " ++ show (svt7 origSimVectorTuple ?? (Take 10, Drop 0))
+           else do
+             putStrLn $ "countInTree: origSimVector: " ++ show (snd7 origSimVectorTuple)
+             putStrLn $ "countInTree: phraSynPairVector: " ++ show (thd7 origSimVectorTuple)
+             putStrLn $ "countInTree: origSimMatrix: " ++ show (fth7 origSimVectorTuple)
+             putStrLn $ "countInTree: centredSimMatrix: " ++ show (fif7 origSimVectorTuple)
+             putStrLn $ "countInTree: covSimMatrix: " ++ show (sth7 origSimVectorTuple)
+             putStrLn $ "countInTree: orthSimMatrix: " ++ show (svt7 origSimVectorTuple)
        else putStr ""
 
 {- Get statistics about field 'script' in Table <script_source> whose serial numbers are less than 'topSn' and
@@ -712,6 +726,11 @@ insertPhraList2TagFreqMap (x:xs) tag2FreqMap = insertPhraList2TagFreqMap xs (ins
  -}
 formatMapListWithFloatValue :: Show a => [(a, Float)] -> Int -> [(a, String)]       -- 'a' may be any showable type, Polymorphism!
 formatMapListWithFloatValue mapList n = map (\x -> (fst x, printf ("%.0" ++ show n ++"f") (snd x))) mapList
+
+{- Get the format print of a Map list with given decimal places to represent Double values.
+ -}
+formatMapListWithDoubleValue :: Show a => [(a, Double)] -> Int -> [(a, String)]       -- 'a' may be any showable type, Polymorphism!
+formatMapListWithDoubleValue mapList n = map (\x -> (fst x, printf ("%.0" ++ show n ++"f") (snd x))) mapList
 
 {- Convert one Map String Int to another Map String Int, the former is {(tag, tagNum)}, and the latter is {(convCalTag, convCalTagNum)}.
  - Here, 'tag' is C2CCG calculus tag such as '>', '<', '>B', '<B', '>Bx', '<Bx', and '>T->B', sometimes including type-conversional tag such as 'S/n->', 'P/a-<B, and 'S/n-P/a-<'.

@@ -70,3 +70,7 @@ wro:3
 wre:3
 wot:1
 wpr:1
+
+# Default start index and end index in corpus.
+defaultStartIdx:1
+defaultEndIdx:200

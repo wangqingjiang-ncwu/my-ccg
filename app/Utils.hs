@@ -72,6 +72,7 @@ module Utils (
     getLineUntil,      -- String -> [String] -> Bool -> IO String
     acceptOrNot,       -- a -> String -> IO Maybe a
     compFiveLists,     -- [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
+    dispList,          --  (Eq a, Show a) => Int -> [a] -> IO ()
     ) where
 
 import Data.Tuple
@@ -607,3 +608,24 @@ compFiveLists _ _ [] _ _ = []
 compFiveLists _ _ _ [] _ = []
 compFiveLists _ _ _ _ [] = []
 compFiveLists (a:as) (b:bs) (c:cs) (d:ds) (e:es) = [a,b,c,d,e] : compFiveLists as bs cs ds es
+
+-- Display list according given element number per line. Element type is supposed not String and can be shown.
+dispList :: (Eq a, Show a) => Int -> [a] -> IO ()
+dispList numOfElem xs
+    | numOfElem < 1 = error "dispList: numOfElem < 1"
+    | length xs <= numOfElem = dispELemList xs
+    | otherwise = do
+                    dispELemList (take numOfElem xs)
+                    dispList numOfElem (drop numOfElem xs)
+
+-- Display all elements in a list, using commas to seperate them.
+dispELemList :: (Eq a, Show a) => [a] -> IO ()
+dispELemList [] = putStrLn ""
+dispELemList (x:xs) = do
+    putStr (show x)
+    if xs /= []
+      then do
+        putStr ", "
+        dispELemList xs
+      else
+        putStrLn ""

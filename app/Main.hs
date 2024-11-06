@@ -14,6 +14,7 @@ import System.IO
 import Data.Time.Clock
 import qualified Data.String as DS
 import Database.MySQL.Base
+import Category
 import Corpus
 import SentParse
 import Database
@@ -521,11 +522,12 @@ doCountInStruGene username = do
     putStrLn " 2 -> Get frequencies of different overlapping types"
     putStrLn " 3 -> Get frequencies of most common phrasal overlapping (LROs) by given common proportion"
     putStrLn " 4 -> Get frequencies of most common phrasal overlapping (LROPs) by given common proportion"
+    putStrLn " 5 -> Get hit count of different overlapping types, namely [(OverType, sum(LpHitCount + RpHitCount + NothHitCount))]"
     putStrLn " 0 -> Go back to the upper layer."
 
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","0"]
+    if notElem line ["?","1","2","3","4","5","0"]
       then do
         putStrLn "Invalid input."
         doCountInStruGene username
@@ -535,6 +537,7 @@ doCountInStruGene username = do
         "2" -> doCountInStruGene' username 2
         "3" -> doCountInStruGene' username 3
         "4" -> doCountInStruGene' username 4
+        "5" -> doCountInStruGene' username 5
         "0" -> interpreter username
 
 -- A2_1. Display statistical results from table 'stru_gene'.
@@ -722,20 +725,36 @@ doClustering username = do
     putStrLn " 2 -> Test function updateCentre4ACluster"
     putStrLn " 3 -> Test function doOnceClustering"
     putStrLn " 4 -> Test function doClustering4DiffKValSNum"
+    putStrLn " 5 -> Test function storeAmbiResolAccuracy4AllClustRes"
+    putStrLn " 6 -> Test function doGetPhraSynSetSim"
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","0"]
+    if notElem line ["?","1","2","3","4","5","6","0"]
       then do
         putStrLn "Invalid input."
         doClustering username
-    else case line of
+      else case line of
         "?" -> doClustering username
-        "1" -> doTestfunctionOfMaxminPoint
---        "2" -> doTestfunctionOfUpdateCentre4ACluster
-        "3" -> doOnceClustering
-        "4" -> doClustering4DiffKValSNum
-        "5" -> storeAmbiResolAccuracy4AllClustRes
+        "1" -> do
+                 doTestfunctionOfMaxminPoint
+                 doClustering username
+{-        "2" -> do
+ -                 doTestfunctionOfUpdateCentre4ACluster
+ -                 doClustering username
+ -}
+        "3" -> do
+                 doOnceClustering
+                 doClustering username
+        "4" -> do
+                 doClustering4DiffKValSNum
+                 doClustering username
+        "5" -> do
+                 storeAmbiResolAccuracy4AllClustRes
+                 doClustering username
+        "6" -> do
+                 doTestfunctionOfGetPhraSynSetSim
+                 doClustering username
         "0" -> interpreter username
 
 -- D_1.测试求初始点函数
@@ -770,7 +789,7 @@ doTestfunctionOfMaxminPoint = do
     putStrLn $ "The inital k points are " ++ show initialKPoints
     closeStmt conn stmt
 
-{-- D_2.测试求众心函数
+{- D_2.测试求众心函数
 doTestfunctionOfUpdateCentre4ACluster :: IO ()
 doTestfunctionOfUpdateCentre4ACluster = do
     putStr "Please input start value of 'id' in stru_gene: "
@@ -788,7 +807,7 @@ doTestfunctionOfUpdateCentre4ACluster = do
     let aMode = updateCentre4ACluster struGeneList ([],[],[],[],[],[])
 --    putStrLn $ "The mode in rows from " ++ show startId ++ " to " ++ show endId ++ " of the stru_gene is " ++ show aMode
     closeStmt conn stmt
--}
+ -}
 
 maxValOfInt = maxBound :: Int
 --  scml = sample cluster mark list
@@ -897,6 +916,39 @@ storeAmbiResolAccuracy4AllClustRes = do
     putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
     autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum
 
+{- D_6. Test function of 'getPhraSynSetSim'.
+ -}
+doTestfunctionOfGetPhraSynSetSim :: IO ()
+doTestfunctionOfGetPhraSynSetSim = do
+    putStrLn "(1) Collect phrasal similarity"
+    putStr "Please input serial_num of start sentence [0 for default]: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence [0 for default]: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else do
+--        sentClauPhraList <- getSentClauPhraList startSn endSn
+--        putStrLn $ "Phrasal categries of first sentence are: " ++ show (sentClauPhraList!!0)
+        phraSynPair2SimMap <- getPhraSynPair2Sim startSn endSn
+        putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg: " ++ show phraSynPair2SimMap
+
+        putStrLn "(2) Calculate similarity between PhraSyn value sets."
+        let ps1 = (npCate, ">", "AHn")
+        let ps2 = (npCate, "A/n->", "AHn")
+        let ps3 = (sCate, "<", "SP")
+        let ps4 = (verbCate, ">B", "DHv")
+        putStrLn "ps1 = (np, \">\", \"AHn\"), ps2 = (np, \"A/n->\", \"AHn\"), ps3 = (s, \"<\", \"SP\"), ps4 = ((s\\.np)/.np, \">B\", \"DHv\")"
+        putStrLn $ "The result of getPhraSynPairSim [] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [ps1] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [ps1] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [ps1] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps1] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [ps1] [ps1, ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps1, ps2] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [ps1, ps2] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2] [ps2] phraSynPair2SimMap)
+        putStrLn $ "The result of getPhraSynPairSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap)
 
 -- 0. Quit from this program.
 doQuit :: IO ()

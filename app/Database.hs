@@ -9,6 +9,7 @@ module Database (
   fromMySQLInt32U,             -- MySQLValue (MySQLInt32U) -> Int
   fromMySQLInt32,              -- MySQLValue (MySQLInt32) -> Int
   fromMySQLInt64,              -- MySQLValue (MySQLInt64) -> Int
+  fromMySQLDecimal,            -- MySQLValue (MySQLDecimal) -> Int
   fromMySQLText,               -- MySQLValue (MySQLText) -> String
   fromMySQLNullText,           -- MySQLValue (MySQLNull)-> String
   fromMySQLNullVarchar,        -- MySQLValue (MySQLNull) -> String
@@ -18,6 +19,7 @@ module Database (
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
   toMySQLInt32,                -- Int -> MySQLValue (MySQLInt32)
   toMySQLInt64,                -- Int -> MySQLValue (MySQLInt64)
+  toMySQLDecimal,              -- Int -> MySQLValue (MySQLDecimal)
   toMySQLBytes,                -- String -> MySQLValue (MySQLBytes)
   toMySQLText,                 -- String -> MySQLValue (MySQLText)
   toMySQLNullText,             -- MySQLValue (MySQLNull)
@@ -38,7 +40,8 @@ module Database (
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
   readStreamByText,                -- [String] -> S.InputStream [MySQLValue] -> IO [String]
-  readStreamByInt,                 -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
+  readStreamByInt8Decimal,         -- [(Int,Double)] -> S.InputStream [MySQLValue] -> IO [(Int,Double)]
+  readStreamByInt8Int64,           -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32UText,          -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
@@ -55,6 +58,7 @@ import           System.IO
 import qualified System.IO.Streams as S
 import qualified Data.String as DS
 import           Database.MySQL.Base
+import           Data.Scientific
 import           Data.List.Utils
 import           Data.List as DL
 import           Data.Tuple.Utils
@@ -86,6 +90,11 @@ fromMySQLInt64 :: MySQLValue -> Int
 fromMySQLInt64 (MySQLInt64 a) = read (show a) :: Int
 fromMySQLInt64 _ = error "fromMySQLInt64: Parameter error."
 
+-- Here only consider decimal without fractional.
+fromMySQLDecimal :: MySQLValue -> Double
+fromMySQLDecimal (MySQLDecimal a) = read (show a) :: Double
+fromMySQLDecimal _ = error "fromMySQLDecimal: Parameter error."
+
 fromMySQLText :: MySQLValue -> String
 fromMySQLText (MySQLText a)
     | str!!0 == '\"' = DL.init $ DL.tail str     -- Throw away char " at head and rear.
@@ -106,7 +115,6 @@ fromMySQLFloat :: MySQLValue -> Float
 fromMySQLFloat (MySQLFloat a) = read (show a) :: Float
 fromMySQLFloat _ = error "fromMySQLFloat: Parameter error."
 
-
 toMySQLInt8 :: Int -> MySQLValue
 toMySQLInt8 v = MySQLInt8 (read (show v) :: Int8)
 
@@ -121,6 +129,9 @@ toMySQLInt32 v = MySQLInt32 (read (show v) :: Int32)
 
 toMySQLInt64 :: Int -> MySQLValue
 toMySQLInt64 v = MySQLInt64 (read (show v) :: Int64)
+
+toMySQLDecimal :: Int -> MySQLValue
+toMySQLDecimal v = MySQLDecimal (read (show v) :: Scientific)
 
 toMySQLBytes :: String -> MySQLValue
 toMySQLBytes v = MySQLBytes (BC.pack v)                                         -- Convert String to ByteString
@@ -190,11 +201,22 @@ readStreamByText es is = do
 
 {- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
  - until read Nothing.
+ - For every element of [MySQLValue], it is value list of tinyint and decimal.
  -}
-readStreamByInt :: [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
-readStreamByInt es is = do
+readStreamByInt8Decimal :: [(Int,Double)] -> S.InputStream [MySQLValue] -> IO [(Int,Double)]
+readStreamByInt8Decimal es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByInt (es ++ [[fromMySQLInt8 (x!!0), fromMySQLInt64 (x!!1)]]) is
+        Just x -> readStreamByInt8Decimal (es ++ [(fromMySQLInt8 (x!!0), fromMySQLDecimal (x!!1))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
+ - until read Nothing.
+ - For every element of [MySQLValue], it is value list of tinyint and bigint.
+ -}
+readStreamByInt8Int64 :: [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
+readStreamByInt8Int64 es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt8Int64 (es ++ [[fromMySQLInt8 (x!!0), fromMySQLInt64 (x!!1)]]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], append it to existed list [(Int, String)], then read the next,

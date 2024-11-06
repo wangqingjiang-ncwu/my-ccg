@@ -49,12 +49,17 @@ module Clustering (
     getStruPair2Sim,         -- SentClauPhraList -> (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
     getPhraSynFromSents,     -- SentClauPhraList -> [PhraSyn] -> [PhraSyn]
     stringToPhraSyn,         -- String -> PhraSyn
-    getPhraSynPairSim,
+    getPhraSynPairSim,       -- SentClauPhraList -> ([(PhraSyn, PhraSyn)], Matrix Double, Matrix Double, Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
+    getPhraSynPair2Sim,      -- SentIdx -> SentIdx -> IO (Map (PhraSyn, PhraSyn) SimDeg)
+    getPhraSynSetSim,        -- [PhraSyn] -> [PhraSyn] -> [PhraSynPair2Sim] -> SimDeg
+    getMatchedPhraSynPair2SimList,  -- [((PhraSyn, PhraSyn), SimDeg)] -> [((PhraSyn, PhraSyn), SimDeg)] -> [((PhraSyn, PhraSyn), SimDeg)]
+    getSentClauPhraList,     -- SentIdx -> SentIdx -> IO SentClauPhraList
     ) where
 
 import Category
 import Phrase
 import AmbiResol
+import Corpus
 import Utils
 import Output
 import Data.Tuple.Utils
@@ -72,8 +77,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
 import Control.Monad
-import Data.Massiv.Array hiding (map, zip, maximum, minimum, read)
-import qualified Data.Massiv.Array as A
+--import Data.Massiv.Array hiding (map, zip, maximum, minimum, read)
+--import qualified Data.Massiv.Array as A
 import Numeric.LinearAlgebra.Data hiding (find)
 import Numeric.LinearAlgebra as LA hiding (find)
 --import System.Random.Stateful
@@ -1050,6 +1055,7 @@ type NumOfTag = Int
 type NumOfTagPair = Int
 type NumOfPhraStru = Int
 type NumOfStruPair = Int
+type PhraSynPair2Sim = ((PhraSyn, PhraSyn), SimDeg)
 
 {- Get similarity degree bewteen any two syntatic types (namely categories).
  - Similarity degree between two categories satisfies commutative law, sim (cate1, cate2) == sim (cate2, cate1),
@@ -1178,39 +1184,36 @@ getStruPair2Sim sentClauPhraList = (numOfPhraSyn, numOfPhraStru, numOfStruPair, 
     numOfStruPair = length struPair2SimList
 
 {- Get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru).
- - numOfCatePair: Number of different categorial pairs.
- - numOfTagPair: Number of different grammar rule pairs.
- - numOfPhraStruPair: Number of different phrase structure pairs.
- - numOfPhraSynPair: Number of different PhraSyn pairs.
- - This function is actually 'f(ccSim, ttSim, ssSim)'.
+ - sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ssSim), where ccSim is similarity degree between categories of these two phrases,
+ - ttSim is similarity degree between grammatic rule tags of these two phrases, and ssSim is similarity degree between phrase-inner structures.
+ - Category, grammatic rule, and phrase-inner structure are not independent with each other, so matrix [[ccSim, ttSim, ssSim]] is converted into
+ - matrix [[ccSim', ttSim', ssSim']] acoording to SVD (Singular Value Decomposition) such that ccSim', ttSim' and ssSim' are orthogonal columns.
+ - Thus, sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ssSim) = f'(ccSim', ttSim', ssSim'), where f' is Euclid length of vector (ccSim', ttSim', ssSim').
+ -
+ - phraSynPairList: List of (PhraSyn, PhraSyn), in every element of which first PhraSyn value is less than or equal to the second.
+ - origSimList: List of (ccSim, ttSim, ssSim), in which every triple (ccSim, ttSim, ssSim) is corresponding to one tuple (phraSyn1, phraSyn2) in phraSynPairList.
+ - origSimMatrix:  (k >< 3) [ccSim1, ttSim1, ssSim1, ..., ccSimk, ttSimk, ssSimk], which is matrix form of origSimList.
+ - centredSimMatrix: (k >< 3) [ccSim1/ccSimMean, ttSim1/ttSimMean, ssSim1/ssSimMean, ...], which is centred similarity degree matrix.
+ - covSimMatrix: (1/k)(centredSimMatrix <> centredSimMatrixT), where centredSimMatrixT is the transpose of centredSimMatrix.
+ - orthSimMatrix: (tr' u) LA.<> centredSimMatrix, where u is the left singular matrix.
  -}
---getPhraSynPairSim :: SentClauPhraList -> [((PhraSyn, PhraSyn), SimDeg)])
-getPhraSynPairSim :: SentClauPhraList -> (NumOfPhraSyn, [(SimDeg, SimDeg, SimDeg)], [(PhraSyn, PhraSyn)], Matrix Double, Matrix Double, Matrix Double, Matrix Double)
-getPhraSynPairSim sentClauPhraList = (numOfPhraSyn, origSimVector, phraSynPairVector, origSimMatrix, centredSimMatrix, covSimMatrix, orthSimMatrix)
+getPhraSynPairSim :: SentClauPhraList -> ([(PhraSyn, PhraSyn)], Matrix Double, Matrix Double, Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
+getPhraSynPairSim sentClauPhraList = (phraSynPairList, origSimMatrix, covSimMatrix, orthSimMatrix, phraSynPair2SimList)
     where
     typePair2SimTuple = getTypePair2Sim sentClauPhraList                   -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
     typePair2Sim = fth4 typePair2SimTuple
---    numOfCatePair = thd4 typePair2SimTuple
     tagPair2SimTuple = getTagPair2Sim sentClauPhraList                     -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
     tagPair2Sim = fth4 tagPair2SimTuple
---    numOfTagPair = thd4 tagPair2SimTuple
     struPair2SimTuple = getStruPair2Sim sentClauPhraList                   -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
     struPair2Sim = fth4 struPair2SimTuple
---    numOfStruPair = thd4 struPair2SimTuple
     phraSynList = sort $ getPhraSynFromSents sentClauPhraList []           -- [PhraSyn], where there is no repetitive phraSyn.
-    numOfPhraSyn = length phraSynList
-    phraSynPairVector = [(phraSyn1, phraSyn2) | phraSyn1 <- phraSynList, phraSyn2 <- phraSynList, phraSyn1 <= phraSyn2]   -- [(PhraSyn, PhraSyn)]
+    phraSynPairList = [(phraSyn1, phraSyn2) | phraSyn1 <- phraSynList, phraSyn2 <- phraSynList, phraSyn1 <= phraSyn2]   -- [(PhraSyn, PhraSyn)]
                                                       -- If Ord definition is exhaustive, there is no repetitive pair.
-    numOfPhraSynPair = length phraSynPairVector
---    commutPhraSynPairs = [x | x <- phraSynPairVector, length (elemIndices x phraSynPairVector) > 1]
-    origSimVector = [(getSimDegFromAttPair2Sim (fst3 phraSyn1) (fst3 phraSyn2) typePair2Sim
+    numOfPhraSynPair = length phraSynPairList
+    origSimList = [(getSimDegFromAttPair2Sim (fst3 phraSyn1) (fst3 phraSyn2) typePair2Sim
                     , getSimDegFromAttPair2Sim (snd3 phraSyn1) (snd3 phraSyn2) tagPair2Sim
-                    , getSimDegFromAttPair2Sim (thd3 phraSyn1) (thd3 phraSyn2) struPair2Sim) | (phraSyn1, phraSyn2) <- phraSynPairVector]
-    origSimMatrix = (numOfPhraSynPair >< 3) $ intercalate [] [[fst3 e, snd3 e, thd3 e] | e <- origSimVector]    -- hmatrix
-
-    ccSimMean = sumElements (origSimMatrix ¿ [0]) / (fromIntegral numOfPhraSynPair)     -- Mean value of similarity degree between two categories.
-    ttSimMean = sumElements (origSimMatrix ¿ [1]) / (fromIntegral numOfPhraSynPair)     -- Mean value of similarity degree between two grammatic rules.
-    ssSimMean = sumElements (origSimMatrix ¿ [2])  / (fromIntegral numOfPhraSynPair)    -- Mean value of similarity degree between two phrasal structures.
+                    , getSimDegFromAttPair2Sim (thd3 phraSyn1) (thd3 phraSyn2) struPair2Sim) | (phraSyn1, phraSyn2) <- phraSynPairList]
+    origSimMatrix = (numOfPhraSynPair >< 3) $ intercalate [] [[fst3 e, snd3 e, thd3 e] | e <- origSimList]    -- hmatrix
 
 {-  Form matrix [
                   ccSimMean, ttSimMean, ssSimMean
@@ -1220,17 +1223,34 @@ getPhraSynPairSim sentClauPhraList = (numOfPhraSyn, origSimVector, phraSynPairVe
                 , ccSimMean, ttSimMean, ssSimMean
                 ] as meanMatrix
     then get centredSimMatrix = origSimMatrix - meanMatrix
- -}
+
+    ccSimMean = sumElements (origSimMatrix ¿ [0]) / (fromIntegral numOfPhraSynPair)     -- Mean value of similarity degree between two categories.
+    ttSimMean = sumElements (origSimMatrix ¿ [1]) / (fromIntegral numOfPhraSynPair)     -- Mean value of similarity degree between two grammatic rules.
+    ssSimMean = sumElements (origSimMatrix ¿ [2])  / (fromIntegral numOfPhraSynPair)    -- Mean value of similarity degree between two phrasal structures.
+
     meanMatrix = (numOfPhraSynPair >< 3) (repeat 0.0) + (row [ccSimMean, ttSimMean, ssSimMean])
     centredSimMatrix = origSimMatrix - meanMatrix
-    centredSimMatrixT = tr' centredSimMatrix               -- Transpose
-    covSimMatrix = cmap (/ ((fromIntegral numOfPhraSynPair) :: Double)) (centredSimMatrix LA.<> centredSimMatrixT)
-
-{- Get left singular value matrix 'u', by (u,s,v) = svd centredSimMatrix
- - Then, convert centredSimMatrix to another similarity matrix in which column dimensions are orthogonal, orthSimMatrix = (tr’ u) <> centredSimMatrix
  -}
-    (u, s, v) = svd centredSimMatrix
-    orthSimMatrix = (tr' u) LA.<> centredSimMatrix
+
+    origSimMatrixT = tr' origSimMatrix                     -- Transpose
+    covSimMatrix = cmap (/ ((fromIntegral numOfPhraSynPair) :: Double)) (origSimMatrix LA.<> origSimMatrixT)
+
+{- Get left singular value matrix 'u', by (u,s,v) = svd origSimMatrix
+ - Then, convert origSimMatrix to another similarity matrix in which column dimensions are orthogonal, orthSimMatrix = (tr’ u) <> origSimMatrix
+
+    (u, s, v) = svd origSimMatrix
+    orthSimMatrix = (tr' u) LA.<> origSimMatrix
+ - This transformations is wrong, and u should be replaced with v as follows.
+ -}
+
+    (u, s, v) = svd origSimMatrix
+    orthSimMatrix = origSimMatrix LA.<> v
+
+{- Norm of every row vector in matrix orthSimMatrix is Euclid disdance from original point to point (ccSim', ttSim', ssSim').
+ -
+ -}
+    phraSynPairSimList = map (sqrt . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))        -- [Euclid distance of row vector]
+    phraSynPair2SimList = zip phraSynPairList phraSynPairSimList     -- [((PhraSyn, PhraSyn), SimDeg)]
 
 -- Get PhraSyn value pair from a similarity degree vector.
 getPhraSynPairFromSimDegVector :: (((Category, Category), SimDeg), ((Tag, Tag), SimDeg), ((PhraStru, PhraStru), SimDeg)) -> (PhraSyn, PhraSyn)
@@ -1245,3 +1265,101 @@ getSimDegFromAttPair2Sim _ _ [] = error "getSimDegFromAttPair2Sim: error"
 getSimDegFromAttPair2Sim a1 a2 (x:xs)
     | (a1 == (fst . fst) x && a2 == (snd . fst) x) || (a1 == (snd . fst) x && a2 == (fst . fst) x) = snd x       -- Commutative law in xx2Sim List.
     | otherwise = getSimDegFromAttPair2Sim a1 a2 xs
+
+{- Reading parsing trees from start sentence to end sentence in treebank, get [[[PhraCate]]] from which
+ - [PhraSynPair2Sim] is returned, where PhraSynPair2Sim :: ((PhraSyn, PhraSyn), SimDeg).
+ - If start index and end index are both 0, then default start index and default end index are used.
+ - which are defined in file Configuration.
+ - The treebank is the database table property 'tree_souce' indicates.
+ -}
+getPhraSynPair2Sim :: SentIdx -> SentIdx -> IO (Map (PhraSyn, PhraSyn) SimDeg)
+getPhraSynPair2Sim startIdx endIdx = do
+    sentClauPhraList <- getSentClauPhraList startIdx endIdx
+    let phraSynPairSimTuple = getPhraSynPairSim sentClauPhraList
+    return $ Map.fromList (fif5 phraSynPairSimTuple)
+
+{- Reading parsing trees from start sentence to end sentence in treebank, get [[[PhraCate]]].
+ - If start index and end index are both 0, then default start index and default end index are used, which are defined in file Configuration.
+ - The treebank is the database table property 'tree_souce' indicates.
+ -}
+getSentClauPhraList :: SentIdx -> SentIdx -> IO SentClauPhraList
+getSentClauPhraList startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+    let startIdx' = case (startIdx == 0) of
+                      True -> read (getConfProperty "defaultStartIdx" confInfo) :: Int
+                      False -> startIdx
+    let endIdx' = case (endIdx == 0) of
+                    True -> read (getConfProperty "defaultEndIdx" confInfo) :: Int
+                    False -> endIdx
+    putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+    putStrLn $ "The source of parsing trees is set as: " ++ tree_source         -- Display the source of parsing trees
+    let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num >= ? and serial_num <= ?"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt [toMySQLInt32 startIdx', toMySQLInt32 endIdx']
+
+    sentStrList <- readStreamByText [] is                     -- [String], here a string is the parsing result of a sentence.
+    let sentClauStrList = map stringToList sentStrList        -- [[String]], here a string is the parsing result of a clause.
+    let sentClauNumList = map length sentClauStrList          -- [Int], here an integer is the number of clauses in a sentence.
+    let sentNum = length sentStrList                          -- The number of sentences.
+    let clauseTotalNum = foldl (+) 0 sentClauNumList          -- The total number of clauses.
+
+    let sentClauTreeList = map (map readTree) sentClauStrList     -- [[Tree]], here Tree ::= (ClauIdx, [PhraCate])
+    let sentClauPhraList = map (map snd) sentClauTreeList     -- [[[PhraCate]]], here a PhraCate is the representation in memory of a phrase.
+    return sentClauPhraList
+
+{- Get similarity degree between two phrasal sets in their grammatical features.
+ - (1) Suppose set A and B are [PhraSyn]. Get similarity degree matrix M = [((a,b), sim(a,b)) | (a,b) in A X B, where sim(a,b) is similarity of (a,b);
+ - (2) Match elements between A and B according to maximum similarity degree, forming list L.
+ - (3) If |A| < |B|. For every element b in B, which does not appear in L, append ((nullPhraSyn, b), 0) to L.
+ - (4) If |A| > |B|. For every element a in A, which does not appear in L, append ((a, nullPhraSyn), 0) to L.
+ - Finally, return mean value of similarity degrees of all matched PhraSyn value pairs.
+ -}
+getPhraSynSetSim :: [PhraSyn] -> [PhraSyn] -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
+getPhraSynSetSim [] [] _ = sqrt 3              -- 1.732 for similarity degree of two same PhraSyn values.
+getPhraSynSetSim _ [] _ = 0.0
+getPhraSynSetSim [] _ _ = 0.0
+getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
+    where
+    phraSynPairMatrix = [(a,b) | a <- psl1, b <- psl2]                      -- Matrix element must be number value type. Name matrix is borrowed.
+    phraSynPair2SimMatrix = map (toPhraSynPair2Sim phraSynPair2SimMap) phraSynPairMatrix              -- [((PhraSyn, PhraSyn), SimDeg)]
+    matchedPhraSynPair2SimList = getMatchedPhraSynPair2SimList [] phraSynPair2SimMatrix               -- [((PhraSyn, PhraSyn), SimDeg)]
+    allMatchedPhraSynPair2SimList = case (signum (length psl1 - (length psl2))) of
+      -1 -> matchedPhraSynPair2SimList ++ [((nullPhraSyn, x), 0.0) | x <- psl2, notElem x (map (snd . fst) matchedPhraSynPair2SimList)]
+      0 -> matchedPhraSynPair2SimList
+      1 -> matchedPhraSynPair2SimList ++ [((x, nullPhraSyn), 0.0) | x <- psl1, notElem x (map (fst . fst) matchedPhraSynPair2SimList)]
+    simDeg = foldl (+) 0.0 (map snd allMatchedPhraSynPair2SimList) / (fromIntegral (length allMatchedPhraSynPair2SimList))
+
+{- Match a pair of phrases which has the maximum similarity degree.
+ - (1) Suppose similarity degree matrix M = [((a,b),sim(a,b))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
+ - (2) If sim(c,d) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
+ -     [x | x <-M, notElem ((fst . fst) x) [c,d] && notElem ((snd . fst) x) [c,d]];
+ -     Repeat (1)(2) until M is empty.
+ - (3) return L.
+ -}
+getMatchedPhraSynPair2SimList :: [((PhraSyn, PhraSyn), SimDeg)] -> [((PhraSyn, PhraSyn), SimDeg)] -> [((PhraSyn, PhraSyn), SimDeg)]
+getMatchedPhraSynPair2SimList matchedPhraSynPair2SimList [] = matchedPhraSynPair2SimList
+getMatchedPhraSynPair2SimList matchedPhraSynPair2SimList phraSynPair2SimMatrix = getMatchedPhraSynPair2SimList matchedPhraSynPair2SimList' phraSynPair2SimMatrix'
+    where
+    simList = map snd phraSynPair2SimMatrix                                     -- [SimDeg]
+    maxSim = maximum simList
+    idx = case (elemIndex maxSim simList) of
+            Just x -> x
+            Nothing -> error "getPhraSynSetSim: Impossible."
+    elemWithMaxSim = phraSynPair2SimMatrix!!idx
+    (ps1,ps2) = fst elemWithMaxSim                                              -- (PhraSyn, PhraSyn)
+    matchedPhraSynPair2SimList' = matchedPhraSynPair2SimList ++ [elemWithMaxSim]
+    phraSynPair2SimMatrix' = [x | x <- phraSynPair2SimMatrix, notElem ((fst . fst) x) [ps1, ps2] && notElem ((snd . fst) x) [ps1, ps2]]  -- Remove related elements
+
+{- Convert (PhraSyn, PhraSyn) to ((PhraSyn, PhraSyn), SimDeg) by looking Map (PhraSyn, PhraSyn) SimDeg.
+ - For every key (ps1, ps2) in Map (PhraSyn, PhraSyn) SimDeg, ps1 <= ps2.
+ -}
+toPhraSynPair2Sim :: Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
+toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) = case (Map.lookup (ps1', ps2') phraSynPair2SimMap) of
+      Just x -> ((ps1, ps2), x)
+      Nothing -> error "toPhraSynPair2Sim: Key (ps1, ps2) does not exist."
+    where
+      (ps1', ps2') = case (ps1 <= ps2) of
+                       True -> (ps1, ps2)
+                       False -> (ps2, ps1)

@@ -45,6 +45,7 @@ library
     , massiv
     , mysql-haskell
     , random
+    , scientific
     , text
     , time
   default-language: Haskell2010
@@ -87,6 +88,7 @@ executable my-ccg-exe
     , my-ccg
     , mysql-haskell
     , random
+    , scientific
     , text
     , time
   default-language: Haskell2010
@@ -143,6 +145,7 @@ test-suite my-ccg-test
     , my-ccg
     , mysql-haskell
     , random
+    , scientific
     , text
     , time
   default-language: Haskell2010

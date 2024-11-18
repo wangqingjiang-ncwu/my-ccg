@@ -675,7 +675,7 @@ doMaintenance username = do
       else case line of
         "?" -> doMaintenance username
         "1" -> do
-                 putStrLn $ "Function " ++ line ++ " has not been implemented."
+                 doRearrangeIdinCertainTable username
                  doMaintenance username
         "2" -> do
                  doSortPhraseInTreeAndScript username
@@ -684,6 +684,43 @@ doMaintenance username = do
                  doAddHX2TreeAndScript username
                  doMaintenance username
         "0" -> interpreter username
+
+-- C_1. Rearrange index column in a certain table.
+doRearrangeIdinCertainTable :: String -> IO ()
+doRearrangeIdinCertainTable username =
+    if username /= "wqj"
+      then putStrLn "doRearrangeIdinCertainTable: Only user 'wqj' can do this operation."
+      else do
+        putStrLn "There are following tables including an index column:"
+        putStrLn " 1. stru_gene_202408"
+        putStrLn " 2. ..."
+        tblNumStr <- getLineUntil "Please input the number correspongding a table (Return for '1'): " ["1","2"] True
+
+        case tblNumStr of
+          "1" -> do                         -- Table 'stru_gene_202408'
+            conn <- getConn
+            let sqlstat = DS.fromString $ "create table stru_gene_202408_bak like stru_gene_202408"            -- Copy table structure to new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn "Table stru_gene_202408_bak was created."
+            let sqlstat = DS.fromString $ "insert into stru_gene_202408_bak (leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from stru_gene_202408"       -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into stru_gene_202408_bak."
+            let sqlstat = DS.fromString $ "truncate table stru_gene_202408"     -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn "Table stru_gene_202408 truncated."
+            let sqlstat = DS.fromString $ "insert into stru_gene_202408 select * from stru_gene_202408_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into stru_gene_202408."
+            let sqlstat = DS.fromString $ "drop table stru_gene_202408_bak"     -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn "Table stru_gene_202408_bak was dropped."
+            close conn
+          "2" -> putStrLn "Function 2 has not been implemented."
 
 -- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.
 doSortPhraseInTreeAndScript :: String -> IO ()
@@ -726,11 +763,14 @@ doClustering username = do
     putStrLn " 3 -> Test function doOnceClustering"
     putStrLn " 4 -> Test function doClustering4DiffKValSNum"
     putStrLn " 5 -> Test function storeAmbiResolAccuracy4AllClustRes"
-    putStrLn " 6 -> Test function doGetPhraSynSetSim"
+    putStrLn " 6 -> Test function getPhraSynSetSim"
+    putStrLn " 7 -> Get similarity degrees between any two contexts of overlapping types by Singular Value Decomposition"
+    putStrLn " 8 -> Get similarity degrees between any two contexts of overlapping types directly by Euclidean metric"
+    putStrLn " 9 -> Get similarity degrees between any two overlapping types"
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","0"]
       then do
         putStrLn "Invalid input."
         doClustering username
@@ -753,7 +793,16 @@ doClustering username = do
                  storeAmbiResolAccuracy4AllClustRes
                  doClustering username
         "6" -> do
-                 doTestfunctionOfGetPhraSynSetSim
+                 clusteringAnalysis 6
+                 doClustering username
+        "7" -> do
+                 clusteringAnalysis 7
+                 doClustering username
+        "8" -> do
+                 clusteringAnalysis 8
+                 doClustering username
+        "9" -> do
+                 clusteringAnalysis 9
                  doClustering username
         "0" -> interpreter username
 
@@ -915,40 +964,6 @@ storeAmbiResolAccuracy4AllClustRes = do
 
     putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
     autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum
-
-{- D_6. Test function of 'getPhraSynSetSim'.
- -}
-doTestfunctionOfGetPhraSynSetSim :: IO ()
-doTestfunctionOfGetPhraSynSetSim = do
-    putStrLn "(1) Collect phrasal similarity"
-    putStr "Please input serial_num of start sentence [0 for default]: "
-    line1 <- getLine
-    let startSn = read line1 :: Int
-    putStr "Please input serial_num of end sentence [0 for default]: "
-    line2 <- getLine
-    let endSn = read line2 :: Int
-
-    if startSn > endSn
-      then putStrLn "No sentence is designated."
-      else do
---        sentClauPhraList <- getSentClauPhraList startSn endSn
---        putStrLn $ "Phrasal categries of first sentence are: " ++ show (sentClauPhraList!!0)
-        phraSynPair2SimMap <- getPhraSynPair2Sim startSn endSn
-        putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg: " ++ show phraSynPair2SimMap
-
-        putStrLn "(2) Calculate similarity between PhraSyn value sets."
-        let ps1 = (npCate, ">", "AHn")
-        let ps2 = (npCate, "A/n->", "AHn")
-        let ps3 = (sCate, "<", "SP")
-        let ps4 = (verbCate, ">B", "DHv")
-        putStrLn "ps1 = (np, \">\", \"AHn\"), ps2 = (np, \"A/n->\", \"AHn\"), ps3 = (s, \"<\", \"SP\"), ps4 = ((s\\.np)/.np, \">B\", \"DHv\")"
-        putStrLn $ "The result of getPhraSynPairSim [] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [ps1] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [ps1] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [ps1] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps1] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [ps1] [ps1, ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps1, ps2] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [ps1, ps2] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2] [ps2] phraSynPair2SimMap)
-        putStrLn $ "The result of getPhraSynPairSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap)
 
 -- 0. Quit from this program.
 doQuit :: IO ()

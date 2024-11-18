@@ -39,7 +39,8 @@ module Database (
   getOkLastInsertID,           -- OK -> Int
   getOkStatus,                 -- OK -> Word16
   getOkWarningCnt,             -- OK -> Word16
-  readStreamByText,                -- [String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByText,            -- [String] -> S.InputStream [MySQLValue] -> IO [String]
+  readStreamByInt64,           -- [Int] -> S.InputStream [MySQLValue] -> IO [Int]
   readStreamByInt8Decimal,         -- [(Int,Double)] -> S.InputStream [MySQLValue] -> IO [(Int,Double)]
   readStreamByInt8Int64,           -- [[Int]] -> S.InputStream [MySQLValue] -> IO [[Int]]
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
@@ -47,7 +48,8 @@ module Database (
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
-  readStreamByInt32U3TextInt8Text, -- [String] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+  readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+  readStreamByContext2OverType,    -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
   getConn,                     -- IO MySQLConn
   getConnByUserWqj,            -- IO MySQLConn
   recogOk                      -- IO ()
@@ -199,7 +201,17 @@ readStreamByText es is = do
         Just [MySQLText v] -> readStreamByText (es ++ [fromMySQLText (MySQLText v)]) is
         Nothing -> return es
 
-{- Read a value from input stream [MySQLValue], append it to existed integer list, then read the next,
+{- Read a value from input stream [MySQLValue], append it to existed Double list, then read the next,
+ - until read Nothing.
+ - For every element of [MySQLValue], it is value list of Decimal.
+ -}
+readStreamByInt64 :: [Int] -> S.InputStream [MySQLValue] -> IO [Int]
+readStreamByInt64 es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt64 (es ++ [fromMySQLInt64 (x!!0)]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed (Int8, Double) list, then read the next,
  - until read Nothing.
  - For every element of [MySQLValue], it is value list of tinyint and decimal.
  -}
@@ -267,6 +279,21 @@ readStreamByTextTextInt8Text :: [String] -> S.InputStream [MySQLValue] -> IO [St
 readStreamByTextTextInt8Text es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByTextTextInt8Text (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2)) ++ "_" ++ fromMySQLText (x!!3)]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a Context2OverType value, append it
+ - to existed Context2OverType list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8],
+ - and Context2OverType is ((LeftExtend, LeftOver, RightOver, RightExtend), OverType).
+ -}
+readStreamByContext2OverType :: [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
+readStreamByContext2OverType es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByContext2OverType (es ++ [((readPhraSynListFromStr (fromMySQLText (x!!0)),
+                                                         readPhraSynFromStr (fromMySQLText (x!!1)),
+                                                         readPhraSynFromStr (fromMySQLText (x!!2)),
+                                                         readPhraSynListFromStr (fromMySQLText (x!!3))
+                                                        ), fromMySQLInt8 (x!!4))]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it

@@ -7,6 +7,10 @@ module AmbiResol (
     LeftOver,            -- (Category,Tag,PhraStru)
     RightOver,           -- (Category,Tag,PhraStru)
     RightExtend,         -- [(Category,Tag,PhraStru)]
+    ContextOfOT,         -- (LeftExtend, LeftOver, RightOver, RightExtend)
+    Context2OverType,    -- (ContextOfOT, OverType)
+    Context2OverTypeBase, -- [Context2OverType]
+    nullContextOfOT,     -- ContextOfOT
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
     PhraSyn,             -- (Category, Tag, PhraStru)
@@ -67,7 +71,7 @@ type LeftExtend = [PhraSyn]     -- Left neighbors
 type LeftOver = PhraSyn         -- Overlapping left phrase
 type RightOver = PhraSyn        -- Overlapping right phrase
 type RightExtend = [PhraSyn]    -- Right neighbors
-type OverType = Int                             -- Overlapping type
+type OverType = Int                                -- Overlapping type, [0 .. 5]
 data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing or both not.
 
 instance Show Prior where
@@ -94,6 +98,16 @@ instance Ord Prior where
     Noth <= Lp = False
     Noth <= Rp = False
 
+-- Overtype context 'ContextOfOT', overtype and its context 'Context2OverType', and sample base of 'Context2OverType'.
+type ContextOfOT = (LeftExtend, LeftOver, RightOver, RightExtend)
+type Context2OverType = (ContextOfOT, OverType)
+type Context2OverTypeBase = [Context2OverType]
+
+{- Null value of ContextOfOT, used for calculating similarity between ContextOfOTs.
+ - Similarity is zero between nullPhraSyn and any other PhraSyn value.
+ -}
+nullContextOfOT :: ContextOfOT
+nullContextOfOT = ([nullPhraSyn], nullPhraSyn, nullPhraSyn, [nullPhraSyn])
 
 -- The following defines No.0 ambiguity resolution model, and the original samples of which are stored in table 'stru_gene' of database 'ccg4c'.
 type StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
@@ -144,10 +158,8 @@ readAmbiResol1FromStr str = (lp, rp, ct, ot, pr)
 readPhraSynFromStr :: String -> PhraSyn
 readPhraSynFromStr str = (ca, ta, ps)
     where
-    tripleStr  = stringToTriple str
-    ca = getCateFromString (fst3 tripleStr)
-    ta = snd3 tripleStr
-    ps = thd3 tripleStr
+    (caStr, ta, ps)  = stringToTriple str
+    ca = getCateFromString caStr
 
 readPhraSynListFromStr :: String -> [PhraSyn]
 readPhraSynListFromStr "[]" = []

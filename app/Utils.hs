@@ -24,6 +24,14 @@ module Utils (
     fif7,          -- (a,b,c,d,e,f,g) -> e
     sth7,          -- (a,b,c,d,e,f,g) -> f
     svt7,          -- (a,b,c,d,e,f,g) -> g
+    fst8,          -- (a,b,c,d,e,f,g,h) -> a
+    snd8,          -- (a,b,c,d,e,f,g,h) -> b
+    thd8,          -- (a,b,c,d,e,f,g,h) -> c
+    fth8,          -- (a,b,c,d,e,f,g,h) -> d
+    fif8,          -- (a,b,c,d,e,f,g,h) -> e
+    sth8,          -- (a,b,c,d,e,f,g,h) -> f
+    svt8,          -- (a,b,c,d,e,f,g,h) -> g
+    eth8,          -- (a,b,c,d,e,f,g,h) -> g
     removeDup,     -- Eq a => [a] -> [a]
     removeDup',    -- Eq a => [a] -> [a] -> [a]
     removeTuple,   -- Eq a => [(a,a)] -> [(a,a)]
@@ -70,16 +78,17 @@ module Utils (
     txt2csv4WordEmbed, -- String -> IO ()
     getConfProperty,   -- String -> String -> String
     getLineUntil,      -- String -> [String] -> Bool -> IO String
+    getNumUntil,       -- Int -> [Int] -> IO Int
     acceptOrNot,       -- a -> String -> IO Maybe a
     compFiveLists,     -- [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
     dispList,          --  (Eq a, Show a) => Int -> [a] -> IO ()
+    getMatchedElemPair2SimList,   -- (Eq a, Ord b, Num b) => [((a, a), b)] -> [((a, a), b)] -> [((a, a), b)]
     ) where
 
 import Data.Tuple
 import Data.List (elemIndex)
 import Data.Map (Map)
 import qualified Data.Map as Map
--- import Data.String.Utils
 import qualified Data.String as DS
 
 -- Functions on four tuple.
@@ -155,6 +164,32 @@ sth7 (_,_,_,_,_,f,_) = f
 
 svt7 :: (a,b,c,d,e,f,g) -> g
 svt7 (_,_,_,_,_,_,g) = g
+
+-- Functions on eight tuple.
+
+fst8 :: (a,b,c,d,e,f,g,h) -> a
+fst8 (a,_,_,_,_,_,_,_) = a
+
+snd8 :: (a,b,c,d,e,f,g,h) -> b
+snd8 (_,b,_,_,_,_,_,_) = b
+
+thd8 :: (a,b,c,d,e,f,g,h) -> c
+thd8 (_,_,c,_,_,_,_,_) = c
+
+fth8 :: (a,b,c,d,e,f,g,h) -> d
+fth8 (_,_,_,d,_,_,_,_) = d
+
+fif8 :: (a,b,c,d,e,f,g,h) -> e
+fif8 (_,_,_,_,e,_,_,_) = e
+
+sth8 :: (a,b,c,d,e,f,g,h) -> f
+sth8 (_,_,_,_,_,f,_,_) = f
+
+svt8 :: (a,b,c,d,e,f,g,h) -> g
+svt8 (_,_,_,_,_,_,g,_) = g
+
+eth8 :: (a,b,c,d,e,f,g,h) -> h
+eth8 (_,_,_,_,_,_,_,h) = h
 
 -- Remove duplicate elements in a list.
 
@@ -580,7 +615,7 @@ kvListToMap (s:ss) m = kvListToMap ss (Map.insert (fst s) (snd s) m)
  -   (2) the default flag is False, return the last element of the string set.
  -}
 getLineUntil :: String -> [String] -> Bool -> IO String
-getLineUntil _ [] _ = return "ZeroRange"
+getLineUntil _ [] _ = return "getLineUntil: ZeroRange"
 getLineUntil prompt cs flag = do
     putStr prompt
     input <- getLine
@@ -591,6 +626,23 @@ getLineUntil prompt cs flag = do
                     then return (head cs)
                     else return (last cs)
              else getLineUntil prompt cs flag
+
+{- Read input number repeatedly until it is in designated number set.
+ - Suppose the number set is not empty.
+ - If the input number is null, namely pressing RETURN, return the first element of the number set;
+ -}
+getNumUntil :: String -> [Int] -> IO Int
+getNumUntil _ [] = return 0       -- '0' denote exception.
+getNumUntil prompt is = do
+    putStr prompt
+    inputStr <- getLine
+    if inputStr == ""
+      then return (head is)
+      else do
+        let input = read inputStr :: Int
+        if elem input is
+          then return input
+          else getNumUntil prompt is
 
 -- According to user opinion, accept or deny the input.
 acceptOrNot :: a -> String -> IO (Maybe a)
@@ -629,3 +681,24 @@ dispELemList (x:xs) = do
         dispELemList xs
       else
         putStrLn ""
+
+{- Match element pairs which have similarity degrees from high to low.
+ - (1) Suppose similarity degree matrix M = [((a,b),sim(a,b))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
+ - (2) If sim(c,d) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
+ -     [x | x <-M, notElem ((fst . fst) x) [c,d] && notElem ((snd . fst) x) [c,d]];
+ -     Repeat (1)(2) until M is empty.
+ - (3) return L.
+ -}
+getMatchedElemPair2SimList :: (Eq a, Ord b, Num b) => [((a, a), b)] -> [((a, a), b)] -> [((a, a), b)]
+getMatchedElemPair2SimList matchedElemPair2SimList [] = matchedElemPair2SimList
+getMatchedElemPair2SimList matchedElemPair2SimList elemPair2SimMatrix = getMatchedElemPair2SimList matchedElemPair2SimList' elemPair2SimMatrix'
+    where
+    simList = map snd elemPair2SimMatrix                                        -- [SimDeg]
+    maxSim = maximum simList
+    idx = case (elemIndex maxSim simList) of
+            Just x -> x
+            Nothing -> error "getMatchedElemPair2SimList: Impossible."
+    elemWithMaxSim = elemPair2SimMatrix!!idx
+    (e1, e2) = fst elemWithMaxSim                                               -- (PhraSyn, PhraSyn)
+    matchedElemPair2SimList' = matchedElemPair2SimList ++ [elemWithMaxSim]
+    elemPair2SimMatrix' = [x | x <- elemPair2SimMatrix, notElem ((fst . fst) x) [e1, e2] && notElem ((snd . fst) x) [e1, e2]]  -- Remove related elements

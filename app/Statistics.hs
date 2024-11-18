@@ -88,8 +88,8 @@ type Sents = [Sent]
  - 4. Get frequencies of most common unambiguous phrasal overlapping (LROPs) by given common proportion;
  - 5. Get hit count of different overlapping types, namely [(OverType, sum(LpHitCount + RpHitCount + NothHitCount))];
 
-- The following functions read Table 'tree', then search all clauses according the input index.
-- 1. Get serial_num list indicating those parsing trees which include given CCG tags;
+ - The following functions read Table 'tree', then search all clauses according the input index.
+ - 1. Get serial_num list indicating those parsing trees which include given CCG tags;
 
  -}
 
@@ -285,7 +285,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 12                                          -- To calculate similarities between every pair of Categories.
        then do
-         let typePair2SimTuple = getTypePair2Sim sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+         let typePair2SimTuple = getTypePair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
          let typePair2SimList = fth4 typePair2SimTuple
          let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 typePair2SimTuple)
@@ -303,7 +303,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 13                                          -- To calculate similarities between every pair of grammatic rules.
        then do
-         let tagPair2SimTuple = getTagPair2Sim sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+         let tagPair2SimTuple = getTagPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
          let tagPair2SimList = fth4 tagPair2SimTuple
          let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 tagPair2SimTuple)
@@ -321,7 +321,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 14                                          -- To calculate similarities between every pair of phrasal structures.
        then do
-         let struPair2SimTuple = getStruPair2Sim sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+         let struPair2SimTuple = getStruPair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
          let struPair2SimList = fth4 struPair2SimTuple
          let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 struPair2SimTuple)
@@ -339,7 +339,7 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 15       -- To calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
        then do
-         let phraSynPairSimTuple = getPhraSynPairSim sentClauPhraList
+         let phraSynPairSimTuple = getPhraSynPairSimFromSCPL sentClauPhraList
          let numOfPhraSynPair = length (fst5 phraSynPairSimTuple)
          putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show numOfPhraSynPair
          if (numOfPhraSynPair > 10)

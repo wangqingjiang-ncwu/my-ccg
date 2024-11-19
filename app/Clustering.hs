@@ -1101,12 +1101,14 @@ clusteringAnalysis funcIndex = do
 
          let origSimMatrix = snd4 contextOfOTPairSimTuple
          let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
-         let origSimByEucMetric = map (sqrt . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))   -- [Euclid distance of row vector]
+         let origSimByEucMetric = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                                                            -- [Euclid distance of row vector], Mean Square Error
          let origSim2EucMetricMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByEucMetric     -- hmatrix
 
          let orthSimMatrix = thd4 contextOfOTPairSimTuple
          let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
-         let orthSimByEucMetric = map (sqrt . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))   -- [Euclid distance of row vector]
+         let orthSimByEucMetric = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                                                            -- [Euclid distance of row vector], Mean Square Error
          let orthSim2EucMetricMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByEucMetric     -- hmatrix
 
          if (numOfContextOfOTPair > 10)
@@ -1380,7 +1382,7 @@ getPhraSynPairSimFromPSL phraSynPairs = (phraSynPairs, origSimMatrix, covSimMatr
 
 {- Norm of every row vector in matrix orthSimMatrix is Euclid disdance from original point to point (ccSim', ttSim', ssSim').
  -}
-    phraSynPairSimList = map (sqrt . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))        -- [Euclid distance of row vector]
+    phraSynPairSimList = map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))  -- [Euclid distance of row vector], Mean Square Error.
     phraSynPair2SimList = zip phraSynPairs phraSynPairSimList     -- [((PhraSyn, PhraSyn), SimDeg)]
 
 -- Get PhraSyn value pair from a similarity degree vector.
@@ -1470,7 +1472,7 @@ getSentClauPhraList startIdx endIdx = do
  - Finally, return mean value of similarity degrees of all matched PhraSyn value pairs.
  -}
 getPhraSynSetSim :: [PhraSyn] -> [PhraSyn] -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
-getPhraSynSetSim [] [] _ = sqrt 3              -- 1.732 for similarity degree of two same PhraSyn values.
+getPhraSynSetSim [] [] _ = 1.0           -- Similarity degree of two same PhraSyn values.
 getPhraSynSetSim _ [] _ = 0.0
 getPhraSynSetSim [] _ _ = 0.0
 getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
@@ -1582,7 +1584,7 @@ getContextOfOTPairSimBySVD context2OverTypeBase = do
     let orthSimMatrix = origSimMatrix LA.<> v
 
 -- Norm of every row vector in matrix orthSimMatrix is Euclid disdance from original point to point (leSim', loSim', roSim', reSim').
-    let contextOfOTPairSimList = map (sqrt . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))        -- [Euclid distance of row vector]
+    let contextOfOTPairSimList = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))   -- [Euclid distance of row vector], Mean Square Error.
     let contextOfOTPair2SimList = zip contextOfOTPairList contextOfOTPairSimList     -- [((ContextOfOT, ContextOfOT), SimDeg)]
 
     return (contextOfOTPairList, origSimMatrix, orthSimMatrix, contextOfOTPair2SimList)
@@ -1615,7 +1617,7 @@ getContextOfOTPairSimByEucMetric context2OverTypeBase = do
                       , getSimDegFromAttPair2Sim (thd4 x) (thd4 y) roPair2SimList
                       , getSimDegFromAttPair2Sim (fth4 x) (fth4 y) rePair2SimList) | (x, y) <- contextOfOTPairList]
 
-    let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res]) | (les,los,ros,res) <- origSimList]   -- [Euclid distance]
+    let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res] / 4.0) | (les,los,ros,res) <- origSimList]   -- [Euclid distance], Mean Square Error.
     let contextOfOTPair2SimList = zip contextOfOTPairList simList     -- [((ContextOfOT, ContextOfOT), SimDeg)]
     return (origSimList, contextOfOTPair2SimList)
 

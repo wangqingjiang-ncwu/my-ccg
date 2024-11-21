@@ -48,8 +48,6 @@ module Database (
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
-  readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
-  readStreamByContext2OverType,    -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
   getConn,                     -- IO MySQLConn
   getConnByUserWqj,            -- IO MySQLConn
   recogOk                      -- IO ()
@@ -69,7 +67,6 @@ import           Data.Text as DT hiding (length, map, head, last, foldl)
 import           Data.Word
 import           Data.ByteString.Char8 as BC hiding (putStrLn, readFile, map, head, last)
 import           Utils
-import           AmbiResol
 import           Phrase(getPhraCateFromString, getPhraCateListFromString)
 
 fromMySQLInt8 :: MySQLValue -> Int
@@ -279,36 +276,6 @@ readStreamByTextTextInt8Text :: [String] -> S.InputStream [MySQLValue] -> IO [St
 readStreamByTextTextInt8Text es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByTextTextInt8Text (es ++ [fromMySQLText (x!!0) ++ "_" ++ fromMySQLText (x!!1) ++ "_" ++ show (fromMySQLInt8 (x!!2)) ++ "_" ++ fromMySQLText (x!!3)]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], change it into a Context2OverType value, append it
- - to existed Context2OverType list, then read the next until read Nothing.
- - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8],
- - and Context2OverType is ((LeftExtend, LeftOver, RightOver, RightExtend), OverType).
- -}
-readStreamByContext2OverType :: [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
-readStreamByContext2OverType es is = do
-    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByContext2OverType (es ++ [((readPhraSynListFromStr (fromMySQLText (x!!0)),
-                                                         readPhraSynFromStr (fromMySQLText (x!!1)),
-                                                         readPhraSynFromStr (fromMySQLText (x!!2)),
-                                                         readPhraSynListFromStr (fromMySQLText (x!!3))
-                                                        ), fromMySQLInt8 (x!!4))]) is
-        Nothing -> return es
-
-{- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it
- - to existed StruGeneSample list, then read the next until read Nothing.
- - Here [MySQLValue] is [MySQLInt32,MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText].
- -}
-readStreamByInt32U3TextInt8Text :: [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
-readStreamByInt32U3TextInt8Text es is = do
-    S.read is >>= \x -> case x of                                          -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByInt32U3TextInt8Text (es ++ [(fromMySQLInt32U (x!!0),
-                                                    getPhraCateFromString (fromMySQLText (x!!1)),
-                                                    getPhraCateFromString (fromMySQLText (x!!2)),
-                                                    getPhraCateListFromString (fromMySQLText (x!!3)),
-                                                    fromMySQLInt8 (x!!4),
-                                                    readPriorFromStr (fromMySQLText (x!!5)))]) is
         Nothing -> return es
 
 -- Get a connection to MySQL database according to a configuration file.

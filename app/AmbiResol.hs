@@ -13,6 +13,20 @@ module AmbiResol (
     nullContextOfOT,     -- ContextOfOT
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
+    ContextOfSG,         -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+    ClauTag,             -- (Int, Int), actually (SentIdx, ClauIdx)
+    ClauTagPrior,        -- (ClauTag, Prior)
+    stringToCTPListList,        -- String -> [[ClauTagPrior]]
+    stringToCTPList,            -- String -> [ClauTagPrior]
+    stringToClauTagPrior,       -- String -> ClauTagPrior
+    removeFromCTPListByClauTag,    -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+    hasClauTagInCTPList,        -- ClauTag -> [ClauTagPrior] -> Bool
+    countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
+    hasClauTagInSynAmbiResol,   -- ClauTag -> IO Bool
+    hasSentSampleInSynAmbiResol,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
+    removeClauTagPriorFromSynAmbiResol,     -- SentIdx -> ClauIdx -> ClauIdx -> IO ()
+    Context2ClauTagPrior,       -- (ContextOfSG, ClauTagPrior)
+    Context2ClauTagPriorBase,   -- [Context2ClauTagPrior]
     PhraSyn,             -- (Category, Tag, PhraStru)
     nullPhraSyn,         -- (Nil, "", "")
     StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
@@ -42,6 +56,9 @@ module AmbiResol (
     hasDup4OverPair,     -- [OverPair] -> [OverPair]
     equal4OverPair,      -- OverPair -> OverPair -> Bool
     elem4OverPair,       -- OverPair -> [OverPair] -> Bool
+    readStreamByContext2OverType,      -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
+    readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
+    readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     ) where
 
 import Category
@@ -49,6 +66,11 @@ import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFr
 import Utils
 import Data.Tuple.Utils
 import Text.Printf
+import Corpus (SentIdx, ClauIdx)
+import Database
+import Database.MySQL.Base
+import qualified Data.String as DS
+import qualified System.IO.Streams as S
 
 -- Syntactic attribues of a phrase, including its syntactic category, tag of rule by which the phrase is obtained, and structural type of the phrase.
 -- In Chinese, sentential parsing includes morphological parsing, so rule 'A/n->' contains the two aspects.
@@ -102,6 +124,113 @@ instance Ord Prior where
 type ContextOfOT = (LeftExtend, LeftOver, RightOver, RightExtend)
 type Context2OverType = (ContextOfOT, OverType)
 type Context2OverTypeBase = [Context2OverType]
+
+{- Record which clauses select the ambiguity resolution policy (prior) under a certain stru_gene model context.
+ - For a given context of stru-gene model sample, different clauses might select different resolution policies.
+ - The type is used for storage of stru_gene samples.
+ -}
+type ClauTag = (Int, Int)                    -- Actually (SentIdx, ClauIdx)
+type ClauTagPrior = (ClauTag, Prior)
+
+-- Convert a [[String]] value to its corresponding [[ClauTagPrior]] value.
+stringToCTPListList :: String -> [[ClauTagPrior]]
+stringToCTPListList str = map stringToCTPList $ stringToList str
+
+-- Convert a string list to its corresponding list of ClauTagPrior values.
+stringToCTPList :: String -> [ClauTagPrior]
+stringToCTPList str = map stringToClauTagPrior $ stringToList str
+
+-- Convert a string to its corresponding ClauTag value.
+stringToClauTagPrior :: String -> ClauTagPrior
+stringToClauTagPrior str = (\x -> (stringToIntTuple (fst x), read (snd x) :: Prior)) $ stringToTuple str
+
+-- Remove ClauTagPrior values whose ClauTag member equals to a given ClatTag value.
+removeFromCTPListByClauTag :: ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+removeFromCTPListByClauTag clauTag cTPList = filter (\ctp -> fst ctp /= clauTag) cTPList
+
+-- count Prior values in [ClauTagPrior].
+countPriorInCTPList :: Prior -> [ClauTagPrior] -> Int
+countPriorInCTPList _ [] = 0
+countPriorInCTPList prior (ctp:ctps)
+   | prior == snd ctp = 1 + countPriorInCTPList prior ctps
+   | otherwise = countPriorInCTPList prior ctps
+
+-- Decide whether there is any sample for given ClauTag value in syntax ambiguity resolution samples database.
+hasClauTagInSynAmbiResol :: ClauTag -> IO Bool
+hasClauTagInSynAmbiResol clauTag = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+
+    conn <- getConn
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt []
+    idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
+    close conn
+    return $ elem True $ map (hasClauTagInCTPList clauTag) $ map stringToCTPList $ map snd idAndCTPStrList       -- [[ClauTagPrior]]
+
+-- Remove ClauTagPrior tuples from syntax ambiguity resolution samples database.
+removeClauTagPriorFromSynAmbiResol :: SentIdx -> ClauIdx -> ClauIdx -> IO ()
+removeClauTagPriorFromSynAmbiResol sn clauIdxOfStart clauIdxOfEnd = do
+    let clauIdxRange = [clauIdxOfStart .. clauIdxOfEnd]
+    if clauIdxRange == []
+      then putStrLn "removeClauTagPriorFromSynAmbiResol: Finished."
+      else do
+        putStrLn $ "removeClauTagPriorFromSynAmbiResol: Removing sample tags of clause " ++ show clauIdxOfStart ++ " begins ..."
+        removeClauTagPriorFromSynAmbiResol' (sn, clauIdxOfStart)
+        removeClauTagPriorFromSynAmbiResol sn (clauIdxOfStart + 1) clauIdxOfEnd
+
+-- Remove one ClauTagPrior tuple from syntax ambiguity resolution samples database.
+removeClauTagPriorFromSynAmbiResol' :: ClauTag -> IO ()
+removeClauTagPriorFromSynAmbiResol' clauTag = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+
+    conn <- getConn
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    stmt <- prepareStmt conn sqlstat
+    (defs, is) <- queryStmt conn stmt []
+    idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
+--    putStrLn $"removeClauTagPriorFromSynAmbiResol': idAndCTPStrList: " ++ show idAndCTPStrList
+
+    let cTPList2 = map (removeFromCTPListByClauTag clauTag) $ map stringToCTPList $ map snd idAndCTPStrList       -- [[ClauTagPrior]]
+--    putStrLn $ "removeClauTagPriorFromSynAmbiResol': cTPList2: " ++ show cTPList2
+
+    let lpHitCounts = map toMySQLInt16U $ map (countPriorInCTPList Lp) cTPList2
+    let rpHitCounts = map toMySQLInt16U $ map (countPriorInCTPList Rp) cTPList2
+    let nothHitCounts = map toMySQLInt16U $ map (countPriorInCTPList Noth) cTPList2
+
+    let cTPList2' = map (toMySQLText . show) cTPList2                           -- [MySqlText]
+    let ids = map toMySQLInt32U $ map fst idAndCTPStrList                       -- [MySQLInt32U]
+    let rows = compFiveLists cTPList2' lpHitCounts rpHitCounts nothHitCounts ids               -- [[MySQLText, MySqlInt32U]]
+--    putStrLn $ "removeClauTagPriorFromSynAmbiResol': rows: " ++ show rows
+    let sqlstat' = DS.fromString $ "update " ++ ambi_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
+    oks <- executeMany conn sqlstat' rows
+    putStrLn $ "removeClauTagPriorFromSynAmbiResol': " ++ show (length oks) ++ " rows have been updated."
+    close conn
+
+-- Decide whether there is any sample for given SentIdx value and ClauIdx range in syntax ambiguity resolution samples database.
+hasSentSampleInSynAmbiResol :: SentIdx -> ClauIdx -> ClauIdx -> IO Bool
+hasSentSampleInSynAmbiResol sentIdx clauIdxOfStart clauIdxOfEnd =
+    if clauIdxOfStart <= clauIdxOfEnd
+      then do
+        hasInFstClause <- hasClauTagInSynAmbiResol (sentIdx, clauIdxOfStart)
+        if hasInFstClause
+          then return True
+          else hasSentSampleInSynAmbiResol sentIdx (clauIdxOfStart + 1) clauIdxOfEnd
+      else return False
+
+-- Decide whether there is any ClauTagPrior value with given ClauTag value in a [ClauTagPrior] value.
+hasClauTagInCTPList :: ClauTag -> [ClauTagPrior] -> Bool
+hasClauTagInCTPList _ [] = False
+hasClauTagInCTPList clauTag (x:xs)
+    | clauTag == fst x = True
+    | otherwise = hasClauTagInCTPList clauTag xs
+
+-- Overtype context 'ContextOfSG', clause-tagged prior and its context 'Context2ClauTagPrior', and sample base of 'Context2ClauTagPrior'.
+type ContextOfSG = (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+type Context2ClauTagPrior = (ContextOfSG, ClauTagPrior)
+type Context2ClauTagPriorBase = [Context2ClauTagPrior]
 
 {- Null value of ContextOfOT, used for calculating similarity between ContextOfOTs.
  - Similarity is zero between nullPhraSyn and any other PhraSyn value.
@@ -256,3 +385,51 @@ elem4OverPair _ [] = False
 elem4OverPair op (op1:ops) = case (equal4OverPair op op1) of
                                True -> True
                                False -> elem4OverPair op ops
+
+{- Read a value from input stream [MySQLValue], change it into a Context2OverType value, append it
+ - to existed Context2OverType list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8],
+ - and Context2OverType is ((LeftExtend, LeftOver, RightOver, RightExtend), OverType).
+ -}
+readStreamByContext2OverType :: [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
+readStreamByContext2OverType es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByContext2OverType (es ++ [((readPhraSynListFromStr (fromMySQLText (x!!0)),
+                                                         readPhraSynFromStr (fromMySQLText (x!!1)),
+                                                         readPhraSynFromStr (fromMySQLText (x!!2)),
+                                                         readPhraSynListFromStr (fromMySQLText (x!!3))),
+                                                         fromMySQLInt8 (x!!4))
+                                                       ]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a Context2ClauTagPrior value, append it
+ - to existed Context2ClauTagPrior list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText],
+ - and Context2ClauTagPrior is ((LeftExtend, LeftOver, RightOver, RightExtend, OverType), ClauTagPrior).
+ -}
+readStreamByContext2ClauTagPrior :: [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
+readStreamByContext2ClauTagPrior es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByContext2ClauTagPrior (es ++ [((readPhraSynListFromStr (fromMySQLText (x!!0)),
+                                                      readPhraSynFromStr (fromMySQLText (x!!1)),
+                                                      readPhraSynFromStr (fromMySQLText (x!!2)),
+                                                      readPhraSynListFromStr (fromMySQLText (x!!3)),
+                                                      fromMySQLInt8 (x!!4)),
+                                                      stringToClauTagPrior (fromMySQLText (x!!5)))
+                                                    ]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it
+ - to existed StruGeneSample list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32,MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText].
+ -}
+readStreamByInt32U3TextInt8Text :: [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+readStreamByInt32U3TextInt8Text es is = do
+    S.read is >>= \x -> case x of                                          -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32U3TextInt8Text (es ++ [(fromMySQLInt32U (x!!0),
+                                                    getPhraCateFromString (fromMySQLText (x!!1)),
+                                                    getPhraCateFromString (fromMySQLText (x!!2)),
+                                                    getPhraCateListFromString (fromMySQLText (x!!3)),
+                                                    fromMySQLInt8 (x!!4),
+                                                    readPriorFromStr (fromMySQLText (x!!5)))]) is
+        Nothing -> return es

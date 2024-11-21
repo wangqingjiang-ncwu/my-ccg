@@ -1173,6 +1173,47 @@ clusteringAnalysis funcIndex = do
          putStrLn $ "overTypePair2Sim: " ++ show overTypePair2Sim
        else putStr ""
 
+    -- 10. Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition.
+    if funcIndex == 10
+       then do
+         putStrLn "(1) From stru_gene_202408, collect all contexts of StruGene samples."
+         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx              -- [(ContextOfSG, ClauTagPrior)]
+         putStrLn $ "Num. of ContextOfSG = " ++ show (length context2ClauTagPriorBase)
+{-
+         putStrLn "(2) Calculate similarity degrees between any two contexts of StruGene samples."
+         contextOfSGPairSimTuple <- getContextOfSGPairSimBySVD context2PriorBase
+
+         let origSimMatrix = snd4 contextOfSGPairSimTuple
+         let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
+         let origSimByEucMetric = map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                                                            -- [Euclid distance of row vector], Mean Square Error
+         let origSim2EucMetricMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByEucMetric     -- hmatrix
+
+         let orthSimMatrix = thd4 contextOfSGPairSimTuple
+         let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
+         let orthSimByEucMetric = map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                                                            -- [Euclid distance of row vector], Mean Square Error
+         let orthSim2EucMetricMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByEucMetric     -- hmatrix
+
+         let numOfContextOfSGPair = length contextOfSGPair2SimList
+         putStrLn $ "Num. of context pairs of StruGene samples: " ++ show numOfContextOfSGPair
+
+         if (numOfContextOfSGPair > 10)
+           then do
+             putStrLn " The first 10 rows of origSimMatrixWithEucMetric: "
+             disp 4 (origSimMatrixWithEucMetric ?? (Take 10, Drop 0))
+             putStrLn " The first 10 rows of contextOfSGPair2SimList: "
+             dispList 1 (take 10 contextOfSGPair2SimList)
+           else do
+             putStrLn " origSimMatrixWithEucMetric: "
+             disp 4 origSimMatrixWithEucMetric
+             putStrLn " contextOfSGPair2SimList: "
+             dispList 1 contextOfSGPair2SimList
+-}
+        else putStr ""
+
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
 type SimDeg = Double          -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
 type NumOfPhraSyn = Int       -- PhraSyn :: (Category, Tag, PhraStru)
@@ -1715,3 +1756,43 @@ getContextOfOTSetSim cotl1 cotl2 contextOfOTPair2SimList = simDeg
       0 -> matchedContextOfOTPair2SimList
       1 -> matchedContextOfOTPair2SimList ++ [((x, nullContextOfOT), 0.0) | x <- cotl1, notElem x (map (fst . fst) matchedContextOfOTPair2SimList)]
     simDeg = foldl (+) 0.0 (map snd allMatchedContextOfOTPair2SimList) / (fromIntegral (length allMatchedContextOfOTPair2SimList))
+
+-- Types for calculating similarity degree of syntactic ambiguity contexts.
+type NumOfContextOfSG = Int       -- ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+type NumOfContextOfSGPair = Int
+type ContextOfSGPair2Sim = ((ContextOfSG, ContextOfSG), SimDeg)
+
+{- Reading Prior and its context from the sample database of a certain ambi_resol_model, such as 'stru_gene_202408'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - Context2ClauTagPrior :: (ContextOfSG, Prior)
+ - Context2ClauTagPriorBase :: [Context2ClauTagPrior]
+ - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+ -}
+getContext2ClauTagPriorBase :: SIdx -> SIdx -> IO [Context2ClauTagPrior]
+getContext2ClauTagPriorBase startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    case ambi_resol_model of
+      "stru_gene_202408" -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "select count(*) from " ++ ambi_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of priors and their contexts is set as: " ++ ambi_resol_model     -- Display the source of priors and their contexts
+          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          context2ClauTagPriorBase <- readStreamByContext2ClauTagPrior [] is                  -- [Context2ClauTagPrior]
+          let context2ClauTagPriorNum = length context2ClauTagPriorBase                       -- The number of Context2OverType samples.
+          putStrLn $ "getContext2ClauTagPriorBase: context2ClauTagPriorNum = " ++ show context2ClauTagPriorNum
+          return context2ClauTagPriorBase

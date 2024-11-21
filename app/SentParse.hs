@@ -75,7 +75,6 @@ import Output
 import Utils
 import Database
 import qualified Data.Map as Map
-import SentParse_Base
 
 -- Get a sentence from table corpus, actually the sentence is content of column cate_sent2.
 getSentFromDB :: SentIdx -> IO String
@@ -664,7 +663,7 @@ updateStruGene' clauTag gene overPairs = do
                 let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
 
                 putStrLn $ "updateStruGene': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
-                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
                 let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
                 priorFlag <- getLineUntil "please select priority from [Lp/Rp/Noth] ('1' or RETURN for Lp, '2' for Rp, '3' for Noth): " ["1","2","3"] True
                 let prior = case priorFlag of
@@ -768,7 +767,7 @@ rollbackStruGene clauTag nPCs (op:ops) = do
                 let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
 
                 putStrLn $ "rollbackStruGene: (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
-                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
                 let newClauTagPriorList = [x | x <- clauTagPriorList, x /= (clauTag, prior)]     -- Remove one ClauTagPrior value.
 
                 resetStmt conn stmt
@@ -2223,7 +2222,7 @@ updateAmbiResol' clauTag nPCs overPair = do
                 let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
 
                 putStrLn $ "updateAmbiResol': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
-                let clauTagPriorList = fromClauTagPriorListStr clauTagPriorListStr
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
                 let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
 
                 if elem prior priorList

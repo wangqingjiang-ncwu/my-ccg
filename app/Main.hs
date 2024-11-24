@@ -498,7 +498,7 @@ doCountInTree username funcIndex = do
     let bottomSn = read line :: Int
     putStr "Please input the value of 'serial_num' of end sentence: "
     line <- getLine
-    let topSn = (read line :: Int) + 1
+    let topSn = read line :: Int
     countInTree bottomSn topSn funcIndex
     doCountInTreebank username
 
@@ -510,7 +510,7 @@ doCountInScript username funcIndex = do
     let bottomSn = read line :: Int
     putStr "Please input the value of 'serial_num' of end sentence: "
     line <- getLine
-    let topSn = (read line :: Int) + 1
+    let topSn = read line :: Int
     countInScript bottomSn topSn funcIndex
     doCountInTreebank username
 
@@ -607,7 +607,7 @@ doSearchInScript username funcIndex = do
     let bottomSn = read bottomSnStr :: Int
     putStr "Please input the value of 'serial_num' of end sentence: "
     topSnStr <- getLine
-    let topSn = (read topSnStr :: Int) + 1
+    let topSn = read topSnStr :: Int
 
     let prompt = " Sentence(s) from " ++ bottomSnStr ++ " to " ++ topSnStr ++ " will be searched, are you sure? [y/n] (RETURN for 'y'): "
     answer <- getLineUntil prompt ["y","n"] True

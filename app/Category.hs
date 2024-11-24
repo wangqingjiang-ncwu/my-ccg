@@ -366,7 +366,7 @@ aux2Cate = getCateFromString "((s\\.np)/#(s\\.np))\\*(np/.np)"
 aux3Cate :: Category
 aux3Cate = getCateFromString "((s\\.np)\\x(s\\.np))/*(np/.np)"
 
--- Auxiliary word #3d is also '得', here 'd' means an adjective adverb follows.
+-- Auxiliary word #3d is also '得', here 'd' means an adjective adverb follows. Obsoleted by category conversion U3d/u3.
 aux3dCate :: Category
 aux3dCate = getCateFromString "((np/.np)\\*(np/.np))/*((np/.np)/*(np/.np))"
 

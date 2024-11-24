@@ -176,6 +176,7 @@ countInTree bottomSn topSn funcIndex = do
                                                                 -- Map Int Int, namely Map <clauDepth> <clauNum>, and 'empty' return null Map.
          putStrLn $ "countInTree: The height of parsing tree of every clause in every senetence: " ++ show sentClauDepthList
          putStrLn $ "countInTree: The list of number of clauses with different parsing tree heights: " ++ show clauDepth2NumMap
+         putStrLn $ "countInTree: Sentences failing to parse are (SentIdx, [Depth]): " ++ show (getIdxOfclauWithoutParsingTree sentClauDepthList)
 
          let clauseTotalDepth = foldl (+) 0 (concat sentClauDepthList)          -- The total number of clauses.
          let averDepth = (fromIntegral clauseTotalDepth :: Float) / (fromIntegral clauseTotalNum :: Float)
@@ -1109,3 +1110,10 @@ phraSynLt (ca1, ta1, ps1) (ca2, ta2, ps2) =
       (ca1 < ca2)
       || (ca1 == ca2) && (ta1 < ta2)
       || (ca1 == ca2) && (ta1 == ta2) && (ps1 < ps2)
+
+{- From depth List of clauses of every sentence, get indices of clauses whose depth is -1, namely no root node was found.
+ -}
+getIdxOfclauWithoutParsingTree :: [[Int]] -> [(SentIdx, [Int])]
+getIdxOfclauWithoutParsingTree sentClauDepthList = filter ((elem (-1)) . snd) depthListWithSentIdx
+    where
+    depthListWithSentIdx = zip [1..] sentClauDepthList                          -- Affix sentence indices

@@ -1659,7 +1659,7 @@ autoRunAmbiResolByStruGene' sn endSn sentList script_source tree_target distWeiR
  - sn: The value of 'serial_num' in database Table 'corpus'.
  - cs: The list of clausal strings.
  -}
-parseSentByStruGene :: Int -> [String] -> String -> String -> DistWeiRatioList -> IO ()
+parseSentByStruGene :: SentIdx -> [String] -> String -> String -> DistWeiRatioList -> IO ()
 parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.

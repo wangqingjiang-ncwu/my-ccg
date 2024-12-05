@@ -311,10 +311,11 @@ doParseSent username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Do parsing by human mind"
     putStrLn " 2 -> Do parsing by script"
+    putStrLn " 3 -> Do parsing by StruGene"
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","0"]
+    if notElem line ["?","1","2","3","0"]
        then do
          putStrLn "Invalid input."
          doParseSent username
@@ -322,6 +323,7 @@ doParseSent username = do
          "?" -> doParseSent username
          "1" -> doParseSentByHumanMind username
          "2" -> doParseSentByScript username
+         "3" -> doParseSentByStruGene username
          "0" -> interpreter username
 
 {- 8_1. Human-Machine-interactively Parse the sentence indicated by serial_num, here 'username' MUST
@@ -377,6 +379,43 @@ doParseSentByScript username = do
       else parseSentsByScript startSn endSn
 
     doParseSent username
+
+{- 8_3. By resolving syntactic ambiguity according to StruGene samples,
+ - parse the sentence indicated by serial_num.
+ -}
+doParseSentByStruGene :: String -> IO ()
+doParseSentByStruGene username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Resoving syntactic ambiguity according to the highest ambiguity sample"
+    putStrLn " 0 -> Go back to the upper layer"
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    case line of
+      "?" -> doParseSentByStruGene username
+      "1" -> doParseSentByHighestAmbig username
+      "0" -> putStrLn "Return to upper layer."
+
+{- 8_3_1. Parse sentence by resolving syntactic ambiguity according to StruGene sample with highest ambiguity degree,
+ - Ambiguity degree calculated by grammatic attribute being same or not is called simple ambiguity.
+ - Ambiguity degree calculated by grammatic attribute's concurrent contexts is called embedded ambiguity.
+ -}
+doParseSentByHighestAmbig :: String -> IO ()
+doParseSentByHighestAmbig username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Ambiguity degree calculated by grammatic attribute being same or not"
+    putStrLn " 2 -> Ambiguity degree calculated by grammatic attribute-embedded contexts"
+    putStrLn " 0 -> Go back to the upper layer"
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","0"] True
+    case line of
+      "?" -> doParseSentByHighestAmbig username
+      "1" -> doParseSentByStruGeneSimpAmbig username
+      "2" -> doParseSentByStruGeneEmbeddedAmbig username
+      "0" -> putStrLn "Return to upper layer."
+
+doParseSentByStruGeneSimpAmbig :: String -> IO ()
+doParseSentByStruGeneSimpAmbig username = putStrLn "doParseSentByStruGeneSimpAmbig: Test."
+
+doParseSentByStruGeneEmbeddedAmbig :: String -> IO ()
+doParseSentByStruGeneEmbeddedAmbig username = putStrLn "doParseSentByStruGeneEmbeddedAmbig: Test."
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()
@@ -446,7 +485,7 @@ doCountInTreebank username = do
     putStrLn " tC -> Get similarity degree between every pair of categories"
     putStrLn " tD -> Get similarity degree between every pair of grammatic rules"
     putStrLn " tE -> Get similarity degree between every pair of phrasal structures"
-    putStrLn " tF -> Get similarity degree between every two phrases in their grammatic features"
+    putStrLn " tF -> Get similarity degree between every two phrases in their grammatic features by SVD"
     putStrLn " s1 -> Get transitive times of every clause in all sentences"
     putStrLn " s2 -> Get frequencies of different ransitive times in all clause parsing"
     putStrLn " s3 -> Get the list of transitive times for every different clausal length"
@@ -768,10 +807,12 @@ doClustering username = do
     putStrLn " 8 -> Get similarity degrees between any two contexts of overlapping types directly by Euclidean metric"
     putStrLn " 9 -> Get similarity degrees between any two overlapping types"
     putStrLn " A -> Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition."
+    putStrLn " B -> Get similarity degrees between any two contexts of StruGene samples directly by Euclidean metric."
+    putStrLn " C -> Get similarity degrees between one context and the others of StruGene samples by Root Mean Square."
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","0"]
       then do
         putStrLn "Invalid input."
         doClustering username
@@ -807,6 +848,12 @@ doClustering username = do
                  doClustering username
         "A" -> do
                  clusteringAnalysis 10
+                 doClustering username
+        "B" -> do
+                 clusteringAnalysis 11
+                 doClustering username
+        "C" -> do
+                 clusteringAnalysis 12
                  doClustering username
         "0" -> interpreter username
 

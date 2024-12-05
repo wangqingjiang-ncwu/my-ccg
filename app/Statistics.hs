@@ -320,7 +320,8 @@ countInTree bottomSn topSn funcIndex = do
              showTagPair2SimList (formatMapListWithDoubleValue sparseTagPair2SimList 4)
        else putStr ""
 
-    if funcIndex == 14                                          -- To calculate similarities between every pair of phrasal structures.
+-- To calculate similarities between every pair of phrasal structures.
+    if funcIndex == 14
        then do
          let struPair2SimTuple = getStruPair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
          let struPair2SimList = fth4 struPair2SimTuple
@@ -338,9 +339,10 @@ countInTree bottomSn topSn funcIndex = do
              showStruPair2SimList (formatMapListWithDoubleValue sparseStruPair2SimList 4)
        else putStr ""
 
-    if funcIndex == 15       -- To calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
+-- By Singular Value Decomposition (SVD), calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
+    if funcIndex == 15
        then do
-         let phraSynPairSimTuple = getPhraSynPairSimFromSCPL sentClauPhraList
+         let phraSynPairSimTuple = getPhraSynPairSimFromSCPLBySVD sentClauPhraList
          let numOfPhraSynPair = length (fst5 phraSynPairSimTuple)
          putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show numOfPhraSynPair
          if (numOfPhraSynPair > 10)
@@ -350,7 +352,7 @@ countInTree bottomSn topSn funcIndex = do
              putStrLn "countInTree: The first 10 elements of origSimMatrix: "
              disp 4 (snd5 phraSynPairSimTuple ?? (Take 10, Drop 0))
              putStrLn "countInTree: The first 10 rows and the first 10 columns of covSimMatrix: "
-             disp 4 (thd5 phraSynPairSimTuple ?? (Take 10, Take 10))
+             disp 6 (thd5 phraSynPairSimTuple ?? (Take 10, Take 10))
              putStrLn "countInTree: The first 10 rows of orthSimMatrix: "
              disp 4 (fth5 phraSynPairSimTuple ?? (Take 10, Drop 0))
              putStrLn "countInTree: The first 10 rows of phraSynPair2SimList: "
@@ -361,7 +363,7 @@ countInTree bottomSn topSn funcIndex = do
              putStrLn "countInTree: origSimMatrix: "
              disp 4 (snd5 phraSynPairSimTuple)
              putStrLn "countInTree: covSimMatrix: "
-             disp 4 (thd5 phraSynPairSimTuple)
+             disp 6 (thd5 phraSynPairSimTuple)
              putStrLn "countInTree: orthSimMatrix: "
              disp 4 (fth5 phraSynPairSimTuple)
              putStrLn "countInTree: phraSynPair2SimList: "

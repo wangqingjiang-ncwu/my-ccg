@@ -1091,6 +1091,14 @@ clusteringAnalysis funcIndex = do
              putStrLn $ "The result of getPhraSynSetSim [ps1] [ps1, ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps1, ps2] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps1, ps2] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2] [ps2] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap)
+             putStrLn $ "The result of getPhraSynSetSim [ps1] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps2] phraSynPair2SimMap)
+             putStrLn $ "The result of getPhraSynSetSim [ps2] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps2] [ps1] phraSynPair2SimMap)
+             putStrLn $ "The result of toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) is: " ++ show (toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2))
+             putStrLn $ "The result of toPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1) is: " ++ show (toPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1))
+             putStrLn $ "The result of getPhraSynSetSim [ps1, ps3] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps3] [ps2] phraSynPair2SimMap)
+             putStrLn $ "The result of getPhraSynSetSim [ps2, ps3] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps2, ps3] [ps1] phraSynPair2SimMap)
+             putStrLn $ "The result of getPhraSynSetSim [ps1] [ps2, ps3] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps2, ps3] phraSynPair2SimMap)
+             putStrLn $ "The result of getPhraSynSetSim [ps2] [ps1, ps3] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps2] [ps1, ps3] phraSynPair2SimMap)
        else putStr ""
 
     -- 7. Get similarity degrees between any two contexts of overlapping types by Singular Value Decomposition.
@@ -1537,7 +1545,7 @@ getPhraSynPairSimBySVD phraSynPairs = (phraSynPairs, origSimMatrix, covSimMatrix
 getPhraSynPairSimByRMS :: [(PhraSyn, PhraSyn)] -> ([(PhraSyn, PhraSyn)], Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
 getPhraSynPairSimByRMS phraSynPairs = (phraSynPairs, origSimMatrix, phraSynPair2SimList)
     where
-    phraSynList = nub $ (\x -> fst x ++ snd x) $ unzip phraSynPairs                               -- [PhraSyn], used to calculate similarity for every grammatic attribute.
+    phraSynList = nub $ (\x -> fst x ++ snd x) $ unzip phraSynPairs         -- [PhraSyn], used to calculate similarity for every grammatic attribute.
     typePair2SimTuple = getTypePair2SimFromPSL phraSynList                  -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
     typePair2Sim = fth4 typePair2SimTuple
     tagPair2SimTuple = getTagPair2SimFromPSL phraSynList                    -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
@@ -1665,6 +1673,7 @@ getSentClauPhraList startIdx endIdx = do
  - (3) If |A| < |B|. For every element b in B, which does not appear in L, append ((nullPhraSyn, b), 0) to L.
  - (4) If |A| > |B|. For every element a in A, which does not appear in L, append ((a, nullPhraSyn), 0) to L.
  - Finally, return mean value of similarity degrees of all matched PhraSyn value pairs.
+ - In Map (PhraSyn, PhraSyn) SimDeg, every key (x,y) satisfies order of x <= y.
  -}
 getPhraSynSetSim :: [PhraSyn] -> [PhraSyn] -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
 getPhraSynSetSim [] [] _ = 1.0           -- Two empty sets
@@ -1672,7 +1681,7 @@ getPhraSynSetSim _ [] _ = 0.0
 getPhraSynSetSim [] _ _ = 0.0
 getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
     where
-    phraSynPairMatrix = [(a,b) | a <- psl1, b <- psl2, a <= b]                  -- Matrix element must be number value type. Name matrix is borrowed.
+    phraSynPairMatrix = [(a,b) | a <- psl1, b <- psl2]                  -- Matrix element must be number value type. Name matrix is borrowed.
     phraSynPair2SimMatrix = map (toPhraSynPair2Sim phraSynPair2SimMap) phraSynPairMatrix              -- [((PhraSyn, PhraSyn), SimDeg)]
     matchedPhraSynPair2SimList = getMatchedElemPair2SimList [] phraSynPair2SimMatrix                  -- [((PhraSyn, PhraSyn), SimDeg)]
     allMatchedPhraSynPair2SimList = case (signum (length psl1 - (length psl2))) of
@@ -1682,16 +1691,14 @@ getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
     simDeg = foldl (+) 0.0 (map snd allMatchedPhraSynPair2SimList) / (fromIntegral (length allMatchedPhraSynPair2SimList))
 
 {- Convert (PhraSyn, PhraSyn) to ((PhraSyn, PhraSyn), SimDeg) by looking Map (PhraSyn, PhraSyn) SimDeg.
- - For every key (ps1, ps2) in Map (PhraSyn, PhraSyn) SimDeg, ps1 <= ps2.
+ - For every key (x,y) in Map (PhraSyn, PhraSyn) SimDeg, x <= y.
  -}
 toPhraSynPair2Sim :: Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
-toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) = case (Map.lookup (ps1', ps2') phraSynPair2SimMap) of
+toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) = case (Map.lookup (ps1, ps2) phraSynPair2SimMap) of
       Just x -> ((ps1, ps2), x)
-      Nothing -> error "toPhraSynPair2Sim: Key (ps1, ps2) does not exist."
-    where
-      (ps1', ps2') = case (ps1 <= ps2) of
-                       True -> (ps1, ps2)
-                       False -> (ps2, ps1)
+      Nothing -> case (Map.lookup (ps2, ps1) phraSynPair2SimMap) of
+                   Just x -> ((ps1, ps2), x)
+                   Nothing -> error "toPhraSynPair2Sim: Key (ps1, ps2) does not exist."
 
 -- Types for calculating similarity degree of phrasal overlapping types.
 type NumOfContextOfOT = Int       -- ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
@@ -1886,7 +1893,7 @@ getOverTypePair2Sim startIdx endIdx = do
 getContextOfOTSetSim :: [ContextOfOT] -> [ContextOfOT] -> [((ContextOfOT, ContextOfOT), SimDeg)] -> SimDeg
 getContextOfOTSetSim cotl1 cotl2 contextOfOTPair2SimList = simDeg
     where
-    contextOfOTPairMatrix = [(a,b) | a <- cotl1, b <- cotl2, a <= b]         -- Matrix element must be number value type. Name matrix is borrowed.
+    contextOfOTPairMatrix = nubBy (\x y -> x == swap y) [(a,b) | a <- cotl1, b <- cotl2]         -- Matrix element must be number value type. Name matrix is borrowed.
     contextOfOTPair2SimMatrix = map (lookupContextOfOTPairSim contextOfOTPair2SimList) contextOfOTPairMatrix      -- [((ContextOfOT, ContextOfOT), SimDeg)]
     matchedContextOfOTPair2SimList = getMatchedElemPair2SimList [] contextOfOTPair2SimMatrix         -- [((ContextOfOT, ContextOfOT), SimDeg)]
     allMatchedContextOfOTPair2SimList = case (signum (length cotl1 - (length cotl2))) of
@@ -2086,6 +2093,7 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
 
     let phraSynPairs = map (\(x,y) -> if (x<=y) then (x,y) else (y,x))
                            $ nubBy (\x y -> x == swap y) $ lePhraSynPairs ++ loPhraSynPairs ++ roPhraSynPairs ++ rePhraSynPairs
+                                                                                -- PhraSyn order in every pair was rectified.
 --    putStrLn $ "phraSynPairs: " ++ show phraSynPairs
 --    putStrLn $ "origSimMatrix: " ++ show (snd3 (getPhraSynPairSimByRMS phraSynPairs))
 --    putStrLn $ "phraSynPair2SimList: " ++ show (thd3 (getPhraSynPairSimByRMS phraSynPairs))
@@ -2095,8 +2103,6 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
 
     let leftExtendList = map fst5 contextOfSGList                               -- [LeftExtend]
     let leftExtend = fst5 contextOfSG                                           -- LeftExtend
---    putStrLn $ "leftExtend: " ++ show leftExtend
---    putStrLn $ "leftExtendList: " ++ show leftExtendList
     let lePair2SimList = [((leftExtend, y), getPhraSynSetSim leftExtend y phraSynPair2SimMap) | y <- leftExtendList]
                                                                                 -- [((LeftExtend, LeftExtend), SimDeg)]
 --    putStrLn $ "lePair2SimList: " ++ show lePair2SimList
@@ -2105,7 +2111,9 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
     let leftOver = snd5 contextOfSG                                             -- LeftOver
     let loPair2SimList = [((leftOver, y), case (Map.lookup (leftOver, y) phraSynPair2SimMap) of
                                             Just x -> x
-                                            Nothing -> 0.0
+                                            Nothing -> case (Map.lookup (y, leftOver) phraSynPair2SimMap) of
+                                                         Just x -> x
+                                                         Nothing -> 0.0
                           ) | y <- leftOverList]                           -- [((LeftOver, LeftOver), SimDeg)]
 --    putStrLn $ "loPair2SimList: " ++ show loPair2SimList
 
@@ -2113,7 +2121,9 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
     let rightOver = thd5 contextOfSG                                            -- RightOver
     let roPair2SimList = [((rightOver, y), case (Map.lookup (rightOver, y) phraSynPair2SimMap) of
                                              Just x -> x
-                                             Nothing -> 0.0
+                                             Nothing -> case (Map.lookup (y, rightOver) phraSynPair2SimMap) of
+                                                          Just x -> x
+                                                          Nothing -> 0.0
                           ) | y <- rightOverList]                          -- [((RightOver, RightOver), SimDeg)]
 --    putStrLn $ "roPair2SimList: " ++ show roPair2SimList
 
@@ -2124,10 +2134,10 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
 --    putStrLn $ "rePair2SimList: " ++ show rePair2SimList
 
 -- Using the first 500 samples of stru_gene_202408, calculate similarity degrees between overlapping types as follows.
-    let otPair2SimList = [((1,1),1.0),((1,2),6.967648624720654e-3),((1,3),4.72268148984773e-2),((1,4),3.352932236560395e-2),((1,5),0.2881356867009317)
-                         ,((2,2),1.0),((2,3),0.10975598122093144),((2,4),0.16864896203988702),((2,5),9.793524877816245e-3)
-                         ,((3,3),1.0),((3,4),0.539933504176432),((3,5),6.919880262735299e-2)
-                         ,((4,4),1.0),((4,5),4.8795784805197945e-2)
+    let otPair2SimList = [((1,1),1.0),((1,2),7.3351553900482406e-3),((1,3),4.8666647227816856e-2),((1,4),3.3917793725912755e-2),((1,5),0.4247127394531829)
+                         ,((2,2),1.0),((2,3),0.11777246281776142),((2,4),0.1761503383674159),((2,5),1.0017916991325765e-2)
+                         ,((3,3),1.0),((3,4),0.5887136000291061),((3,5),7.134132733982824e-2)
+                         ,((4,4),1.0),((4,5),5.1362972267575656e-2)
                          ,((5,5),1.0)]
     let contextOfSGPairList = [(contextOfSG, y) | y <- contextOfSGList]         -- [(ContextOfSG, ContextOfSG)]
 

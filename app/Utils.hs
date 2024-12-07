@@ -684,6 +684,7 @@ dispELemList (x:xs) = do
 
 {- Match element pairs which have similarity degrees from high to low.
  - (1) Suppose similarity degree matrix M = [((a,b),sim(a,b))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
+ -     If there are n phrases, then there exists a similarity degree between every two phrases, and the matrix size is (n >< n). 
  - (2) If sim(c,d) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
  -     [x | x <-M, notElem ((fst . fst) x) [c,d] && notElem ((snd . fst) x) [c,d]];
  -     Repeat (1)(2) until M is empty.

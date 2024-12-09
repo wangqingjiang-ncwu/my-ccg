@@ -25,7 +25,7 @@ module AmbiResol (
     hasClauTagInSynAmbiResol,   -- ClauTag -> IO Bool
     hasSentSampleInSynAmbiResol,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
     removeClauTagPriorFromSynAmbiResol,     -- SentIdx -> ClauIdx -> ClauIdx -> IO ()
-    Context2ClauTagPrior,       -- (ContextOfSG, ClauTagPrior)
+    Context2ClauTagPrior,       -- (ContextOfSG, [ClauTagPrior])
     Context2ClauTagPriorBase,   -- [Context2ClauTagPrior]
     PhraSyn,             -- (Category, Tag, PhraStru)
     nullPhraSyn,         -- (Nil, "", "")
@@ -44,6 +44,7 @@ module AmbiResol (
     readAmbiResol1FromStr,   -- String -> AmbiResol1
     readPhraSynFromStr,      -- String -> PhraSyn
     readPhraSynListFromStr,       -- String -> [PhraSyn]
+    readContextOfSGFromStr,       -- String -> ContextOfSG
     readStruGeneFromStr,          -- String -> StruGene
     readStruGeneListFromStr,      -- String -> [StruGene]
     scdToString,         -- Scd -> String
@@ -229,7 +230,7 @@ hasClauTagInCTPList clauTag (x:xs)
 
 -- Overtype context 'ContextOfSG', clause-tagged prior and its context 'Context2ClauTagPrior', and sample base of 'Context2ClauTagPrior'.
 type ContextOfSG = (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
-type Context2ClauTagPrior = (ContextOfSG, ClauTagPrior)
+type Context2ClauTagPrior = (ContextOfSG, [ClauTagPrior])
 type Context2ClauTagPriorBase = [Context2ClauTagPrior]
 
 {- Null value of ContextOfOT, used for calculating similarity between ContextOfOTs.
@@ -297,6 +298,20 @@ readPhraSynListFromStr str = readPhraSynListFromStrList (stringToList str)
 readPhraSynListFromStrList :: [String] -> [PhraSyn]
 readPhraSynListFromStrList [] = []
 readPhraSynListFromStrList (s:ss) = readPhraSynFromStr s : (readPhraSynListFromStrList ss)
+
+{- ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+ - LeftExtend :: [PhraSyn]
+ - LeftOver :: PhraSyn
+ -}
+readContextOfSGFromStr :: String -> ContextOfSG
+readContextOfSGFromStr str = (le, lo, ro, re, ot)
+    where
+    quinTupleStr = stringToFiveTuple str
+    le = readPhraSynListFromStr (fst5 quinTupleStr)
+    lo = readPhraSynFromStr (snd5 quinTupleStr)
+    ro = readPhraSynFromStr (thd5 quinTupleStr)
+    re = readPhraSynListFromStr (fth5 quinTupleStr)
+    ot = read (fif5 quinTupleStr) :: Int
 
 {- StruGene :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
  - LeftExtend :: [PhraSyn]
@@ -415,7 +430,7 @@ readStreamByContext2ClauTagPrior es is = do
                                                       readPhraSynFromStr (fromMySQLText (x!!2)),
                                                       readPhraSynListFromStr (fromMySQLText (x!!3)),
                                                       fromMySQLInt8 (x!!4)),
-                                                      stringToClauTagPrior (fromMySQLText (x!!5)))
+                                                      stringToCTPList (fromMySQLText (x!!5)))
                                                     ]) is
         Nothing -> return es
 

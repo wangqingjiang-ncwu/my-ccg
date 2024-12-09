@@ -69,7 +69,9 @@ module Clustering (
     getOverTypePair2Sim,             -- SIdx -> SIdx -> [((OverType, OverType), SimDeg)]
     getContextOfSGPairSimBySVD,      -- Context2ClauTagPriorBase -> IO ([(ContextOfSG, ContextOfSG)], Matrix Double, Matrix Double, [((ContextOfSG, ContextOfSG), SimDeg)])
     getContextOfSGPairSimByRMS,      -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-    getOneContextOfSGToOthersSimByRMS,  -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    getOneToAllContextOfSGSimByRMS,  -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    getOneToAllContextOfSGSimByRMS', -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    findStruGeneSampleByMaxContextSim,   -- ContextOfSG -> Context2ClauTagPriorBase -> IO (SIdx, SimDeg, Context2ClauTagPrior)
 
     ) where
 
@@ -1272,7 +1274,7 @@ clusteringAnalysis funcIndex = do
              dispList 1 contextOfSGPair2SimList
        else putStr ""
 
-{- 12. Get similarity degrees between one context and the others of StruGene samples by Root Mean Square.
+{- 12. Among StruGene samples, calculate similarity degrees from one to all contexts by Root Mean Square.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  -}
     if funcIndex == 12
@@ -1285,7 +1287,7 @@ clusteringAnalysis funcIndex = do
          sIdx <- getNumUntil "Please select one sample whose context will compare with others' contexts [Return for 1]: " [1 .. numOfStruGeneSample]
          let contextOfSG = fst (context2ClauTagPriorBase!!(sIdx-1))             -- ContextOfSG
 
-         contextOfSGPairSimTuple <- getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase
+         contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
 
          let origSimList = fst contextOfSGPairSimTuple
          let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
@@ -1293,7 +1295,9 @@ clusteringAnalysis funcIndex = do
          let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
 
          let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
+         let listOfcontextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
          putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
+         putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfcontextOfSGWithSim1)
 
          if (numOfContextOfSGPair > 10)
            then do
@@ -1307,6 +1311,51 @@ clusteringAnalysis funcIndex = do
              putStrLn " contextOfSGPair2SimList: "
              dispList 1 contextOfSGPair2SimList
         else putStr ""
+
+{- 13. Get similarity degrees between one ClauTagPrior context to every context of StruGene samples by Root Mean Square.
+ - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+ - For one example of ContextOfSG, it is ([(((s\.np)/#(s\.np))/*np,"Desig","DE")],(np,">","AHn"),(s,"<","SP"),[],2)
+ -}
+    if funcIndex == 13
+       then do
+         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+
+         putStrLn "Please input one StruGene context [LeftExtend, LeftOver, RightOVer, RigheExtend, OverType] to be compared: "
+         inputStr <- getLine
+         let contextOfSG = readContextOfSGFromStr inputStr                      -- ContextOfSG
+
+         contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase
+
+         let origSimList = fst contextOfSGPairSimTuple
+         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
+         let origSimListWithRMS = zip origSimList (map snd contextOfSGPair2SimList)
+         let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
+
+         let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
+         let listOfcontextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
+         putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
+         putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfcontextOfSGWithSim1)
+
+         context2ClauTagPriorTuple <- findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase
+         let sIdx = fst3 context2ClauTagPriorTuple
+         let simDeg = snd3 context2ClauTagPriorTuple
+         let context2ClauTagPrior = thd3 context2ClauTagPriorTuple
+         putStrLn $ "Highest similarity degree " ++ show simDeg ++ " is obtained by No." ++ show sIdx ++ " sample: " ++ show context2ClauTagPrior
+
+         if (numOfContextOfSGPair > 10)
+           then do
+             putStrLn " The first 10 rows of origSimMatrixWithRMS (Last column is Root Mean Square): "
+             disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
+             putStrLn " The first 10 rows of contextOfSGPair2SimList: "
+             dispList 1 (take 10 contextOfSGPair2SimList)
+           else do
+             putStrLn " origSimMatrixWithRMS (Last column is Root Mean Square): "
+             disp 4 origSimMatrixWithRMS
+             putStrLn " contextOfSGPair2SimList: "
+             dispList 1 contextOfSGPair2SimList
+       else putStr ""
 
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
 type SimDeg = Double          -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
@@ -2068,14 +2117,14 @@ getContextOfSGPairSimByRMS context2ClauTagPriorBase = do
     let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
     return (origSimList, contextOfSGPair2SimList)
 
-{- Get similarity degrees between one ClauTagPrior context and the others.
- - contextOfSG: The one ClauTagPrior context.
- - context2ClauTagPriorBase: The whole samples of mapping from ContextOfSG to ClauTagPrior.
+{- Get similarity degrees between one ClauTagPrior context and ALL ClauTagPrior contexts.
+ - contextOfSG: A ClauTagPrior context of a certain StruGene sample.
+ - context2ClauTagPriorBase: The whole samples of mapping from ContextOfSG to ClauTagPrior, INCLUDING the sample of contextOfSG to its ClauTagPrior.
  - otPair2SimList: Similarity degrees between overlapping types calculated by first 500 StruGene samples.
  - origSimList: List of (leSim, loSim, roSim, reSim, otSim), in which every quintuple is corresponding to one tuple (contextOfSG1, contextOfSG2) in contextOfSGPairList.
  -}
-getOneContextOfSGToOthersSimByRMS :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
+getOneToAllContextOfSGSimByRMS :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
     let contextOfSGList = nub $ map fst context2ClauTagPriorBase                -- [ContextOfSG], here there is no repetitive ContextOfSG values.
 --    putStrLn $ "contextOfSG: " ++ show contextOfSG
 --    putStrLn $ "contextOfSGList: " ++ show contextOfSGList
@@ -2152,3 +2201,33 @@ getOneContextOfSGToOthersSimByRMS contextOfSG context2ClauTagPriorBase = do
     let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]   -- Root Mean Square
     let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
     return (origSimList, contextOfSGPair2SimList)
+
+{- Get similarity degrees between one ClauTagPrior context and ALL ClauTagPrior contexts.
+ - contextOfSG: A ClauTagPrior context
+ - context2ClauTagPriorBase: All samples of mapping from ContextOfSG to ClauTagPrior
+ - contextOfSG can belong to context2ClauTagPriorBase or NOT.
+ -}
+getOneToAllContextOfSGSimByRMS' :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase = do
+    let contextOfSGList = map fst context2ClauTagPriorBase                      -- [ContextOfSG]
+    if (elem contextOfSG contextOfSGList)
+      then getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
+      else do
+        let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
+        contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
+        return (tail (fst contextOfSGPairSimTuple), tail (snd contextOfSGPairSimTuple))
+
+{- Given one StruGene context, get the ClauTagPrior of StruGene sample whose context is most similar to that StruGene context.
+ - contextOfSG: A ClauTagPrior context.
+ - context2ClauTagPriorBase: All samples of mapping from ContextOfSG to ClauTagPrior.
+ - ContextOfSGPair2Sim :: ((ContextOfSG, ContextOfSG), simDeg)
+ -}
+findStruGeneSampleByMaxContextSim :: ContextOfSG -> Context2ClauTagPriorBase -> IO (SIdx, SimDeg, Context2ClauTagPrior)
+findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase = do
+    contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase
+    let contextOfSGPair2SimList = snd contextOfSGPairSimTuple                       -- [((ContextOfSG, ContextOfSG), SimDeg)]
+    let simDegList = map snd contextOfSGPair2SimList                                -- [SimDeg]
+    let maxSim = maximum simDegList
+    let idx = elemIndex maxSim simDegList
+    let idx' = maybe (-1) (+0) idx
+    return $ (idx' + 1, maxSim, context2ClauTagPriorBase!!idx')                   -- SIdx values are from 1 to begin.

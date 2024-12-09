@@ -808,11 +808,12 @@ doClustering username = do
     putStrLn " 9 -> Get similarity degrees between any two overlapping types"
     putStrLn " A -> Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition."
     putStrLn " B -> Get similarity degrees between any two contexts of StruGene samples directly by Euclidean metric."
-    putStrLn " C -> Get similarity degrees between one context and the others of StruGene samples by Root Mean Square."
+    putStrLn " C -> Among StruGene samples, calculate similarity degrees from one to all contexts by Root Mean Square."
+    putStrLn " D -> Get similarity degrees between one ClauTagPrior context to every context of StruGene samples by Root Mean Square."
     putStrLn " 0 -> Go back to the upper layer"
     putStr "Please input command: "
     line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","0"]
+    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"]
       then do
         putStrLn "Invalid input."
         doClustering username
@@ -854,6 +855,9 @@ doClustering username = do
                  doClustering username
         "C" -> do
                  clusteringAnalysis 12
+                 doClustering username
+        "D" -> do
+                 clusteringAnalysis 13
                  doClustering username
         "0" -> interpreter username
 

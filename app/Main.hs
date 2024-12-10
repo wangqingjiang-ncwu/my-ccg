@@ -138,28 +138,26 @@ interpreter username = do
     putStrLn " C -> Maintenance tools"
     putStrLn " D -> Clustering analysis"
     putStrLn " 0 -> doQuit"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"]
-      then do
-             putStrLn "Invalid input."
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"] True
+    if line == "0"
+      then doQuit
+      else do
+             case line of
+               "?" -> putStr ""                           -- Do nothing
+               "1" -> doGetRawSentForASent username
+               "2" -> doCopyRawSentForASent username
+               "3" -> doGetRawSent2ForASent username
+               "4" -> doPosToCateForASent username
+               "5" -> doGetCateSentForASent username
+               "6" -> doCopyCateForASent username
+               "7" -> doGetCateSent2ForASent username
+               "8" -> doParseSent username
+               "9" -> doDisplayTreesForASent username
+               "A" -> doStatisticalAnalysis username
+               "B" -> doExperiments username
+               "C" -> doMaintenance username
+               "D" -> doClustering username
              interpreter username
-      else case line of
-             "?" -> interpreter username
-             "1" -> doGetRawSentForASent username
-             "2" -> doCopyRawSentForASent username
-             "3" -> doGetRawSent2ForASent username
-             "4" -> doPosToCateForASent username
-             "5" -> doGetCateSentForASent username
-             "6" -> doCopyCateForASent username
-             "7" -> doGetCateSent2ForASent username
-             "8" -> doParseSent username
-             "9" -> doDisplayTreesForASent username
-             "A" -> doStatisticalAnalysis username
-             "B" -> doExperiments username
-             "C" -> doMaintenance username
-             "D" -> doClustering username
-             "0" -> doQuit
 
 -- 1. Get raw part-of-speech marked sentence indicated by serial_num.
 doGetRawSentForASent :: String -> IO ()
@@ -313,18 +311,17 @@ doParseSent username = do
     putStrLn " 2 -> Do parsing by script"
     putStrLn " 3 -> Do parsing by StruGene"
     putStrLn " 0 -> Go back to the upper layer"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","0"]
-       then do
-         putStrLn "Invalid input."
-         doParseSent username
-    else case line of
-         "?" -> doParseSent username
-         "1" -> doParseSentByHumanMind username
-         "2" -> doParseSentByScript username
-         "3" -> doParseSentByStruGene username
-         "0" -> interpreter username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doParseSentByHumanMind username
+               "2" -> doParseSentByScript username
+               "3" -> doParseSentByStruGene username
+             doParseSent username                              -- Rear recursion
 
 {- 8_1. Human-Machine-interactively Parse the sentence indicated by serial_num, here 'username' MUST
  - be the intellectual property creator (ipc) of the row indicated by serial_num.
@@ -386,36 +383,42 @@ doParseSentByScript username = do
 doParseSentByStruGene :: String -> IO ()
 doParseSentByStruGene username = do
     putStrLn " ? -> Display command list"
-    putStrLn " 1 -> Resoving syntactic ambiguity according to the highest ambiguity sample"
+    putStrLn " 1 -> Resolving syntactic ambiguity according to most similar StruGene context"
     putStrLn " 0 -> Go back to the upper layer"
     line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
-    case line of
-      "?" -> doParseSentByStruGene username
-      "1" -> doParseSentByHighestAmbig username
-      "0" -> putStrLn "Return to upper layer."
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doParseSentByHighestSimilarity username
+             doParseSentByStruGene username                    -- Rear recursion
 
-{- 8_3_1. Parse sentence by resolving syntactic ambiguity according to StruGene sample with highest ambiguity degree,
- - Ambiguity degree calculated by grammatic attribute being same or not is called simple ambiguity.
- - Ambiguity degree calculated by grammatic attribute's concurrent contexts is called embedded ambiguity.
+{- 8_3_1. Parse sentence by resolving syntactic ambiguity according to StruGene sample with highest similarity degree,
+ - Similarity degree calculated by grammatic attribute being same or not is called simple similarity.
+ - Similarity degree calculated by grammatic attribute's concurrent contexts is called embedded similarity.
  -}
-doParseSentByHighestAmbig :: String -> IO ()
-doParseSentByHighestAmbig username = do
+doParseSentByHighestSimilarity :: String -> IO ()
+doParseSentByHighestSimilarity username = do
     putStrLn " ? -> Display command list"
-    putStrLn " 1 -> Ambiguity degree calculated by grammatic attribute being same or not"
-    putStrLn " 2 -> Ambiguity degree calculated by grammatic attribute-embedded contexts"
+    putStrLn " 1 -> Similarity degree calculated by grammatic attribute being same or not"
+    putStrLn " 2 -> Similarity degree calculated by grammatic attribute-embedded contexts"
     putStrLn " 0 -> Go back to the upper layer"
     line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","0"] True
-    case line of
-      "?" -> doParseSentByHighestAmbig username
-      "1" -> doParseSentByStruGeneSimpAmbig username
-      "2" -> doParseSentByStruGeneEmbeddedAmbig username
-      "0" -> putStrLn "Return to upper layer."
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doParseSentByStruGeneSimpSim username
+               "2" -> doParseSentByStruGeneEmbeddedSim username
+             doParseSentByHighestSimilarity username           -- Rear recursion
 
-doParseSentByStruGeneSimpAmbig :: String -> IO ()
-doParseSentByStruGeneSimpAmbig username = putStrLn "doParseSentByStruGeneSimpAmbig: Test."
+doParseSentByStruGeneSimpSim :: String -> IO ()
+doParseSentByStruGeneSimpSim username = putStrLn "doParseSentByStruGeneSimpSim: Test."
 
-doParseSentByStruGeneEmbeddedAmbig :: String -> IO ()
-doParseSentByStruGeneEmbeddedAmbig username = putStrLn "doParseSentByStruGeneEmbeddedAmbig: Test."
+doParseSentByStruGeneEmbeddedSim :: String -> IO ()
+doParseSentByStruGeneEmbeddedSim username = putStrLn "doParseSentByStruGeneEmbeddedSim: Test."
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()
@@ -454,18 +457,16 @@ doStatisticalAnalysis username = do
     putStrLn " 2 -> Count in table 'stru_gene'"
     putStrLn " 3 -> Search in treebank"
     putStrLn " 0 -> Go back to the upper layer"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","0"]
-       then do
-         putStrLn "Invalid input."
-         doStatisticalAnalysis username
-    else case line of
-         "?" -> doStatisticalAnalysis username
-         "1" -> doCountInTreebank username
-         "2" -> doCountInStruGene username
-         "3" -> doSearchInTreebank username
-         "0" -> interpreter username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doCountInTreebank username
+               "2" -> doCountInStruGene username
+               "3" -> doSearchInTreebank username
+             doStatisticalAnalysis username                    -- Rear recursion
 
 -- A1. Do count in treebank and display results. 't' means from field 'tree', and 's' means from 'script'.
 doCountInTreebank :: String -> IO ()
@@ -496,38 +497,36 @@ doCountInTreebank username = do
     putStrLn " s8 -> Get number of abandoned not-recognizable phrases in parsing every clause"
     putStrLn " 0 -> Go back to the upper layer"
 
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","tF","s1","s2","s3","s4","s5","s6","s7","s8","0"]
-       then do
-         putStrLn "Invalid input."
-         doCountInTreebank username
-       else case line of
-         "?" -> doCountInTreebank username
-         "t1" -> doCountInTree username 1
-         "t2" -> doCountInTree username 2
-         "t3" -> doCountInTree username 3
-         "t4" -> doCountInTree username 4
-         "t5" -> doCountInTree username 5
-         "t6" -> doCountInTree username 6
-         "t7" -> doCountInTree username 7
-         "t8" -> doCountInTree username 8
-         "t9" -> doCountInTree username 9
-         "tA" -> doCountInTree username 10
-         "tB" -> doCountInTree username 11
-         "tC" -> doCountInTree username 12
-         "tD" -> doCountInTree username 13
-         "tE" -> doCountInTree username 14
-         "tF" -> doCountInTree username 15
-         "s1" -> doCountInScript username 1
-         "s2" -> doCountInScript username 2
-         "s3" -> doCountInScript username 3
-         "s4" -> doCountInScript username 4
-         "s5" -> doCountInScript username 5
-         "s6" -> doCountInScript username 6
-         "s7" -> doCountInScript username 7
-         "s8" -> doCountInScript username 8
-         "0" -> interpreter username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","tF","s1","s2","s3","s4","s5","s6","s7","s8","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "t1" -> doCountInTree username 1
+               "t2" -> doCountInTree username 2
+               "t3" -> doCountInTree username 3
+               "t4" -> doCountInTree username 4
+               "t5" -> doCountInTree username 5
+               "t6" -> doCountInTree username 6
+               "t7" -> doCountInTree username 7
+               "t8" -> doCountInTree username 8
+               "t9" -> doCountInTree username 9
+               "tA" -> doCountInTree username 10
+               "tB" -> doCountInTree username 11
+               "tC" -> doCountInTree username 12
+               "tD" -> doCountInTree username 13
+               "tE" -> doCountInTree username 14
+               "tF" -> doCountInTree username 15
+               "s1" -> doCountInScript username 1
+               "s2" -> doCountInScript username 2
+               "s3" -> doCountInScript username 3
+               "s4" -> doCountInScript username 4
+               "s5" -> doCountInScript username 5
+               "s6" -> doCountInScript username 6
+               "s7" -> doCountInScript username 7
+               "s8" -> doCountInScript username 8
+             doCountInTreebank username                         --Rear recursion
 
 -- A1_1. Display statistical results from field 'tree' in table 'corpus'.
 doCountInTree :: String -> Int -> IO ()
@@ -564,20 +563,18 @@ doCountInStruGene username = do
     putStrLn " 5 -> Get hit count of different overlapping types, namely [(OverType, sum(LpHitCount + RpHitCount + NothHitCount))]"
     putStrLn " 0 -> Go back to the upper layer."
 
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","4","5","0"]
-      then do
-        putStrLn "Invalid input."
-        doCountInStruGene username
-      else case line of
-        "?" -> doCountInStruGene username
-        "1" -> doCountInStruGene' username 1
-        "2" -> doCountInStruGene' username 2
-        "3" -> doCountInStruGene' username 3
-        "4" -> doCountInStruGene' username 4
-        "5" -> doCountInStruGene' username 5
-        "0" -> interpreter username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doCountInStruGene' username 1
+               "2" -> doCountInStruGene' username 2
+               "3" -> doCountInStruGene' username 3
+               "4" -> doCountInStruGene' username 4
+               "5" -> doCountInStruGene' username 5
+             doCountInStruGene username                        -- Rear recursion
 
 -- A2_1. Display statistical results from table 'stru_gene'.
 doCountInStruGene' :: String -> Int -> IO ()
@@ -601,25 +598,23 @@ doSearchInTreebank username = do
     putStrLn " s2 -> ...."
     putStrLn " 0 -> Go back to the upper layer"
 
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","t1","t2","t3","t4","t5","t6","t7","t8","s1","s2","0"]
-      then do
-        putStrLn "Invalid input."
-        doSearchInTreebank username
-      else case line of
-        "?" -> doSearchInTreebank username
-        "t1" -> doSearchInTree username 1
-        "t2" -> doSearchInTree username 2
-        "t3" -> doSearchInTree username 3
-        "t4" -> doSearchInTree username 4
-        "t5" -> doSearchInTree username 5
-        "t6" -> doSearchInTree username 6
-        "t7" -> doSearchInTree username 7
-        "t8" -> doSearchInTree username 8
-        "s1" -> doSearchInScript username 1
-        "s2" -> doSearchInScript username 2
-        "0" -> interpreter username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","t1","t2","t3","t4","t5","t6","t7","t8","s1","s2","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "t1" -> doSearchInTree username 1
+               "t2" -> doSearchInTree username 2
+               "t3" -> doSearchInTree username 3
+               "t4" -> doSearchInTree username 4
+               "t5" -> doSearchInTree username 5
+               "t6" -> doSearchInTree username 6
+               "t7" -> doSearchInTree username 7
+               "t8" -> doSearchInTree username 8
+               "s1" -> doSearchInScript username 1
+               "s2" -> doSearchInScript username 2
+             doSearchInTreebank username                       -- Rear recursion
 
 -- A3_1. Display search results from field 'tree' in table 'corpus'.
 doSearchInTree :: String -> Int -> IO ()
@@ -661,16 +656,15 @@ doExperiments username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Parse sentence using all lexcial rules"
     putStrLn " 0 -> Go back to the upper layer"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","0"]
-      then do
-        putStrLn "Invalid input."
-        doExperiments username
-      else case line of
-        "?" -> doExperiments username
-        "1" -> doParseSentWithAllLexRules username
-        "0" -> interpreter username
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doParseSentWithAllLexRules username
+             doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
  -}
@@ -685,8 +679,8 @@ doParseSentWithAllLexRules username = do
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
     cate_check <- S.read is
     let cate_check' = case cate_check of
-                          Just x -> x
-                          Nothing -> error "doParseSentWithAllLexRules: No cate_check was read."
+                        Just x -> x
+                        Nothing -> error "doParseSentWithAllLexRules: No cate_check was read."
     skipToEof is                                                   -- Go to the end of the stream.
     let cate_check = fromMySQLInt8 (cate_check'!!0)
     if cate_check == 0
@@ -705,24 +699,17 @@ doMaintenance username = do
     putStrLn " 2 -> Sort phrases in corpus field 'tree' and 'script' according to span ascending"
     putStrLn " 3 -> Add phrasal structure Half-juXtaposition to corpus field 'tree' and 'script'"
     putStrLn " 0 -> Go back to the upper layer"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","0"]
-      then do
-        putStrLn "Invalid input."
-        doMaintenance username
-      else case line of
-        "?" -> doMaintenance username
-        "1" -> do
-                 doRearrangeIdinCertainTable username
-                 doMaintenance username
-        "2" -> do
-                 doSortPhraseInTreeAndScript username
-                 doMaintenance username
-        "3" -> do
-                 doAddHX2TreeAndScript username
-                 doMaintenance username
-        "0" -> interpreter username
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doRearrangeIdinCertainTable username
+               "2" -> doSortPhraseInTreeAndScript username
+               "3" -> doAddHX2TreeAndScript username
+             doMaintenance username                            -- Rear recursion
 
 -- C_1. Rearrange index column in a certain table.
 doRearrangeIdinCertainTable :: String -> IO ()
@@ -733,8 +720,8 @@ doRearrangeIdinCertainTable username =
         putStrLn "There are following tables including an index column:"
         putStrLn " 1. stru_gene_202408"
         putStrLn " 2. ..."
-        tblNumStr <- getLineUntil "Please input the number correspongding a table (Return for '1'): " ["1","2"] True
 
+        tblNumStr <- getLineUntil "Please input the number correspongding a table (Return for '1'): " ["1","2"] True
         case tblNumStr of
           "1" -> do                         -- Table 'stru_gene_202408'
             conn <- getConn
@@ -796,7 +783,6 @@ doAddHX2TreeAndScript username = do
 -- D. 测试聚类模块的相关函数.
 doClustering :: String -> IO ()
 doClustering username = do
-    putStrLn " ? -> Display command list"
     putStrLn " 1 -> Test function maxminPoint "
     putStrLn " 2 -> Test function updateCentre4ACluster"
     putStrLn " 3 -> Test function doOnceClustering"
@@ -811,55 +797,28 @@ doClustering username = do
     putStrLn " C -> Among StruGene samples, calculate similarity degrees from one to all contexts by Root Mean Square."
     putStrLn " D -> Get similarity degrees between one ClauTagPrior context to every context of StruGene samples by Root Mean Square."
     putStrLn " 0 -> Go back to the upper layer"
-    putStr "Please input command: "
-    line <- getLine
-    if notElem line ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"]
-      then do
-        putStrLn "Invalid input."
-        doClustering username
-      else case line of
-        "?" -> doClustering username
-        "1" -> do
-                 doTestfunctionOfMaxminPoint
-                 doClustering username
-{-        "2" -> do
- -                 doTestfunctionOfUpdateCentre4ACluster
- -                 doClustering username
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doTestfunctionOfMaxminPoint
+{-       "2" -> do
+ -                doTestfunctionOfUpdateCentre4ACluster
  -}
-        "3" -> do
-                 doOnceClustering
-                 doClustering username
-        "4" -> do
-                 doClustering4DiffKValSNum
-                 doClustering username
-        "5" -> do
-                 storeAmbiResolAccuracy4AllClustRes
-                 doClustering username
-        "6" -> do
-                 clusteringAnalysis 6
-                 doClustering username
-        "7" -> do
-                 clusteringAnalysis 7
-                 doClustering username
-        "8" -> do
-                 clusteringAnalysis 8
-                 doClustering username
-        "9" -> do
-                 clusteringAnalysis 9
-                 doClustering username
-        "A" -> do
-                 clusteringAnalysis 10
-                 doClustering username
-        "B" -> do
-                 clusteringAnalysis 11
-                 doClustering username
-        "C" -> do
-                 clusteringAnalysis 12
-                 doClustering username
-        "D" -> do
-                 clusteringAnalysis 13
-                 doClustering username
-        "0" -> interpreter username
+               "3" -> doOnceClustering
+               "4" -> doClustering4DiffKValSNum
+               "5" -> storeAmbiResolAccuracy4AllClustRes
+               "6" -> clusteringAnalysis (read line :: Int)
+               "7" -> clusteringAnalysis 7
+               "8" -> clusteringAnalysis 8
+               "9" -> clusteringAnalysis 9
+               "A" -> clusteringAnalysis 10
+               "B" -> clusteringAnalysis 11
+               "C" -> clusteringAnalysis 12
+               "D" -> clusteringAnalysis 13
+             doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数
 doTestfunctionOfMaxminPoint :: IO ()

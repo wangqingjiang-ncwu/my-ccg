@@ -1040,28 +1040,40 @@ getAmbiResolSamples = do
     let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
     conn <- getConn
 
+    putStrLn $ "Get samples from " ++ ambi_resol_samples
+
     if ambi_resol_samples == "stru_gene2"
       then do
         let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_samples
         stmt <- prepareStmt conn sqlstat
-        (defs, is) <- queryStmt conn stmt []                    -- [int unsigned, varchar, ..]
-        struGeneSampleList <- readStreamByInt324TextInt8Text [] is
+        (defs, is) <- queryStmt conn stmt []
+        struGeneSampleList <- readStreamByInt324TextInt8Text [] is              -- [StruGeneSample]
         return struGeneSampleList
-      else if (splitAtDeli '_' ambi_resol_samples)!!4 == "sg"
+      else if ambi_resol_samples == "stru_gene_202408"       -- Extract highest-frequency Prior value from ClauTagPrior value List.
         then do
-          let sqlstat = DS.fromString $ "select modes from " ++ ambi_resol_samples ++ " where iNo = (select max(iNo) from " ++ ambi_resol_samples ++ ") - 1"
-                                    -- MySQL table 'ambi_resol_samples' have at least two records.
+          let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_samples
           stmt <- prepareStmt conn sqlstat
           (defs, is) <- queryStmt conn stmt []
-          modeListStrList <- readStreamByText [] is
-          let modeListStr = head modeListStrList      -- head of [String], which has only one element.
-          let modeList = readStruGeneListFromStr modeListStr
-          let len = length modeList
-          let sgs = zip [1..len] modeList
-          return (map (\x -> (fst x, fst6 (snd x), snd6 (snd x), thd6 (snd x), fth6 (snd x), fif6 (snd x), sth6 (snd x))) sgs)
-        else do
-          putStrLn "getAmbiResolSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
-          return []
+
+          struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
+          putStrLn $ "struGene2SampleList!!0: " ++ show (struGene2SampleList!!0)
+          let struGeneSampleList = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, (fromMaybePrior . priorWithHighestFreq . svt7) x)) struGene2SampleList
+          return struGeneSampleList
+        else if (length (splitAtDeli '_' ambi_resol_samples) > 4 && (splitAtDeli '_' ambi_resol_samples)!!4 == "sg")
+          then do
+            let sqlstat = DS.fromString $ "select modes from " ++ ambi_resol_samples ++ " where iNo = (select max(iNo) from " ++ ambi_resol_samples ++ ") - 1"
+                                    -- MySQL table 'ambi_resol_samples' have at least two records.
+            stmt <- prepareStmt conn sqlstat
+            (defs, is) <- queryStmt conn stmt []
+            modeListStrList <- readStreamByText [] is
+            let modeListStr = head modeListStrList               -- head of [String], which has only one element.
+            let modeList = readStruGeneListFromStr modeListStr
+            let len = length modeList
+            let sgs = zip [1..len] modeList
+            return (map (\x -> (fst x, fst6 (snd x), snd6 (snd x), thd6 (snd x), fth6 (snd x), fif6 (snd x), sth6 (snd x))) sgs)
+          else do
+            putStrLn "getAmbiResolSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
+            return []
 
 -- Implementation of menu 'D. Clustering analysis'.
 clusteringAnalysis :: Int -> IO ()

@@ -22,6 +22,8 @@ module AmbiResol (
     removeFromCTPListByClauTag,    -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     hasClauTagInCTPList,        -- ClauTag -> [ClauTagPrior] -> Bool
     countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
+    priorWithHighestFreq,       -- [ClauTagPrior] -> Prior
+    fromMaybePrior,             -- Maybe Prior -> Prior
     hasClauTagInSynAmbiResol,   -- ClauTag -> IO Bool
     hasSentSampleInSynAmbiResol,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
     removeClauTagPriorFromSynAmbiResol,     -- SentIdx -> ClauIdx -> ClauIdx -> IO ()
@@ -30,6 +32,7 @@ module AmbiResol (
     PhraSyn,             -- (Category, Tag, PhraStru)
     nullPhraSyn,         -- (Nil, "", "")
     StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+    getContextFromStruGene,     -- StruGene -> ContextOfSG
     StruGeneSample,      -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     nullStruGeneSample,  -- StruGeneSample
     nullStruGene,        -- StruGene
@@ -58,8 +61,12 @@ module AmbiResol (
     equal4OverPair,      -- OverPair -> OverPair -> Bool
     elem4OverPair,       -- OverPair -> [OverPair] -> Bool
     readStreamByContext2OverType,      -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
+    StruGene2,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+    StruGene2Sample,     -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
+    readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+    SynAmbiResolMethod,  -- String
     ) where
 
 import Category
@@ -156,6 +163,26 @@ countPriorInCTPList prior (ctp:ctps)
    | prior == snd ctp = 1 + countPriorInCTPList prior ctps
    | otherwise = countPriorInCTPList prior ctps
 
+{- Get the Prior value with highest frequency from a ClauTagPrior value list.
+ - If multiple Prior values appear with same frequency, return first value according to order of Lp, Rp, to Noth.
+ -}
+priorWithHighestFreq :: [ClauTagPrior] -> Maybe Prior
+priorWithHighestFreq [] = Nothing
+priorWithHighestFreq clauTagPriorList
+    | lpCount == maxFreq = Just Lp
+    | rpCount == maxFreq = Just Rp
+    | otherwise = Just Noth
+    where
+      lpCount = countPriorInCTPList Lp clauTagPriorList
+      rpCount = countPriorInCTPList Rp clauTagPriorList
+      nothCount = countPriorInCTPList Noth clauTagPriorList
+      maxFreq = maximum [lpCount, rpCount, nothCount]
+
+-- Extract Prior value from Maybe Prior value.
+fromMaybePrior :: Maybe Prior -> Prior
+fromMaybePrior (Just x) = x
+fromMaybePrior Nothing = Noth                 -- Default value of Prior
+
 -- Decide whether there is any sample for given ClauTag value in syntax ambiguity resolution samples database.
 hasClauTagInSynAmbiResol :: ClauTag -> IO Bool
 hasClauTagInSynAmbiResol clauTag = do
@@ -249,7 +276,11 @@ nullStruGene = ([], nullPhraSyn, nullPhraSyn, [], -1, Noth)
 -- Sample index, used in multiple sample bases.
 type SIdx = Int
 
--- Sample model of Syntax-Structural Genes
+-- Get ContextOfSG value from StruGene value.
+getContextFromStruGene :: StruGene -> ContextOfSG
+getContextFromStruGene struGene = (\x -> (fst6 x, snd6 x, thd6 x, fth6 x, fif6 x)) struGene
+
+-- Sample model of Syntax-Structural Genes, which has attribute Sample Index, named as SIdx.
 type StruGeneSample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
 
 nullStruGeneSample :: StruGeneSample
@@ -417,6 +448,12 @@ readStreamByContext2OverType es is = do
                                                        ]) is
         Nothing -> return es
 
+{- 2th generation model of Structural Genes, which allows multiple priority policies for one ambiguous context,
+ - and marks clausal tag on every priority policy.
+ -}
+type StruGene2 = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+type StruGene2Sample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+
 {- Read a value from input stream [MySQLValue], change it into a Context2ClauTagPrior value, append it
  - to existed Context2ClauTagPrior list, then read the next until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText],
@@ -434,6 +471,25 @@ readStreamByContext2ClauTagPrior es is = do
                                                     ]) is
         Nothing -> return es
 
+{- Read a value from input stream [MySQLValue], change it into a StruGene2Sample value, append it
+ - to existed StruGene2Sample list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText],
+ - and StruGene2Sample is (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior]).
+ -}
+readStreamByStruGene2Sample :: [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
+readStreamByStruGene2Sample es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByStruGene2Sample (es ++ [(fromMySQLInt32U (x!!0),
+                                                       readPhraSynListFromStr (fromMySQLText (x!!1)),
+                                                       readPhraSynFromStr (fromMySQLText (x!!2)),
+                                                       readPhraSynFromStr (fromMySQLText (x!!3)),
+                                                       readPhraSynListFromStr (fromMySQLText (x!!4)),
+                                                       fromMySQLInt8 (x!!5),
+                                                       stringToCTPList (fromMySQLText (x!!6)))
+                                                     ]) is
+        Nothing -> return es
+
+
 {- Read a value from input stream [MySQLValue], change it into a StruGeneSample value, append it
  - to existed StruGeneSample list, then read the next until read Nothing.
  - Here [MySQLValue] is [MySQLInt32,MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText].
@@ -448,3 +504,8 @@ readStreamByInt32U3TextInt8Text es is = do
                                                     fromMySQLInt8 (x!!4),
                                                     readPriorFromStr (fromMySQLText (x!!5)))]) is
         Nothing -> return es
+
+{- For every syntactic ambiguity resolution model, there might be multiple methods of using samples to resolve syntactic ambiguity.
+ - For model StruGene, methods include "StruGeneSimple" and "StruGeneEmbedded".
+ -}
+type SynAmbiResolMethod = String

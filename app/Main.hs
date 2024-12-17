@@ -410,15 +410,9 @@ doParseSentByHighestSimilarity username = do
       else do
              case line of
                "?" -> putStr ""                                -- Do nothing
-               "1" -> doParseSentByStruGeneSimpSim username
-               "2" -> doParseSentByStruGeneEmbeddedSim username
+               "1" -> parseSentByStruGeneFromConf "StruGeneSimple"     -- It is one kind of weighted-sum similarity
+               "2" -> parseSentByStruGeneFromConf "StruGeneEmbedded"   -- Embedded similarity
              doParseSentByHighestSimilarity username           -- Rear recursion
-
-doParseSentByStruGeneSimpSim :: String -> IO ()
-doParseSentByStruGeneSimpSim username = putStrLn "doParseSentByStruGeneSimpSim: Test."
-
-doParseSentByStruGeneEmbeddedSim :: String -> IO ()
-doParseSentByStruGeneEmbeddedSim username = putStrLn "doParseSentByStruGeneEmbeddedSim: Test."
 
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()

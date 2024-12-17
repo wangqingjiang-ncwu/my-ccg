@@ -31,8 +31,9 @@ module SentParse (
     autoverifyEffectOfPhraStruCS,     -- Int -> IO ()
     autoRunGrammarAmbiResol,          -- Int -> Int -> IO ()
     autoRunCollectPhraSyn,            -- Int -> Int -> IO ()
-    autoRunAmbiResolByStruGene,       -- Int -> Int -> IO ()
-    parseSentByStruGene,              -- Int -> [String] -> IO ()
+    parseSentByStruGeneFromConf,      -- SynAmbiResolMethod -> IO ()
+    parseSentByStruGene,     -- SynAmbiResolMethod -> SendIdx -> SentIdx -> [(Int, String)] -> String -> String -> IO ()
+    parseASentByStruGene,    -- SynAmbiResolMethod -> SentIdx -> [String] -> String -> String -> IO ()
     getStruGene1FromAmbiResol1,       -- Int -> Int -> IO ()
     getAccuracyOfAmbiResol,           -- IO ()
     doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
@@ -87,8 +88,8 @@ getSentFromDB sn = do
       Nothing -> return ""
 
 -- Get some sentences from table corpus, actually the sentences are content of column cate_sent2.
-getSentListFromDB :: SentIdx -> SentIdx -> [(Int, String)] -> IO [(Int, String)]
-getSentListFromDB startSn endSn sentList = do
+getSentListFromDB :: SentIdx -> SentIdx -> IO [(Int, String)]
+getSentListFromDB startSn endSn = do
     conn <- getConn
     stmt <- prepareStmt conn "select serial_num, cate_sent2 from corpus where serial_num >= ? and serial_num <= ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]
@@ -1352,7 +1353,7 @@ autoRunGrammarAmbiResol startSn endSn = do
     let sLRListOfClause = foldl (++) [] sLRListOfSent
     let sLRListOfTrans = foldl (++) [] sLRListOfClause
 
-    sentList <- getSentListFromDB startSn endSn []
+    sentList <- getSentListFromDB startSn endSn
     autoRunGrammarAmbiResol' startSn endSn sLRListOfTrans sentList tree_target distWeiRatioList
     close conn
 
@@ -1404,10 +1405,9 @@ parseSentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList = do
           then putStrLn $ "parseSentByGrammarAmbiResol: " ++ show rn ++ " row(s) were initialized."
           else error "parseSentByGrammarAmbiResol: update failed!"
 
-    struGeneSamples <- getAmbiResolSamples
+    struGeneSamples <- getAmbiResolSamples                                      -- [StruGeneSample]
     if struGeneSamples /= []
       then do
---        let struGenes = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGeneSamples
         putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
         parseSentByGrammarAmbiResol' sn cs sLR struGeneSamples distWeiRatioList
         putStrLn "parseSentByGrammarAmbiResol: Finished parsing."
@@ -1615,52 +1615,57 @@ storeAPhraSynToDS (x:xs) sn = do
       then storeAPhraSynToDS xs sn
       else putStrLn $ "Sentence No." ++ show sn ++ "'s phraSyns store end."
 
-autoRunAmbiResolByStruGene :: Int -> Int -> IO ()
-autoRunAmbiResolByStruGene startSn endSn = do
+{- Parsing sentences by automatically resolving syntactic ambiguity.
+ - Resolving syntactic ambiguity follows the StruGene sample with highest context similarity degree.
+ - Similarity degrees are calculated based on comparing grammatic attributes between two phrases.
+ - "Simple": One comparison method which only considers attribute to be identical or not.
+ - "Embedded":  One comparison method which measures differences of concurrent grammatic attributes by embedded grammatic environment.
+ -}
+parseSentByStruGeneFromConf :: SynAmbiResolMethod -> IO ()
+parseSentByStruGeneFromConf resolMethod = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
-    let wle = read (getConfProperty "wle" confInfo) :: Int
-    let wlo = read (getConfProperty "wlo" confInfo) :: Int
-    let wro = read (getConfProperty "wro" confInfo) :: Int
-    let wre = read (getConfProperty "wre" confInfo) :: Int
-    let wot = read (getConfProperty "wot" confInfo) :: Int
-    let wpr = read (getConfProperty "wpr" confInfo) :: Int
-    let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
-{-
-    putStrLn $ "The sentence of serial_num = " ++ show startSn ++ " begins analysing automatically for ambiguity resolution. "
---    getSentFromDB startSn >>= getSent >>= parseSentByStruGene startSn
-    cs <- getSentFromDB startSn >>= getSent
-    parseSentByStruGene startSn cs script_source tree_target distWeiRatioList
-    let startSn' = startSn + 1
-    if startSn' > endSn
-      then putStrLn "autoRunAmbiResolByStruGene: End."
-      else autoRunAmbiResolByStruGene startSn' endSn
--}
-    sentList <- getSentListFromDB startSn endSn []
-    autoRunAmbiResolByStruGene' startSn endSn sentList script_source tree_target distWeiRatioList
 
-autoRunAmbiResolByStruGene' :: Int -> Int -> [(Int, String)] -> String -> String -> DistWeiRatioList -> IO ()
-autoRunAmbiResolByStruGene' sn endSn sentList script_source tree_target distWeiRatioList = do
-    putStrLn $ "The sentence of serial_num = " ++ show sn ++ " begins analysing automatically for grammar ambiguity resolution. "
-    let sent = snd $ sentList!!0
-    cs <- getSent sent
-    let sn' = sn + 1
+    let startIdx = getConfProperty "defaultStartIdx" confInfo
+    let startSn = read startIdx :: Int
+    let endIdx = getConfProperty "defaultEndIdx" confInfo
+    let endSn = read endIdx :: Int
+--    conn <- getConn
+--    let sqlstat = DS.fromString $ "select count(*) from " ++ script_source
+--    (defs, is) <- query_ conn sqlstat
+--    rows <- readStreamByInt64 [] is
+--    let endSn = head rows
+
+    startSn <- getNumUntil ("Please input which sentence to start [1 .. " ++ show endSn ++ "]: ")  [startSn .. endSn]
+    endSn <- getNumUntil ("Please input which sentence to end [" ++ show startSn ++ " .. " ++ show endSn ++ "]: ") [startSn .. endSn]
+    putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
+    sentList <- getSentListFromDB startSn endSn
+    parseSentByStruGene resolMethod startSn endSn sentList script_source tree_target
+
+{- Recursively parse all sentences and resolve syntactic ambiguity by StruGene sample which has highest similarity degree.
+ -}
+parseSentByStruGene :: SynAmbiResolMethod -> SentIdx -> SentIdx -> [(Int, String)] -> String -> String -> IO ()
+parseSentByStruGene resolMethod startIdx endIdx sentList script_source tree_target = do
+    putStrLn $ "Parsing sentence No." ++ show startIdx
+    let sent = snd $ sentList!!0                    -- String of a sentence
+    cs <- getSent sent                              -- [String] of clauses of a sentence
+    let startIdx' = startIdx + 1
     let sentList' = tail sentList
 
-    parseSentByStruGene sn cs script_source tree_target distWeiRatioList
-    if sn' > endSn
-      then putStrLn "autoRunAmbiResolByStruGene: End."
-      else autoRunAmbiResolByStruGene' sn' endSn sentList' script_source tree_target distWeiRatioList
+    parseASentByStruGene resolMethod startIdx cs script_source tree_target
+    if startIdx' > endIdx
+      then putStrLn "parseSentByStruGene: End."
+      else parseSentByStruGene resolMethod startIdx' endIdx sentList' script_source tree_target
 
-{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
- - and syntactic ambiguities are resolved by clustering result.
- - Here every clause is a String, and parsing starts from the first clause.
- - sn: The value of 'serial_num' in database Table 'corpus'.
+{- Parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
+ - and syntactic ambiguities are resolved by StruGene sample with highest similarity degree context,
+ - Every clause is a String, and parsing starts from the first clause.
+ - startIdx: The value of 'serial_num' in database Table 'corpus'.
  - cs: The list of clausal strings.
  -}
-parseSentByStruGene :: SentIdx -> [String] -> String -> String -> DistWeiRatioList -> IO ()
-parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
+parseASentByStruGene :: SynAmbiResolMethod -> SentIdx -> [String] -> String -> String -> IO ()
+parseASentByStruGene resolMethod sn cs script_source tree_target = do
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
@@ -1669,6 +1674,7 @@ parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
     let record' = case record of
                     Just x -> x
                     Nothing -> [MySQLText "[]"]
+
     let script = fromMySQLText (record'!!0)
     skipToEof is                                                            -- Go to the end of the stream.
     closeStmt conn stmt
@@ -1677,7 +1683,7 @@ parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
     putStr "Parsing script: "
     showScript script'
 
-    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint default 0)"
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, accuracy float)"
     stmt <- prepareStmt conn sqlstat
     executeStmt conn stmt []                          -- Create a new MySQL table for storing parsing result.
 
@@ -1694,44 +1700,40 @@ parseSentByStruGene sn cs script_source tree_target distWeiRatioList = do
         let rn = getOkAffectedRows ok
         close conn
         if (rn /= 0)
-          then putStrLn $ "parseSentByStruGene: " ++ show rn ++ " row(s) were inserted."
-          else error "parseSentByStruGene: insert failed!"
+          then putStrLn $ "parseASentByStruGeneSimpleSim: " ++ show rn ++ " row(s) were inserted."
+          else error "parseASentByStruGeneSimpleSim: Insert failed!"
       else do
-        let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")   -- Query is instance of IsString.
+        let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")
         stmt' <- prepareStmt conn query'
         ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
         let rn = getOkAffectedRows ok
         close conn
-        if (rn /= 0)
-          then putStrLn $ "parseSentByStruGene: " ++ show rn ++ " row(s) were initialized."
-          else error "parseSentByStruGene: update failed!"
+        putStrLn $ "parseASentByStruGene: " ++ show rn ++ " row(s) were initialized."
 
-    struGeneSamples <- getAmbiResolSamples
+    struGeneSamples <- getAmbiResolSamples                                      -- [StruGeneSample]
     if struGeneSamples /= []
       then do
-        let struGenes = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGeneSamples
-
+        let struGenes = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGeneSamples    -- [StruGene]
         putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
-        parseSentByStruGene' sn cs script' struGenes distWeiRatioList
-        putStrLn "parseSentByStruGene: Finished parsing."
-        close conn
-      else error "parseSentByStruGene: struGeneSamples is Null."
+        parseASentByStruGene' resolMethod sn cs script' struGenes
+        putStrLn "parseASentByStruGene: Finished parsing."
+      else error "parseASentByStruGene: struGeneSamples is Null."
 
-{- Re-parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
- - and syntactic ambiguities are resolved by clustering result.
+{- Parse a sentence, in which lexical ambiguities are resolved according the previously created parsing script,
+ - and syntactic ambiguities are resolved by StruGene samples or their clustering result.
  - Here every clause is a String.
+ - Parameter 'resolMethod' is the name of one kind of syntactic ambiguity resolution method.
  - Parameter 'sn' is the value of 'serial_num' in database Table 'corpus'.
  - Table 'corpus', 'treebank1', and some other tables are associated with field 'serial_num'.
  - 'cs' is clausal strings to be parsed.
  - 'scripts' is parsing scripts for these clauses.
  - 'struGenes' is a list of modes or StruGene samples.
- - 'distWeiRatioList' is a list of distance weigth ratios.
  - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
-parseSentByStruGene' :: Int -> [String] -> [Script] -> [StruGene] -> DistWeiRatioList -> IO ()
-parseSentByStruGene' _ [] _ _ _ = return ()
-parseSentByStruGene' sn cs scripts struGenes distWeiRatioList = do
-    parseSentByStruGene' sn (take (length cs - 1) cs) (take (length cs - 1) scripts) struGenes distWeiRatioList
+parseASentByStruGene' :: SynAmbiResolMethod -> Int -> [String] -> [Script] -> [StruGene] -> IO ()
+parseASentByStruGene' _ _ [] _ _ = return ()
+parseASentByStruGene' resolMethod sn cs scripts struGenes = do
+    parseASentByStruGene' resolMethod sn (take (length cs - 1) cs) (take (length cs - 1) scripts) struGenes   -- Recursively
 
     let clauIdx = length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
@@ -1745,22 +1747,22 @@ parseSentByStruGene' sn cs scripts struGenes distWeiRatioList = do
                        [] -> (clauIdx, [], [])                              -- Null script for clause 'clauIdx'
                        [x] -> x
                        (x:xs) -> last xs
-    rtbPCs <- parseClauseWithStruGene [] nPCs [] lastScript struGenes distWeiRatioList
+    rtbPCs <- parseClauseWithStruGene resolMethod [] nPCs [] lastScript struGenes
                                              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
-    storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
+    storeClauseParsingToTreebank sn clauIdx rtbPCs                          -- Add the parsing result of this clause into database.
 
 {- Parsing a clause is a recursive transition process.
  - Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, a parsing script of this clause,
-          a sequence of modes and a sequence of distance weigths.
+          a sequence of modes and a sequence of distance weights.
  - Algo.:
  - (1) Do one trip of transition;
  - (2) If creating new phrasal categories, append rules used in this trip to [[Rule]], take resultant phrases and accumulated banned
  -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  - Syntax ambiguity resolution is done by machine.
  -}
-parseClauseWithStruGene :: [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> DistWeiRatioList -> IO ([[Rule]],[PhraCate],[PhraCate])
-parseClauseWithStruGene rules nPCs banPCs script struGenes distWeiRatioList = do
-    rtbPCs <- doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList
+parseClauseWithStruGene :: SynAmbiResolMethod -> [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithStruGene resolMethod rules nPCs banPCs script struGenes = do
+    rtbPCs <- doTransWithStruGene resolMethod nPCs banPCs script struGenes
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
@@ -1772,7 +1774,7 @@ parseClauseWithStruGene rules nPCs banPCs script struGenes distWeiRatioList = do
                               (clauIdx, [x], bPCs) -> (clauIdx, [], bPCs)       -- Remove the head element of OnOff list in parsing script.
                               (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, bPCs)
 
-          parseClauseWithStruGene (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGenes distWeiRatioList
+          parseClauseWithStruGene resolMethod (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGenes
                                                -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
@@ -1784,17 +1786,17 @@ parseClauseWithStruGene rules nPCs banPCs script struGenes distWeiRatioList = do
           return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
 
 {- Do a trip of transition, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
+ - resolMethod: One kind of syntactic ambiguity resolution method
  - nPCs: The current phrase set
  - banPCs: The set of banned phrases
  - script: The parsing script of this clause
  - struGenes: The list of modes or StruGene values
- - distWeiRatioList: The distance weigth ratio list [wle, wlo, wro, wre, wot, wpr]
  - onOff: The category conversion list for this transition
  - nbPCs: The tuple (phrase set, banned set) after this transition
  - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
  -}
-doTransWithStruGene :: [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
-doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
+doTransWithStruGene :: SynAmbiResolMethod -> [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithStruGene resolMethod nPCs banPCs script struGenes = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
                       [] -> [] :: OnOff             -- No script of rule switches to use
@@ -1808,11 +1810,11 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
     showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
 
     let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
-    let overPairs = ambiResolByStruGene nPCs2 [] pcps struGenes distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
+    overPairs <- ambiResolByStruGene resolMethod nPCs2 [] pcps struGenes     -- [OverPair], namely [(PhraCate, PhraCate, Prior)]
     putStr "doTransWithStruGene: overPairs: "
     showNOverPair overPairs
 
-    nbPCs <- transWithPruning onOff nPCs banPCs overPairs                     -- Get transitive result with pruning.
+    nbPCs <- transWithPruning onOff nPCs banPCs overPairs                       -- Get transitive result with pruning.
 
     putStr "New phrases after pruning: "
     showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
@@ -1822,6 +1824,7 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
     return (onOff,(fst nbPCs),(snd nbPCs))
 
 {- Resolve ambiguities by StruGene samples.
+ - resolMethod: One kind of syntactic ambiguity resolution method
  - nPCs: The current phrase set
  - overPairs: The overlap phrase pair set
  - (pcp:pcps): The overlap phrase pair set
@@ -1834,34 +1837,57 @@ doTransWithStruGene nPCs banPCs script struGenes distWeiRatioList = do
  -   (2) find the clustering mode closest to this the ambiguous context, set the resolution policy
  -       of 'sgv' as that of the clustering mode;
  -   (3) if there remain overlap phrase pairs, go (1); otherwise, return phrase pairs with their resolution policies.
+ - Note: Except of clustering mode, StruGene sample with context being highest similar to the ambiguous context will be selected.
  -}
-ambiResolByStruGene :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> [StruGene] -> DistWeiRatioList -> [OverPair]
-ambiResolByStruGene _ overPairs [] _ _ = overPairs
-ambiResolByStruGene nPCs overPairs (pcp:pcps) struGenes distWeiRatioList
-    = ambiResolByStruGene nPCs overPairs' pcps struGenes distWeiRatioList
-    where
-    lop = fst pcp
-    rop = snd pcp
-    ot = getOverType nPCs lop rop                      -- Get overlapping type
-    leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
-    reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
-    pri = Noth
+ambiResolByStruGene :: SynAmbiResolMethod -> [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> [StruGene] -> IO [OverPair]
+ambiResolByStruGene _ _ overPairs [] _ = return overPairs
+ambiResolByStruGene resolMethod nPCs overPairs (pcp:pcps) struGenes = do
+    let lop = fst pcp
+    let rop = snd pcp
+    let ot = getOverType nPCs lop rop                      -- Get overlapping type
+    let leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
+    let reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
+    let pri = Noth                                         -- Default value which is not used, just acted as place holder.
 
-    le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
-    lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
-    re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
-                                                 -- The value is not used, just acted as place holder.
-    struGene = (le,lo,ro,re,ot,pri)
-    distWeiRatioList' = init distWeiRatioList ++ [0]
-    distList = map (\x -> dist4StruGeneByArithAdd struGene x distWeiRatioList') struGenes
-    minDist = minimum distList
-    idx = elemIndex minDist distList
-    idx' = case idx of
-             Just x -> x
-             Nothing -> -1                     -- Impossible position
-    pri' = sth6 (struGenes!!idx')
-    overPairs' = (lop, rop, pri'):overPairs
+    let le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
+    let lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+    let ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
+    let re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+
+    let struGene = (le,lo,ro,re,ot,pri)
+
+    if resolMethod == "StruGeneSimple"
+      then do
+        confInfo <- readFile "Configuration"
+        let wle = read (getConfProperty "wle" confInfo) :: Int
+        let wlo = read (getConfProperty "wlo" confInfo) :: Int
+        let wro = read (getConfProperty "wro" confInfo) :: Int
+        let wre = read (getConfProperty "wre" confInfo) :: Int
+        let wot = read (getConfProperty "wot" confInfo) :: Int
+        let wpr = read (getConfProperty "wpr" confInfo) :: Int
+        let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
+        let distWeiRatioList' = init distWeiRatioList ++ [0]
+        let distList = map (\x -> dist4StruGeneByArithAdd struGene x distWeiRatioList') struGenes
+        let minDist = minimum distList
+        let idx = elemIndex minDist distList
+        let idx' = case idx of
+                     Just x -> x
+                     Nothing -> -1                     -- Impossible position
+        let pri' = sth6 (struGenes!!idx')
+        let overPairs' = (lop, rop, pri'):overPairs
+        ambiResolByStruGene resolMethod nPCs overPairs' pcps struGenes
+      else if resolMethod == "StruGeneEmbedded"
+             then do
+               let contextOfSG = getContextFromStruGene struGene                       -- ContextOfSG
+               let contextOfSGList = map getContextFromStruGene struGenes              -- [ContextOfSG]
+               let clauTagPriorList = map (\x -> [((1,1), sth6 x)]) struGenes          -- [[ClauTagPrior]], here only Prior component is meaning.
+               let context2ClauTagPriorBase = zip contextOfSGList clauTagPriorList     -- [(ContextOfSG, [ClauTagPrior])]
+               context2ClauTagPriorTuple <- findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase
+                                                                                -- (SIdx, SimDeg, Context2ClauTagPrior)
+               let prior = (snd . (!!0) . snd . thd3) context2ClauTagPriorTuple
+               let overPairs' = (lop, rop, prior):overPairs
+               ambiResolByStruGene resolMethod nPCs overPairs' pcps struGenes
+             else error "ambiResolByStruGene: Syntactic ambiguity resolution was NOT done."
 
 getStruGene1FromAmbiResol1 :: Int -> Int -> IO ()
 getStruGene1FromAmbiResol1 startId endId = do
@@ -2031,6 +2057,12 @@ findMachAmbiResolRes' clauseNo (s:cs) (s':cs') script script' origMachAmbiResolR
     if cs /= []
       then findMachAmbiResolRes' (clauseNo + 1) cs cs' script script' newAmbiResolResMark
       else return newAmbiResolResMark
+
+{- Parse sentences and resolve syntactic ambiguity by StruGene sample which has highest similarity degree.
+ - Simialrity degree is Root Mean Square of StruGene context attribute differences.
+ -}
+parseSentByStruGeneEmbeddedSim :: SentIdx -> SentIdx -> [(Int, String)] -> String -> String -> IO ()
+parseSentByStruGeneEmbeddedSim startIdx endIdx sentList script_source tree_target = putStrLn "TODO"
 
 {- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
  - rules used in this trip, the resultant phrases, and the banned phrases.

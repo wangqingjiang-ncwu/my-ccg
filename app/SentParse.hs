@@ -35,7 +35,7 @@ module SentParse (
     parseSentByStruGene,     -- SynAmbiResolMethod -> SendIdx -> SentIdx -> [(Int, String)] -> String -> String -> IO ()
     parseASentByStruGene,    -- SynAmbiResolMethod -> SentIdx -> [String] -> String -> String -> IO ()
     getStruGene1FromAmbiResol1,       -- Int -> Int -> IO ()
-    getAccuracyOfAmbiResol,           -- IO ()
+    evaluateExperimentalTreebank,     -- IO ()
     doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
     ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
     ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
@@ -76,6 +76,7 @@ import Output
 import Utils
 import Database
 import qualified Data.Map as Map
+import Text.Printf
 
 -- Get a sentence from table corpus, actually the sentence is content of column cate_sent2.
 getSentFromDB :: SentIdx -> IO String
@@ -1618,8 +1619,8 @@ storeAPhraSynToDS (x:xs) sn = do
 {- Parsing sentences by automatically resolving syntactic ambiguity.
  - Resolving syntactic ambiguity follows the StruGene sample with highest context similarity degree.
  - Similarity degrees are calculated based on comparing grammatic attributes between two phrases.
- - "Simple": One comparison method which only considers attribute to be identical or not.
- - "Embedded":  One comparison method which measures differences of concurrent grammatic attributes by embedded grammatic environment.
+ - "StruGeneSimple": One comparison method which only considers attribute to be identical or not.
+ - "StruGeneEmbedded": One comparison method which measures differences of concurrent grammatic attributes by embedded grammatic environment.
  -}
 parseSentByStruGeneFromConf :: SynAmbiResolMethod -> IO ()
 parseSentByStruGeneFromConf resolMethod = do
@@ -1680,8 +1681,8 @@ parseASentByStruGene resolMethod sn cs script_source tree_target = do
     closeStmt conn stmt
 
     let script' = readScripts $ script
-    putStr "Parsing script: "
-    showScript script'
+--    putStr "Parsing script: "
+--    showScript script'
 
     let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, accuracy float)"
     stmt <- prepareStmt conn sqlstat
@@ -1829,13 +1830,11 @@ doTransWithStruGene resolMethod nPCs banPCs script struGenes = do
  - overPairs: The overlap phrase pair set
  - (pcp:pcps): The overlap phrase pair set
  - struGenes: The list of modes or StruGene values
- - distWeiRatioList: The distance weigth ratio list [wle, wlo, wro, wre, wot, wpr]
- - overPairs: The returned overlap phrase pair set
  - Algo.:
  -   (1) get the first overlap phrase pair, create the ambiguous context for the phrasal pair,
  -       that is, a StruGene value in which component 'prior' is invalid. The StruGene value is noted 'sgv';
- -   (2) find the clustering mode closest to this the ambiguous context, set the resolution policy
- -       of 'sgv' as that of the clustering mode;
+ -   (2) find the StruGene sample or clustering mode closest to this the ambiguous context, set the resolution policy
+ -       of 'sgv' as that of the StruGene sample or clustering mode;
  -   (3) if there remain overlap phrase pairs, go (1); otherwise, return phrase pairs with their resolution policies.
  - Note: Except of clustering mode, StruGene sample with context being highest similar to the ambiguous context will be selected.
  -}
@@ -1937,125 +1936,153 @@ getStruGene1FromAmbiResol1' id = do
           putStrLn $ "The data of id = " ++ show id ++ " from ambi_resol1 table has prior = Noth, this data is not processed."
           close conn
 
-getAccuracyOfAmbiResol :: IO ()
-getAccuracyOfAmbiResol = do
+{- According to a certain benchmark treebank, evaluate a certain experimental treebank usually obtained by machine resolving ambuiguities.
+ - They are designated in file Configuration.
+ - These treebanks, namely database tables,  all include attributes 'serial_num', 'tree', 'script'.
+ -}
+evaluateExperimentalTreebank :: IO ()
+evaluateExperimentalTreebank = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let accurate_tree_source = getConfProperty "tree_source" confInfo
-    let ambi_resol_result_tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
-    let query = DS.fromString ("select serial_num, tree, script from " ++ accurate_tree_source )       -- Query is instance of IsString.
+    let benchmark_treebank = getConfProperty "benchmark_treebank" confInfo
+    let experimental_treebank = getConfProperty "experimental_treebank" confInfo
+    let query = DS.fromString ("select serial_num, tree, script from " ++ benchmark_treebank)       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt []
-    accurateTreebank <- readStreamByInt32TextText [] is
+    benchmarkTreebank <- readStreamByInt32TextText [] is
 
-    let query = DS.fromString ("select serial_num, tree, script from " ++ ambi_resol_result_tree_source )       -- Query is instance of IsString.
+    let query = DS.fromString ("select serial_num, tree, script from " ++ experimental_treebank)
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt []
-    ambiResolTreebank <- readStreamByInt32TextText [] is
-    let finalSn = fst3 (last ambiResolTreebank)
-    putStrLn $ "finalSn = " ++ show finalSn
+    experimentalTreebank <- readStreamByInt32TextText [] is
+    let startSn = fst3 (head experimentalTreebank)
+    let endSn = fst3 (last experimentalTreebank)
+    putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
 
-    finalMachAmbiResolRes <- findMachAmbiResolRes 1 1 accurateTreebank ambiResolTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
---    let accuracy = fromIntegral ((fst . thd3) finalMachAmbiResolRes) / fromIntegral ((snd . thd3) finalMachAmbiResolRes)
+    finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
+    let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
     putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
---    putStrLn $ "Accuracy = " ++ show accuracy
+    putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))                     -- Precision = TP / (TP + FP)
 
-type NumOfManPositPhrase = Int
-type NumOfManNegPhrase = Int
-type NumOfMachPositPhrase = Int
-type NumOfMachNegPhrase = Int
-type NumOfCommonPositPhrase = Int
-type NumOfCommonNegPhrase = Int
-type NumOfCommonPhraseOnlySeman = Int
-type NumOfCommonResClause = Int
---type NumOfPositUnionPhrase = Int
-type MachAmbiResolRes = ((NumOfManPositPhrase, NumOfManNegPhrase), (NumOfMachPositPhrase, NumOfMachNegPhrase), (NumOfCommonPositPhrase, NumOfCommonNegPhrase,NumOfCommonPhraseOnlySeman,NumOfCommonResClause))
+    let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
+    putStrLn $ "Recall = " ++ (printf "%.4f" (recall :: Double))                           -- Recall = TP / (TP + FN)
 
-findMachAmbiResolRes :: Int -> Int -> [(Int, String, String)] -> [(Int, String, String)] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
-findMachAmbiResolRes startSn endSn accurateTreebank ambiResolTreebank origMachAmbiResolRes = do
+    let f1Score = 2.0 * (precision * recall) / (precision + recall)
+    putStrLn $ "F1Score = " ++ (printf "%.4f" (f1Score :: Double))                          -- F1Score
+
+-- According to a benchmark treebank, there are statistical numbers of a certain machine-building treebank.
+type NumOfManPositPhrase = Int         -- Num. of phrases in a manually built tree, namely TP + FN
+type NumOfManNegPhrase = Int           -- Num. of phrases in a manually built banned phrase category set namely banPCs
+type NumOfMachPositPhrase = Int        -- Num. of phrases in a machine-building tree, namely TP + FP
+type NumOfMachNegPhrase = Int          -- Num. of phrases in a machine-building banned phrase category set namely banPCs
+type NumOfCommonPositPhrase = Int      -- True Positive, namely TP
+type NumOfCommonNegPhrase = Int        -- True Negative, namely TN. Actually, it is pseudo TN because it is difficult to get ALL negative instances.
+type NumOfCommonPhraseOnlySeman = Int  -- TP of attribute Seman
+type NumOfCommonResClause = Int        -- Num. of experimental clauses same with benchmark clauses
+type MachAmbiResolRes = ((NumOfManPositPhrase, NumOfManNegPhrase)
+                       , (NumOfMachPositPhrase, NumOfMachNegPhrase)
+                       , (NumOfCommonPositPhrase, NumOfCommonNegPhrase,NumOfCommonPhraseOnlySeman,NumOfCommonResClause)
+                        )
+
+{- Calculate precisions, recall rates, and F1 scores of machine-building parsing trees.
+ - benchmarkTreebank: Benchmark treebank
+ - experimentalTreebank: Experimental treebank in which trees were obtained by machine resolving ambuiguities.
+ - origMachAmbiResolRes: Existing result of evaluating experimentalTreebank against benchmarkTreebank.
+ -}
+findMachAmbiResolRes :: SentIdx -> SentIdx -> [(SentIdx, String, String)] -> [(SentIdx, String, String)] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
+findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank origMachAmbiResolRes = do
     let index = startSn - 1
-    let treeOfStartSn = stringToList $ snd3 (accurateTreebank!!index)   -- [clausestr]
-    let treeOfStartSn' = stringToList $ snd3 (ambiResolTreebank!!index)
-    let scriptOfStartSn = stringToList $ thd3 (accurateTreebank!!index)
-    let scriptOfStartSn' = stringToList $ thd3 (ambiResolTreebank!!index)
+    let treeOfStartSn = stringToList $ snd3 (benchmarkTreebank!!index)          -- [ClauseStr]
+    let treeOfStartSn' = stringToList $ snd3 (experimentalTreebank!!index)      -- [ScriptStr]
+    let scriptOfStartSn = stringToList $ thd3 (benchmarkTreebank!!index)
+    let scriptOfStartSn' = stringToList $ thd3 (experimentalTreebank!!index)
 
     putStrLn $ "Sentence No.:" ++ show startSn
-    currentMachAmbiResolRes <- findMachAmbiResolRes' 1 treeOfStartSn treeOfStartSn' scriptOfStartSn scriptOfStartSn' origMachAmbiResolRes
+    currentMachAmbiResolRes <- findMachAmbiResolResOfASent 1 treeOfStartSn treeOfStartSn' scriptOfStartSn scriptOfStartSn' origMachAmbiResolRes
     let startSn' = startSn + 1
     if startSn' <= endSn
-      then findMachAmbiResolRes startSn' endSn accurateTreebank ambiResolTreebank currentMachAmbiResolRes
+      then findMachAmbiResolRes startSn' endSn benchmarkTreebank experimentalTreebank currentMachAmbiResolRes
       else return currentMachAmbiResolRes
 
-findMachAmbiResolRes' :: Int -> [String] -> [String] -> [String] -> [String] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
-findMachAmbiResolRes' clauseNo (s:cs) (s':cs') script script' origMachAmbiResolRes = do
-    let index = clauseNo - 1
-    let pcs = getClauPhraCate s
-    let pcs' = getClauPhraCate s'
-    let phraseOfSpan0 = getPhraBySpan 0 pcs
-    let phraseOfSpan0' = getPhraBySpan 0 pcs'
-    let phraseWithoutSpan0 = [x| x <- pcs, notElem x phraseOfSpan0]    -- not includes word, only phrase with at least two words
-    let phraseWithoutSpan0' = [x| x <- pcs', notElem x phraseOfSpan0']
-    let npcWithoutAct = nPhraCateWithoutAct phraseWithoutSpan0 []
-    let npcWithoutAct' = nPhraCateWithoutAct phraseWithoutSpan0' []
-    let npcOnlyAct = nseOfCate phraseWithoutSpan0 []
-    let npcOnlyAct' = nseOfCate phraseWithoutSpan0' []
-    let commonPositPhrase = [x| x <- phraseWithoutSpan0', elem (phraCateWithoutAct x) npcWithoutAct]
-    let banPCs = getClauBanPCs (script!!index)
-    let banPCs' = getClauBanPCs (script'!!index)
-    let banPCsWithoutAct = nPhraCateWithoutAct banPCs []
-    let banPCsWithoutAct' = nPhraCateWithoutAct banPCs' []
-    let commonNegPhrase = [x| x <- banPCs', elem (phraCateWithoutAct x) banPCsWithoutAct]
---    let positUnionPhrase = [x| x <- phraseWithoutSpan0 ++ phraseWithoutSpan0', ]
---    let positUnionPhraseWithoutAct = union npcWithoutAct npcWithoutAct'
-    let commonPhraseOnlySeman = [x| x <- npcOnlyAct, elem x npcOnlyAct']
-    let phraseWithLongestSp = last pcs
-    let commonResClause = case elem phraseWithLongestSp phraseWithoutSpan0' of   -- 若小句只要一个词，想要得到0，phraseWithoutSpan0'代替pcs',可以实现 即elem phraseWithLongestSp [] = False
-                               True -> 1                                         -- 注意按小句算accuracy时，要减去只要一个词的小句。
+{- Evaluate ONE sentence's experimental parsing against benchmark parsing.
+ - clauseNo: Clausal index number, which begins from 1.
+ - (s:cs): List of clausal strings of benchmark parsing.
+ - (s':cs'): List of clausal strings of experimental parsing.
+ - script: String of script of benchmark parsing.
+ - script': String of script of experimental parsing.
+ - origMachAmbiResolRes: Existing result of evaluating ambiResolTreebank against accurateTreebank.
+ -}
+findMachAmbiResolResOfASent :: Int -> [String] -> [String] -> [String] -> [String] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
+findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbiResolRes = do
+    let index = clauseNo - 1                               -- List index
+    let pcs = getClauPhraCate s                            -- [PhraCate] of benchmark clause
+    let pcs' = getClauPhraCate s'                          -- [PhraCate] of experimental clause
+    let phraseOfSpan0 = getPhraBySpan 0 pcs                -- Length of benchmark clause
+    let phraseOfSpan0' = getPhraBySpan 0 pcs'              -- Length of experimental clause
+    let phraseWithoutSpan0 = [x| x <- pcs, notElem x phraseOfSpan0]             -- [PhraCate] of benchmark phrases with at least two words
+    let phraseWithoutSpan0' = [x| x <- pcs', notElem x phraseOfSpan0']          -- [PhraCate] of experimental phrases with at least two words
+    let npcWithoutAct = nPhraCateWithoutAct phraseWithoutSpan0 []               -- Eliminating attribute 'Act'
+    let npcWithoutAct' = nPhraCateWithoutAct phraseWithoutSpan0' []             -- Eliminating attribute 'Act'
+    let npcOnlySeman = nseOfCate phraseWithoutSpan0 []                          -- [Seman] of generated phrases in benchmark tree
+    let npcOnlySeman' = nseOfCate phraseWithoutSpan0' []                        -- [Seman] of generated phrases in experimental tree
+    let commonPositPhrase = [x| x <- phraseWithoutSpan0', elem (phraCateWithoutAct x) npcWithoutAct]   -- True Positive (TP)
+    let banPCs = getClauBanPCs (script!!index)                                  -- [PhraCate] dropped from benchmark parsing tree
+    let banPCs' = getClauBanPCs (script'!!index)                                -- [PhraCate] droppped from experimental parsing tree
+    let banPCsWithoutAct = nPhraCateWithoutAct banPCs []                        -- Eliminating attribute 'Act'
+    let banPCsWithoutAct' = nPhraCateWithoutAct banPCs' []                      -- Eliminating attribute 'Act'
+    let commonNegPhrase = [x| x <- banPCs', elem (phraCateWithoutAct x) banPCsWithoutAct]    -- PSEUDO True Negative (TN)
+    let commonPhraseOnlySeman = [x| x <- npcOnlySeman, elem x npcOnlySeman']    -- TP in experimental [Seman] against benchmark [Seman]
+    let phraseWithLongestSp = last pcs                                          -- Suppose phrases be sorted by spans from 0 to longest
+    let commonResClause = case elem phraseWithLongestSp phraseWithoutSpan0' of  -- Calculating accuracy rate by clauses, one-word clauses were NOT taken into account。
+                               True -> 1                                        -- For one-word clauses,  phraseWithoutSpan0' = [], elem returns False.
                                False -> 0
 
-    let numOfClausePhrase = length phraseWithoutSpan0
-    let banPCs = getClauBanPCs (script!!index)
-    let numOfBanPCs = length $ getClauBanPCs (script!!index)
-    let numOfClausePhrase' = length phraseWithoutSpan0'
-    let banPCs' = getClauBanPCs (script'!!index)
-    let numOfBanPCs' = length $ getClauBanPCs (script'!!index)
+    let numOfClausePhrase = length phraseWithoutSpan0                           -- Num. of generated phrases in benchmark tree
+    let numOfBanPCs = length banPCs                                             -- Num. of dropped phrases from benchmark tree
+    let numOfClausePhrase' = length phraseWithoutSpan0'                         -- Num. of generated phrases in experimental tree
+    let numOfBanPCs' = length banPCs'                                           -- Num. of dropped phrases from experimental tree
 
-    let newNumOfPhrase = (fst . fst3) origMachAmbiResolRes + numOfClausePhrase
-    let newNumOfBanPCs = (snd . fst3) origMachAmbiResolRes + numOfBanPCs
-    let newNumOfPhrase' = (fst . snd3) origMachAmbiResolRes + numOfClausePhrase'
-    let newNumOfBanPCs' = (snd . snd3) origMachAmbiResolRes + numOfBanPCs'
-    let newNumOfCommonPositPhrase = (fst4 . thd3) origMachAmbiResolRes + length commonPositPhrase
-    let newNumOfCommonNegPhrase = (snd4 . thd3) origMachAmbiResolRes + length commonNegPhrase
-    let newNumOfCommonPhraseOnlySeman = (thd4 . thd3) origMachAmbiResolRes + length commonPhraseOnlySeman
-    let newNumOfCommonResClause = (fth4 . thd3) origMachAmbiResolRes + commonResClause
+    let newNumOfPhrase = (fst . fst3) origMachAmbiResolRes + numOfClausePhrase       -- Accumulate num. of benchmark phrases
+    let newNumOfBanPCs = (snd . fst3) origMachAmbiResolRes + numOfBanPCs             -- Accumulate num. of benchmark-banned phrases
+    let newNumOfPhrase' = (fst . snd3) origMachAmbiResolRes + numOfClausePhrase'     -- Accumulate num. of experimental phrases
+    let newNumOfBanPCs' = (snd . snd3) origMachAmbiResolRes + numOfBanPCs'           -- Accumulate num. of experiment-banned phrases
+    let newNumOfCommonPositPhrase = (fst4 . thd3) origMachAmbiResolRes + length commonPositPhrase    -- Accumulate num. of TP phrases
+    let newNumOfCommonNegPhrase = (snd4 . thd3) origMachAmbiResolRes + length commonNegPhrase        -- Accumulate num. of pseudo TN phrases
+    let newNumOfCommonPhraseOnlySeman = (thd4 . thd3) origMachAmbiResolRes + length commonPhraseOnlySeman   -- Accumulate num. of Seman TP
+    let newNumOfCommonResClause = (fth4 . thd3) origMachAmbiResolRes + commonResClause               -- Accumulate num. of accuracy clause
 
---    let newNumOfPositUnionPhrase = (snd . thd3) origMachAmbiResolRes + (numOfClausePhrase + numOfClausePhrase' - length commonPositPhrase)
     let clauseResMark = ((numOfClausePhrase, numOfBanPCs), (numOfClausePhrase', numOfBanPCs'), (length commonPositPhrase, length commonNegPhrase, length commonPhraseOnlySeman,commonResClause))
     let newAmbiResolResMark = ((newNumOfPhrase, newNumOfBanPCs), (newNumOfPhrase', newNumOfBanPCs'), (newNumOfCommonPositPhrase, newNumOfCommonNegPhrase, newNumOfCommonPhraseOnlySeman,newNumOfCommonResClause))
-
-    let spls = divPhraCateBySpan pcs       -- Span lines
+{-
+    let spls = divPhraCateBySpan pcs         -- Span lines
     let spls' = divPhraCateBySpan pcs'       -- Span lines
     putStrLn $ "Clause No.: " ++ show clauseNo
-    putStrLn $ "Accuracy clause analysis tree is:"
+    putStrLn $ "Benchmark tree:"
     showTreeStru spls spls
     putStrLn $ "banPCs = "
     showNPhraCateLn banPCs
-    putStrLn $ "The clause analysis tree obtained by disambiguation is:"
+    putStrLn $ "Experimental tree:"
     showTreeStru spls' spls'
     putStrLn $ "banPCs' = "
     showNPhraCateLn banPCs'
     putStrLn $ "commonPhraseOnlySeman=" ++ show commonPhraseOnlySeman
-    putStrLn $ "phraseWithLongestSp = "
+
+    putStr $ "phraseWithLongestSp = "
     showPhraCate phraseWithLongestSp
-    putStrLn $ "The ambiguity resolution successful phrases without span = 0 are:"
+    putStrLn ""
+
+    putStrLn $ "The ambiguity-resolution-successful phrases without span = 0 are: "
+    putStr "True Positive instances: "
     showNPhraCateLn commonPositPhrase
+    putStr "True Negative instances: "
     showNPhraCateLn commonNegPhrase
+
     putStrLn $ "clauseResMark = " ++ show clauseResMark
     putStrLn $ "ambiResolResMark = " ++ show newAmbiResolResMark
-    putStr "\n"
-
+    putStrLn ""
+ -}
     if cs /= []
-      then findMachAmbiResolRes' (clauseNo + 1) cs cs' script script' newAmbiResolResMark
+      then findMachAmbiResolResOfASent (clauseNo + 1) cs cs' script script' newAmbiResolResMark
       else return newAmbiResolResMark
 
 {- Parse sentences and resolve syntactic ambiguity by StruGene sample which has highest similarity degree.
@@ -2563,10 +2590,14 @@ dispComparisonTreesOfAmbiResolResult clauIdx (s:cs) (x:xs) tree_source1 tree_sou
       pcx = getClauPhraCate x
       splx = divPhraCateBySpan pcx      -- Span lines
 
--- Get a clause's [PhraCate] from its string value.
+{- Get a clause's [PhraCate] from its string value of type Tree, where Tree ::= (ClauIdx, [PhraCate]).
+ -}
 getClauPhraCate :: String -> [PhraCate]
 getClauPhraCate "" = []
-getClauPhraCate str = map getPhraCateFromString (stringToList' str)
+getClauPhraCate str = map getPhraCateFromString (stringToList' phraCateListStr)
+    where
+      clauTreeStr = stringToTuple str                                   -- ("ClauIdx", "[PhraCate]")
+      phraCateListStr = snd clauTreeStr                                 -- "[PhraCate]"
 
 -- Get a clause's [PhraCate] from string value of (clauIdx, [[Rule]], [PhraCate]).
 getClauBanPCs :: String -> [PhraCate]

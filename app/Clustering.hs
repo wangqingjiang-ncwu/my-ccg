@@ -1056,7 +1056,7 @@ getAmbiResolSamples = do
           (defs, is) <- queryStmt conn stmt []
 
           struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
-          putStrLn $ "struGene2SampleList!!0: " ++ show (struGene2SampleList!!0)
+--          putStrLn $ "struGene2SampleList!!0: " ++ show (struGene2SampleList!!0)
           let struGeneSampleList = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, (fromMaybePrior . priorWithHighestFreq . svt7) x)) struGene2SampleList
           return struGeneSampleList
         else if (length (splitAtDeli '_' ambi_resol_samples) > 4 && (splitAtDeli '_' ambi_resol_samples)!!4 == "sg")

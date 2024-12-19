@@ -31,6 +31,12 @@ ambi_resol_model:stru_gene_202408
 ambi_resol_samples:stru_gene_202408
 #ambi_resol_samples:treebank_clust_res_k200_s18000_sg_aa
 
+# Benchmark treebank
+benchmark_treebank:corpus
+
+# Experimental treebank
+experimental_treebank:treebank_by_strugene2_embedded_sim
+
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
 # normArithMean: Norminalized Arithmetic Mean.

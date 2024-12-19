@@ -443,6 +443,7 @@ doDisplayTreesForASent username = do
 
     interpreter username
 -}
+
 -- A. Do statistical analysis about table corpus and stru_gene, and display results.
 doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
@@ -450,8 +451,9 @@ doStatisticalAnalysis username = do
     putStrLn " 1 -> Count in treebank"
     putStrLn " 2 -> Count in table 'stru_gene'"
     putStrLn " 3 -> Search in treebank"
+    putStrLn " 4 -> Evaluate an experimental treebank"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -460,6 +462,7 @@ doStatisticalAnalysis username = do
                "1" -> doCountInTreebank username
                "2" -> doCountInStruGene username
                "3" -> doSearchInTreebank username
+               "4" -> doEvaluateAnExperimentalTreebank username
              doStatisticalAnalysis username                    -- Rear recursion
 
 -- A1. Do count in treebank and display results. 't' means from field 'tree', and 's' means from 'script'.
@@ -643,6 +646,10 @@ doSearchInScript username funcIndex = do
       then putStrLn "doSearchInScript: cancelled."
       else searchInScript bottomSn topSn funcIndex
     doSearchInTreebank username
+
+-- A4. Evaluate an experimental treebank against a certain benchmark treebank.
+doEvaluateAnExperimentalTreebank :: String -> IO ()
+doEvaluateAnExperimentalTreebank username = evaluateExperimentalTreebank
 
 -- B. Do experiments.
 doExperiments :: String -> IO ()

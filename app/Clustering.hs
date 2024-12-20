@@ -131,7 +131,7 @@ distPhraSynByIdentity (ca1, ta1, ps1) (ca2, ta2, ps2) = sum [v1, v2, v3] / 3.0
 distPhraSynSetByIdentity :: [PhraSyn] -> [PhraSyn] -> Double
 distPhraSynSetByIdentity ps qs = 1 - (getPhraSynSetSim ps qs phraSynPair2SimMap)
     where
-    phraSynPair2SimMap = Map.fromList [((pi, qj), 1 - (distPhraSynByIdentity pi qj)) | pi <- ps, qj <- qs, pi <= qj]  -- [((pi,qj),sim(pi,qj))]
+    phraSynPair2SimMap = Map.fromList [((pi, qj), 1 - (distPhraSynByIdentity pi qj)) | pi <- ps, qj <- qs]  -- [((pi,qj),sim(pi,qj))]
 
 {- The distance vector between two samples of model StruGene.
  - For ambiguity model StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior), the distance vector is obtained by following function.
@@ -1729,7 +1729,7 @@ toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) = case (Map.lookup (ps1, ps2) ph
       Just x -> ((ps1, ps2), x)
       Nothing -> case (Map.lookup (ps2, ps1) phraSynPair2SimMap) of
                    Just x -> ((ps1, ps2), x)
-                   Nothing -> error "toPhraSynPair2Sim: Key (ps1, ps2) does not exist."
+                   Nothing -> error $ "toPhraSynPair2Sim: Key (" ++ show ps1 ++ ", " ++ show ps2 ++ ") does not exist."
 
 -- Types for calculating similarity degree of phrasal overlapping types.
 type NumOfContextOfOT = Int       -- ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)

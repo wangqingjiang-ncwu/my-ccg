@@ -12,37 +12,37 @@ import qualified Data.Map as Map
 spec :: Spec
 spec = do
   describe "Clustering" $ do
-    it "The result of distPhraSynByIdentity (getCateFromString \"np\", \">\", \"AHn\")) (getCateFromString \"(s\\.np)/.np\", \"<B\", \"AHn\") is 2" $ do
+    it "The result of distPhraSynByIdentity (np, \">\", \"AHn\")) ((s\\.np)/.np, \"<B\", \"AHn\") is 0.6666666666666666" $ do
       let c1 = getCateFromString "np"
       let c2 = getCateFromString "(s\\.np)/.np"
       let t1 = ">"
       let t2 = "<B"
       let p1 = "AHn"
       let p2 = "AHn"
-      distPhraSynByIdentity (c1,t1,p1) (c2,t2,p2) `shouldBe` (2 :: Int)
+      distPhraSynByIdentity (c1,t1,p1) (c2,t2,p2) `shouldBe` (2.0 / 3.0 :: Double)
 
-    it "The result of distPhraSynSetByIdentity [(getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"s\", \">\", \"DHv\")] [(getCateFromString \"s\\.np\", \"<B\", \"AHn\") (getCateFromString \"np\", \">B\", \"SP\")] is 2.5" $ do
-      let p1 = (getCateFromString "np", ">", "AHn")
-      let p2 = (getCateFromString "s", ">", "DHv")
-      let q1 = (getCateFromString "s\\.np","<B","AHn")
-      let q2 = (getCateFromString "np",">B","SP")
-      distPhraSynSetByIdentity [p1,p2] [q1,q2] `shouldBe` (2.5 :: Float)
+    it "The result of distPhraSynSetByIdentity [(np, \">\", \"AHn\"), (s, \">\", \"DHv\")] [(s\\.np, \"<B\", \"AHn\") (np, \">B\", \"SP\")] is 0.8333333333333333" $ do
+      let p1 = (npCate, ">", "AHn")
+      let p2 = (sCate, ">", "DHv")
+      let q1 = (predCate,"<B","AHn")
+      let q2 = (npCate,">B","SP")
+      distPhraSynSetByIdentity [p1,p2] [q1,q2] `shouldBe` (0.8333333333333333 :: Double)
 
-    it "The result of distVect4StruGeneByIdentity ([(getCateFromString \"np\", \">\", \"HnC\")], (getCateFromString \"s\", \">B\", \"DHv\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"np\",\">B\",\"SP\")]) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) is [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]" $ do
+    it "The result of distVect4StruGeneByIdentity ([(np, \">\", \"HnC\")], (s, \">B\", \"DHv\"), (np,\"<B\",\"AHn\"), [(np,\">B\",\"SP\")]) ([(s/.np, \"<\", \"AHn\")], (np, \">\", \"AHn\"), (np,\"<B\",\"AHn\"), [(s\\.np,\"<B\",\"AHn\")], 2, Lp) is [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC")], (getCateFromString "s", ">B", "DHv"), (getCateFromString "np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
-      distVect4StruGeneByIdentity sg1 sg2 `shouldBe` ([1.0, 1.0, 0.0, 1.0, 1.0, 0.0] :: [Float])
+      distVect4StruGeneByIdentity sg1 sg2 `shouldBe` ([1.0, 1.0, 0.0, 1.0, 1.0, 0.0] :: [Double])
 
-    it "The result of dist4StruGeneByWeightSum ([(getCateFromString \"np\", \">B\", \"HnC\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"np\",\">B\",\"SP\")]) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] is 4.0" $ do
+    it "The result of dist4StruGeneByWeightSum ([(getCateFromString \"np\", \">B\", \"HnC\")], (getCateFromString \"s\", \">\", \"DHv\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"np\",\">B\",\"SP\")]) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] is 0.6666666666666666" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC")], (getCateFromString "s", ">B", "DHv"), (getCateFromString "np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
       let weigthList = [1, 1, 1, 1, 1, 1]
-      dist4StruGeneByWeightSum sg1 sg2 weigthList `shouldBe` (4.0 :: Float)
+      dist4StruGeneByWeightSum sg1 sg2 weigthList `shouldBe` (4.0 / 6.0 :: Double)
 
     it "The result of dist4StruGeneByArithMean ([(getCateFromString \"np\", \">\", \"HnC\")], (getCateFromString \"s\", \">B\", \"DHv\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"np\",\">B\",\"SP\")]) [(getCateFromString \"s/.np\", \"<\", \"AHn\")], 1, Lp) ([(getCateFromString \"s/.np\", \"<\", \"AHn\")], (getCateFromString \"np\", \">\", \"AHn\"), (getCateFromString \"np\",\"<B\",\"AHn\"), [(getCateFromString \"s\\.np\",\"<B\",\"AHn\")], 2, Lp) is 4.0/6.0" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC")], (getCateFromString "s", ">B", "DHv"), (getCateFromString "np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn")], (getCateFromString "np", ">", "AHn"), (getCateFromString "np","<B","AHn"), [(getCateFromString "s\\.np","<B","AHn")], 2, Lp)
-      dist4StruGeneByArithMean sg1 sg2 `shouldBe` (4.0/6.0 :: Float)
+      dist4StruGeneByArithMean sg1 sg2 `shouldBe` (4.0 / 6.0 :: Double)
 
 {-    it "The result of minValueList  [readStruGeneFromStr \"([(np,Desig,DE)],(np\\*np,>,XX),(s,<,SP),[(((s\\.np)\\x(s\\.np))/*np,Desig,DE),((s\\.np)\\x(s\\.np),>,PO)],2,Lp)\", \
               \readStruGeneFromStr \"([(s\\.np,Desig,DE),(s,<,SP)],((s\\.np)\\x(s\\.np),>,PO),(np,<,HnC),[(np,Desig,DE)],2,Rp)\", \

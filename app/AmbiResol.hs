@@ -50,6 +50,7 @@ module AmbiResol (
     readContextOfSGFromStr,       -- String -> ContextOfSG
     readStruGeneFromStr,          -- String -> StruGene
     readStruGeneListFromStr,      -- String -> [StruGene]
+    Scd,                 -- (SIdx, CIdx, DMin)
     scdToString,         -- Scd -> String
     nScdToString,        -- [Scd] -> String
     phraSynToString,     -- PhraSyn -> String
@@ -363,7 +364,7 @@ readStruGeneListFromStr :: String -> [StruGene]
 readStruGeneListFromStr str = map readStruGeneFromStr (stringToList str)
 
 type CIdx = Int                     -- Cluster index
-type DMin = Float                   -- Minimal distance between a sample and all cluster members
+type DMin = Double                  -- Minimal distance between a sample and all cluster members
 type Scd = (SIdx, CIdx, DMin)
 
 -- Get the string of a Scd value.

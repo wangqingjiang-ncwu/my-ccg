@@ -1175,7 +1175,7 @@ lexAmbiResol nPCs = do
 
     let ctpOfnPCs = ctpOfCateList nPCs
     let ctpOfsLR = map (\x -> (ctpOfCateList fst x, snd x)) sLRListOfTrans
-    let distRuleList = map (\x -> (distPhraSynSet ctpOfnPCs (fst x), snd x)) sLRListOfTrans
+    let distRuleList = map (\x -> (distPhraSynSetByIdentity ctpOfnPCs (fst x), snd x)) sLRListOfTrans
     let rule = snd $ Map.findMin $ Map.fromList distRuleList
     return rule
 -}
@@ -1451,7 +1451,7 @@ parseClauseWithGrammarAmbiResol rules nPCs banPCs sLR lengthOfClause struGeneSam
           showTreeStru spls spls
           return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
 
-getRuleListOfMinDist :: [(Float,[Rule])] -> [Rule] -> IO ([Rule],[(Float,[Rule])])
+getRuleListOfMinDist :: [(Double,[Rule])] -> [Rule] -> IO ([Rule],[(Double,[Rule])])
 getRuleListOfMinDist distRuleList ruleList = do
     let distRuleList' = tail distRuleList
     if fst (head distRuleList) == fst (head distRuleList')
@@ -1468,7 +1468,7 @@ doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distW
     putStrLn "ctpOfnPCs="
     showNPhraSynLn ctpOfnPCs
     let ctpOfsLR = map (\x -> (ctpOfCateList (fst x) [], snd x)) sLR
-    let distRuleListWithoutSort =  map (\x -> (distPhraSynSet' ctpOfnPCs (fst x), snd x)) ctpOfsLR
+    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity ctpOfnPCs (fst x), snd x)) ctpOfsLR
     putStrLn $ "distRuleListWithoutSort=" ++ show (take 30 distRuleListWithoutSort)
     let distRuleList = sortOn fst distRuleListWithoutSort
     putStrLn $ "distRuleList=" ++ show (take 30 distRuleList)
@@ -1508,7 +1508,7 @@ doTransWithGrammarAmbiResol nPCs banPCs sLR lengthOfClause struGeneSamples distW
 {-
   当传递没有产生新短语(剪枝前)且没有形成最终的句子时，调用该函数
 -}
-doTransWithGrammarAmbiResol' :: [PhraCate] -> [PhraCate] -> SLROfClause -> [(Float,[Rule])] -> Int -> [StruGeneSample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithGrammarAmbiResol' :: [PhraCate] -> [PhraCate] -> SLROfClause -> [(Double,[Rule])] -> Int -> [StruGeneSample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
 doTransWithGrammarAmbiResol' nPCs banPCs sLR distRuleList lengthOfClause struGeneSamples distWeiRatioList = do
     putStrLn $ "doTransWithGrammarAmbiResol' distRuleList=" ++ show (take 30 distRuleList)
 
@@ -1563,7 +1563,7 @@ ambiResolByGrammarAmbiResol nPCs overPairs (pcp:pcps) struGeneSamples distWeiRat
                                                  -- The value is not used, just acted as place holder.
     struGene = (le,lo,ro,re,ot,pri)
     distWeiRatioList' = init distWeiRatioList ++ [0]
-    distList = map (\x -> (dist4StruGeneByArithAdd struGene (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x) distWeiRatioList', x)) struGeneSamples
+    distList = map (\x -> (dist4StruGeneByWeightSum struGene (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x) distWeiRatioList', x)) struGeneSamples
     distList' = sortOn fst distList
 --    minDist = minimum distList
 --    idx = elemIndex minDist distList
@@ -1619,7 +1619,7 @@ storeAPhraSynToDS (x:xs) sn = do
 {- Parsing sentences by automatically resolving syntactic ambiguity.
  - Resolving syntactic ambiguity follows the StruGene sample with highest context similarity degree.
  - Similarity degrees are calculated based on comparing grammatic attributes between two phrases.
- - "StruGeneSimple": One comparison method which only considers attribute to be identical or not.
+ - "StruGeneIdentity": One comparison method which only considers attribute to be identical or not.
  - "StruGeneEmbedded": One comparison method which measures differences of concurrent grammatic attributes by embedded grammatic environment.
  -}
 parseSentByStruGeneFromConf :: SynAmbiResolMethod -> IO ()
@@ -1701,8 +1701,8 @@ parseASentByStruGene resolMethod sn cs script_source tree_target = do
         let rn = getOkAffectedRows ok
         close conn
         if (rn /= 0)
-          then putStrLn $ "parseASentByStruGeneSimpleSim: " ++ show rn ++ " row(s) were inserted."
-          else error "parseASentByStruGeneSimpleSim: Insert failed!"
+          then putStrLn $ "parseASentByStruGeneIdentitySim: " ++ show rn ++ " row(s) were inserted."
+          else error "parseASentByStruGeneIdentitySim: Insert failed!"
       else do
         let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")
         stmt' <- prepareStmt conn query'
@@ -1855,7 +1855,7 @@ ambiResolByStruGene resolMethod nPCs overPairs (pcp:pcps) struGenes = do
 
     let struGene = (le,lo,ro,re,ot,pri)
 
-    if resolMethod == "StruGeneSimple"
+    if resolMethod == "StruGeneIdentity"
       then do
         confInfo <- readFile "Configuration"
         let wle = read (getConfProperty "wle" confInfo) :: Int
@@ -1866,7 +1866,7 @@ ambiResolByStruGene resolMethod nPCs overPairs (pcp:pcps) struGenes = do
         let wpr = read (getConfProperty "wpr" confInfo) :: Int
         let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
         let distWeiRatioList' = init distWeiRatioList ++ [0]
-        let distList = map (\x -> dist4StruGeneByArithAdd struGene x distWeiRatioList') struGenes
+        let distList = map (\x -> dist4StruGeneByWeightSum struGene x distWeiRatioList') struGenes
         let minDist = minimum distList
         let idx = elemIndex minDist distList
         let idx' = case idx of
@@ -2084,12 +2084,6 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
     if cs /= []
       then findMachAmbiResolResOfASent (clauseNo + 1) cs cs' script script' newAmbiResolResMark
       else return newAmbiResolResMark
-
-{- Parse sentences and resolve syntactic ambiguity by StruGene sample which has highest similarity degree.
- - Simialrity degree is Root Mean Square of StruGene context attribute differences.
- -}
-parseSentByStruGeneEmbeddedSim :: SentIdx -> SentIdx -> [(Int, String)] -> String -> String -> IO ()
-parseSentByStruGeneEmbeddedSim startIdx endIdx sentList script_source tree_target = putStrLn "TODO"
 
 {- Do a trip of transition, insert or update related ambiguity resolution samples in Table <ambi_resol_model>, and return the category-converted
  - rules used in this trip, the resultant phrases, and the banned phrases.

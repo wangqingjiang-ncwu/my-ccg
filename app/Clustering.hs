@@ -8,16 +8,15 @@
 -- To evaluate similarity between two values of every grammatic attribute, mutual explanation was proposed by Qing-jiang WANG at 2024 autumn.
 
 module Clustering (
-    distPhraSyn,               -- PhraSyn -> PhraSyn -> Int
-    distPhraSynSet,            -- [PhraSyn] -> [PhraSyn] -> Float
-    distPhraSynSet',           -- [PhraSyn] -> [PhraSyn] -> Float
-    distVect4StruGene,         -- StruGene -> StruGene -> [Float]
+    distPhraSynByIdentity,     -- PhraSyn -> PhraSyn -> Double
+    distPhraSynSetByIdentity,  -- [PhraSyn] -> [PhraSyn] -> Double
+    distVect4StruGeneByIdentity,         -- StruGene -> StruGene -> [Double]
     DistWeiRatioList,          -- [Int], namely [wle, wlo, wro, wre, wot, wpr]
-    dist4StruGeneByArithAdd,            -- StruGene -> StruGene -> DistWeiRatioList -> Float
-    dist4StruGeneByNormArithMean,       -- StruGene -> StruGene -> Float
-    StruGene,                           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
-    getKModeByMaxMinPoint,              -- [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Float -> Int -> [StruGene]
-    Dist,                      -- Float
+    dist4StruGeneByWeightSum,  -- StruGene -> StruGene -> DistWeiRatioList -> Double
+    dist4StruGeneByArithMean,  -- StruGene -> StruGene -> Double
+    StruGene,                  -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
+    getKModeByMaxMinPoint,     -- [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Double -> Int -> [StruGene]
+    Dist,                      -- Double
     SIdxDistTuple,             -- (SIdx, Dist)
     SIdxDistList,              -- [SIdxDistTuple]
     findDistMinValOfTwoTupleLists,       -- SIdxDistList -> SIdxDistList -> SIdxDistList -> SIdxDistList
@@ -29,18 +28,18 @@ module Clustering (
     updateCentre4ACluster,               -- [StruGene] -> StruGene
     getMode4List,                        -- Ord a => [a] -> Map.Map a Freq -> a
     getFreqMap,                          -- Ord a => [a] -> Map.Map a Freq -> Map.Map a Freq
-    distTotalByClust,                    -- [StruGene] -> [StruGene] -> Float -> Float
-    DistMean,                            -- Float
+    distTotalByClust,                    -- [StruGene] -> [StruGene] -> Double -> Double
+    DistMean,                            -- Double
     SIdx,                                -- Int
     ClusterMap,                          -- Map CIdx [StruGene]
     findFinalCluster4AllSamplesByArithAdd,    -- TableName -> ClusterMap -> CentreList -> KVal -> INo -> DistTotal -> DistWeiRatioList -> IO (INo, Dist)
     readStreamByInt324TextInt8Text,           -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
     storeOneIterationResult,                  -- TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
-    storeClusterTime,                         -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Float -> IO ()
+    storeClusterTime,                         -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Double -> IO ()
     autoRunClustByChangeKValSNum,             -- String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
     autoRunGetAmbiResolAccuracyOfAllClustRes, -- String -> String -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> IO ()
     getRandomsList,                           -- Int -> Int -> Int -> [Int] -> IO [Int]
-    getAmbiResolAccuracyOfAClustRes,          -- IO Float
+    getAmbiResolAccuracyOfAClustRes,          -- IO Double
     getAmbiResolSamples,                      -- IO [StruGeneSample]
 
     clusteringAnalysis,      -- Int -> IO ()
@@ -107,9 +106,10 @@ import Numeric.LinearAlgebra as LA hiding (find)
  - the different values of a same factor. Meanwhile, phrasal structure 'AHn' must have category 'np', so there exist
  - correlations between some different factors.
  - Principal Components Analysis (PCA) and Factor Analysis (FA) are promising methods for solving this problem.
+ - The distance is normalized to [0, 1].
  -}
-distPhraSyn :: PhraSyn -> PhraSyn -> Int
-distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
+distPhraSynByIdentity :: PhraSyn -> PhraSyn -> Double
+distPhraSynByIdentity (ca1, ta1, ps1) (ca2, ta2, ps2) = sum [v1, v2, v3] / 3.0
     where
     v1 = case ca1==ca2 of
            True -> 0
@@ -121,60 +121,29 @@ distPhraSyn (ca1, ta1, ps1) (ca2, ta2, ps2) = foldl (+) 0 [v1, v2, v3]
            True -> 0
            False -> 1
 
-{- The distance between two phrase sets.
- - Phrase set 1 = [p1, p2, ..., pn], phrase set 2 = [q1, q2, ..., qm]
- - dij = distPhraSyn pi qj
- - return the average dij among i<-[1..n] and j<-[1..m].
- - For model 'StruGene', LeftExtend and RightExtend are left-neighbouring and right-neighbouring phrases respectively.
- - When comparing the LeftExtend or RightExtend phrases between two StruGene samples, the following algorithm is used:
- - Suppose two sets to be compared are P and Q.
- - (1) P == Q, the distance is 0;
- - (2) P is proper set of Q, the distance is card(Q-P)/card(Q);
- - (3) Q is proper set of P, the distance is card(P-Q)/card(P);
- - (4) otherwise, the distance is sigma{distPhraSyn(r,t)| r<-P-Q, t<-Q-p}/(card(P-Q) x card(Q-P)).
+{- Calculate the distance between two phrase sets by element pairing between two sets.
+ - Phrase set P = [p1, p2, ..., pn], phrase set Q = [q1, q2, ..., qm]
+ - sim(pi, pj) = 1 - (distPhraSynByIdentity pi qj)
+ - From high to low, select sim(pi, pj) where i<-[1..n] and j<-[1..m], namely pi and qj are a pair of elements.
+ - Without loss of generality, if set P has a bigger cardinality than set Q, the redundant elements in set P pairing with null elements.
+ - Calculate the mean of similarity degrees of all phrasal pairs, then convert into the final distance.
  -}
-distPhraSynSet :: [PhraSyn] -> [PhraSyn] -> Float
-distPhraSynSet [] [] = 0.0
-distPhraSynSet [] _ = 3.0
-distPhraSynSet _ [] = 3.0
-distPhraSynSet ps qs = fromIntegral distSum / fromIntegral distNum              -- fromIntegral :: Int -> Float
+distPhraSynSetByIdentity :: [PhraSyn] -> [PhraSyn] -> Double
+distPhraSynSetByIdentity ps qs = 1 - (getPhraSynSetSim ps qs phraSynPair2SimMap)
     where
-    distSet = [distPhraSyn pi qj | pi <- ps, qj <- qs]
-    distSum = foldl (+) 0 distSet
-    distNum = length distSet
-
-{- Nomalize the distance between two PhraSyn sets.
- - When two sets are same, the distance is 0.0.
- - when one set is null and another set is not, the distance is 3.0.
- - For other situations, the distance formulas should be studied again.
- -}
-distPhraSynSet' :: [PhraSyn] -> [PhraSyn] -> Float
-distPhraSynSet' [] [] = 0.0
-distPhraSynSet' [] _ = 3.0       -- The second PhraSyn set is not null.
-distPhraSynSet' _ [] = 3.0       -- The first PhraSyn set is not null.
-distPhraSynSet' ps qs
-    | ps' == [] && qs' == [] = 0.0
-    | ps' /= [] && qs' /= [] = fromIntegral distSum / fromIntegral distNum
-    | otherwise = 3.0 / fromIntegral distNum
-    where
-    sameElem = [x | x <- ps, elem x qs]
-    ps' = [x | x <- ps, notElem x sameElem]
-    qs' = [x | x <- qs, notElem x sameElem]
-    distSet = [distPhraSyn pi qj | pi <- ps', qj <- qs']
-    distSum = foldl (+) 0 distSet
-    distNum = length ps * length qs
+    phraSynPair2SimMap = Map.fromList [((pi, qj), 1 - (distPhraSynByIdentity pi qj)) | pi <- ps, qj <- qs, pi <= qj]  -- [((pi,qj),sim(pi,qj))]
 
 {- The distance vector between two samples of model StruGene.
  - For ambiguity model StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior), the distance vector is obtained by following function.
- - Normalize the first 4 distances to [0,1] in distance vector.
+ - Elements in distance vector all are in [0, 1].
  -}
-distVect4StruGene :: StruGene -> StruGene -> [Float]
-distVect4StruGene s1 s2 = [d1, d2, d3, d4, d5, d6]
+distVect4StruGeneByIdentity :: StruGene -> StruGene -> [Double]
+distVect4StruGeneByIdentity s1 s2 = [d1, d2, d3, d4, d5, d6]
     where
-    d1 = distPhraSynSet (fst6 s1) (fst6 s2) / 3.0
-    d2 = fromIntegral (distPhraSyn (snd6 s1) (snd6 s2)) / 3.0
-    d3 = fromIntegral (distPhraSyn (thd6 s1) (thd6 s2)) / 3.0
-    d4 = distPhraSynSet (fth6 s1) (fth6 s2) / 3.0
+    d1 = distPhraSynSetByIdentity (fst6 s1) (fst6 s2)
+    d2 = distPhraSynByIdentity (snd6 s1) (snd6 s2)
+    d3 = distPhraSynByIdentity (thd6 s1) (thd6 s2)
+    d4 = distPhraSynSetByIdentity (fth6 s1) (fth6 s2)
     d5 = case fif6 s1 == fif6 s2 of
             True -> 0.0
             False -> 1.0
@@ -185,19 +154,20 @@ distVect4StruGene s1 s2 = [d1, d2, d3, d4, d5, d6]
 -- Weigth ratio list of distances on StruGene elements between two StruGene samples.
 type DistWeiRatioList = [Int]     -- [wle, wlo, wro, wre, wot, wpr]
 
-{- Arithmetically added distance between two StruGenes.
+{- Calculate distance between two StruGenes.
+ - (1) Weightedly sum distances on all StruGene components;
+ - (2) Normalize to range [0, 1].
  -}
-dist4StruGeneByArithAdd :: StruGene -> StruGene -> DistWeiRatioList -> Float
--- dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList / fromIntegral ratioTotal
-dist4StruGeneByArithAdd s1 s2 distWeiRatioList = foldl (+) 0.0 distList
+dist4StruGeneByWeightSum :: StruGene -> StruGene -> DistWeiRatioList -> Double
+dist4StruGeneByWeightSum s1 s2 distWeiRatioList = sum distList / fromIntegral ratioTotal
     where
-    distList = map (\x -> fromIntegral (fst x) * snd x) $ zip distWeiRatioList $ distVect4StruGene s1 s2
-    ratioTotal = foldl (+) 0 distWeiRatioList
+    distList = map (\x -> fromIntegral (fst x) * snd x) $ zip distWeiRatioList $ distVect4StruGeneByIdentity s1 s2
+    ratioTotal = sum distWeiRatioList
 
-{- Normalized arithmetically meaned distance between two StruGenes.
+{- Arithmetically meaned distance between two StruGenes.
  -}
-dist4StruGeneByNormArithMean :: StruGene -> StruGene -> Float
-dist4StruGeneByNormArithMean s1 s2 = (\x-> x / 6.0) $ foldl (+) 0.0 (distVect4StruGene s1 s2)
+dist4StruGeneByArithMean :: StruGene -> StruGene -> Double
+dist4StruGeneByArithMean s1 s2 = (\x-> x / 6.0) $ sum (distVect4StruGeneByIdentity s1 s2)
 
 {- 初始化随机选取1个点,初始定k=200
 
@@ -210,15 +180,15 @@ type StruGene1 = StruGene'
    样本：(x:xs)
    给定的簇心列表：sg
 
-minValueList :: [StruGene] -> [StruGene] -> [Float] -> [Float]
+minValueList :: [StruGene] -> [StruGene] -> [Double] -> [Double]
 minValueList [] _ mvList = mvList
 minValueList _ [] mvList = mvList
 minValueList (x:xs) sg mvList = minValueList xs sg mvList1
     where
-    mi = minimum $ map (\x -> dist4StruGeneByArithAdd (fst x) (snd x) ) $ zip (replicate (length sg) x) sg
+    mi = minimum $ map (\x -> dist4StruGeneByWeightSum (fst x) (snd x) ) $ zip (replicate (length sg) x) sg
     mvList1 = mvList ++ [mi]
 
--- type initPointSet = ([StruGene],[StruGene],[Float])
+-- type initPointSet = ([StruGene],[StruGene],[Double])
 
   初始化选取k个众心点，用maxmin算法.
    找出最小值列表中最大的值，并记录序号；sgs中该序号的元素即为新找的中心点，
@@ -249,7 +219,7 @@ getKModeByMaxMinPoint sgs ms kVal
  - kVal: the number of clusters.
  - distWeiRatioList: weigth list of distances on StruGene elements between two StruGene samples.
  -}
-getKModeByMaxMinPoint :: [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Float -> Int -> DistWeiRatioList -> [StruGene]
+getKModeByMaxMinPoint :: [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Double -> Int -> DistWeiRatioList -> [StruGene]
 getKModeByMaxMinPoint sgs oldModeList origSIdxMinValueMap kVal distWeiRatioList
     | length oldModeList == kVal = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) oldModeList
     | otherwise = getKModeByMaxMinPoint sgs' newModeList newSIdxMinValueMap kVal distWeiRatioList
@@ -258,7 +228,7 @@ getKModeByMaxMinPoint sgs oldModeList origSIdxMinValueMap kVal distWeiRatioList
     lastModeSIdx = fst7 (lastMode)
     lastModeStruGene = (snd7 lastMode, thd7 lastMode, fth7 lastMode, fif7 lastMode, sth7 lastMode, svt7 lastMode)
     li = Map.toList $ Map.delete lastModeSIdx origSIdxMinValueMap
-    distListOfSamplesToLastMode = map (\x -> (fst7 x, dist4StruGeneByArithAdd lastModeStruGene (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x) distWeiRatioList)) sgs
+    distListOfSamplesToLastMode = map (\x -> (fst7 x, dist4StruGeneByWeightSum lastModeStruGene (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x) distWeiRatioList)) sgs
     newSIdxMinValueList = findDistMinValOfTwoTupleLists distListOfSamplesToLastMode li []
     newSIdxMinValueMap = Map.fromList newSIdxMinValueList
     newModeSIdx = snd $ Map.findMax $ Map.fromList $ map (\x ->(snd x, fst x)) newSIdxMinValueList
@@ -269,7 +239,7 @@ getKModeByMaxMinPoint sgs oldModeList origSIdxMinValueMap kVal distWeiRatioList
     sgs' = delete newMode' sgs
     newModeList = oldModeList ++ [newMode']                                     -- Actually, newMode' is not Null.
 
-type Dist = Float
+type Dist = Double
 type SIdxDistTuple = (SIdx, Dist)
 type SIdxDistList = [SIdxDistTuple]
 
@@ -296,7 +266,7 @@ findDistMinValOfTwoTupleLists sdv1 sdv2 sIdxMinValuList = findDistMinValOfTwoTup
 --       else let minValue = distL1FirstElem
     sIdxMinValuList' = sIdxMinValuList ++ [(sIdxSdv1FirstElem, minValue)]
 
-type DMin = Float                                        -- Minimum distance of a sample to all cluster centres.
+type DMin = Double                                        -- Minimum distance of a sample to all cluster centres.
 type CIdx = Int                                          -- Index of a cluster which a sample is attributed to.
 type INo= Int                                            -- The order number of an iteration.
 type SampleClusterMark = (StruGeneSample,DMin,CIdx,StruGene,INo)        -- The result of clustering for a sample.
@@ -313,7 +283,7 @@ findCluster4ASampleByArithAdd :: StruGeneSample -> [StruGene] -> KVal -> INo -> 
 findCluster4ASampleByArithAdd sp ccl kVal iNo distWeiRatioList = (sp, dMin, cIdx', ge, iNo)
     where
     sps = (snd7 sp, thd7 sp, fth7 sp, fif7 sp, sth7 sp, svt7 sp)
-    ds = map (\x -> dist4StruGeneByArithAdd sps x distWeiRatioList) ccl
+    ds = map (\x -> dist4StruGeneByWeightSum sps x distWeiRatioList) ccl
     dMin = minimum ds
     cIdx = elemIndex dMin ds
     cIdx' = case cIdx of
@@ -340,7 +310,7 @@ findCluster4AllSamplesByArithAdd (x:xs) ccl kVal iNo origClusterMark distWeiRati
 findCluster4ASampleByNormArithMean :: StruGeneSample -> [StruGene] -> Int -> SampleClusterMark
 findCluster4ASampleByNormArithMean sp ccl kVal = (sp, dMin, cIdx', ge, 0)
     where
-    ds = map (\x -> dist4StruGeneByNormArithMean (fst x) (snd x)) $ zip (replicate kVal sp) ccl
+    ds = map (\x -> dist4StruGeneByArithMean (fst x) (snd x)) $ zip (replicate kVal sp) ccl
     dMin = minimum ds
     cIdx = elemIndex dMin ds
     cIdx' = case cIdx of
@@ -561,14 +531,14 @@ getxCountInList x list count = getxCountInList x list1 count1
 {- 计算总距离(各个簇中样本到其所在簇的众心的距离之和)
    (x:xs): 表示除众心点外的其他样本点
  -}
-distTotalByClust :: [SampleClusterMark] -> Float -> Float
+distTotalByClust :: [SampleClusterMark] -> Double -> Double
 distTotalByClust [] origDist = origDist
 distTotalByClust (x:xs) origDist = distTotalByClust xs newDist
     where
     newDist = origDist + (snd5 x)
 
-type DistTotal = Float                                   -- Sum of distances between all samples and their cluster centres.
-type DistMean = Float
+type DistTotal = Double                                   -- Sum of distances between all samples and their cluster centres.
+type DistMean = Double
 type ClusterMap = Map.Map CIdx [StruGeneSample]          -- Partition of sample set after one time of clustering iteration.
 
 {- 发现所有样本的聚类结果
@@ -648,7 +618,7 @@ storeOneIterationResult tblName iNo scml kCentres distMean = do
     let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " set iNo = ?, sampleClustInfo = ?, modes = ?, distMean = ?"
 --  let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " values (iNo, scdStr, modesStr, distMean)"
     stmt <- prepareStmt conn sqlstat
-    executeStmt conn stmt [toMySQLInt8 iNo, toMySQLText scdStr, toMySQLText modesStr, toMySQLFloat distMean]
+    executeStmt conn stmt [toMySQLInt8 iNo, toMySQLText scdStr, toMySQLText modesStr, toMySQLDouble distMean]
     close conn
 
 type CIdxPriorsTuple = (SIdx, [Prior])
@@ -665,14 +635,14 @@ getPriorsOfSameClusterMap (x:xs) origPriorOfSameCluster = getPriorsOfSameCluster
 
 type TimeTableName = String
 type SNum = Int
-storeClusterTime :: TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Float -> IO ()
+storeClusterTime :: TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Double -> IO ()
 storeClusterTime timeTblName kVal sNum totalRunTime iterMeanTime its finalDistMean = do
     let tRTStr = init (show totalRunTime)
     let iMTStr = init (show iterMeanTime)
-    let tRTFloat = read tRTStr :: Float
-    let iMTFloat = read iMTStr :: Float
+    let tRTDouble = read tRTStr :: Double
+    let iMTDouble = read iMTStr :: Double
     let its' = its + 1
-    putStrLn $ "storeClusterTime: tRTFloat = " ++ show tRTFloat ++ ", iMTFloat = " ++ show iMTFloat ++ ", iNo = " ++ show its' ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ ", finalDistMean = " ++ show finalDistMean
+    putStrLn $ "storeClusterTime: tRTDouble = " ++ show tRTDouble ++ ", iMTDouble = " ++ show iMTDouble ++ ", iNo = " ++ show its' ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ ", finalDistMean = " ++ show finalDistMean
 
     conn <- getConn
     let sqlstat = DS.fromString $ "select kVal, sNum from " ++ timeTblName ++ " where kVal = ? and sNum = ?"
@@ -687,13 +657,13 @@ storeClusterTime timeTblName kVal sNum totalRunTime iterMeanTime its finalDistMe
       then do
         let sqlstat = DS.fromString $ "update " ++ timeTblName ++ " set totalTime = ?, iterMeanTime = ?, iNo = ?, finalDistMean = ? where kVal = ? and sNum = ?"
         stmt <- prepareStmt conn sqlstat
-        ok <- executeStmt conn stmt [toMySQLFloat tRTFloat, toMySQLFloat iMTFloat, toMySQLInt8 its', toMySQLFloat finalDistMean, toMySQLInt32 kVal, toMySQLInt32 sNum]
+        ok <- executeStmt conn stmt [toMySQLDouble tRTDouble, toMySQLDouble iMTDouble, toMySQLInt8 its', toMySQLDouble finalDistMean, toMySQLInt32 kVal, toMySQLInt32 sNum]
         putStrLn $ "storeClusterTime: Number of rows update affected = " ++ show (getOkAffectedRows ok)
         close conn
       else do
         let sqlstat = DS.fromString $ "insert into " ++ timeTblName ++ " set kVal = ?, sNum = ?, totalTime = ?, iterMeanTime = ?, iNo = ?, finalDistMean = ?"
         stmt <- prepareStmt conn sqlstat
-        ok <- executeStmt conn stmt [toMySQLInt32 kVal, toMySQLInt32 sNum, toMySQLFloat tRTFloat, toMySQLFloat iMTFloat, toMySQLInt8 its', toMySQLFloat finalDistMean]
+        ok <- executeStmt conn stmt [toMySQLInt32 kVal, toMySQLInt32 sNum, toMySQLDouble tRTDouble, toMySQLDouble iMTDouble, toMySQLInt8 its', toMySQLDouble finalDistMean]
         putStrLn $ "storeClusterTime: Number of rows insert affected = " ++ show (getOkAffectedRows ok)
         close conn
 
@@ -878,7 +848,7 @@ autoRunGetAmbiResolAccuracyOfAllClustRes arm df kVal bottomKVal deltaKVal topKVa
            putStrLn $ "The ambiguity resolution accuracy of (kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ "), first " ++ show sNum ++ " samples is accuracyForRandomModes1 = " ++ show accuracyForRandomModes1 ++ ", accuracyForRandomModes2 = " ++ show accuracyForRandomModes2
            let sqlstat = DS.fromString $ "replace into " ++ ambiResolAccuracyTbl ++ " set kVal = ?, sNum = ?, samplesCount = ?, accuracyForRandomModes1 = ?, accuracyForRandomModes2 = ?"
            stmt <- prepareStmt conn sqlstat
-           executeStmt conn stmt [toMySQLInt32 kVal, toMySQLInt32 sNum, toMySQLInt32 sNum, toMySQLFloat accuracyForRandomModes1, toMySQLFloat accuracyForRandomModes2]
+           executeStmt conn stmt [toMySQLInt32 kVal, toMySQLInt32 sNum, toMySQLInt32 sNum, toMySQLDouble accuracyForRandomModes1, toMySQLDouble accuracyForRandomModes2]
 
            let kVal' = kVal + deltaKVal
            let (kVal'', sNum') = case kVal' > topKVal of
@@ -939,7 +909,7 @@ getRandomsList count rangeStart rangeEnd = do
  - 对每条歧义消解片段找到其最近的众心，若歧义消解片段的prior和众心的prior一致，算命中，命中次数加1.
  - 最终求出的准确率accuracy为：命中次数除以总次数
 -}
-getAmbiResolAccuracyOfAClustRes :: IO Float
+getAmbiResolAccuracyOfAClustRes :: IO Double
 getAmbiResolAccuracyOfAClustRes = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
@@ -1017,16 +987,16 @@ findDistFromASampleToModes sg (x:xs) distList = findDistFromASampleToModes sg xs
 
 {- Arithmetically added distance between two StruGenes besides prior.
  -}
-dist4StruGeneWithoutPriByArithAdd :: StruGene -> StruGene -> Float
-dist4StruGeneWithoutPriByArithAdd s1 s2 = foldl (+) 0.0 $ distVect4StruGene s1 s2
+dist4StruGeneWithoutPriByArithAdd :: StruGene -> StruGene -> Double
+dist4StruGeneWithoutPriByArithAdd s1 s2 = foldl (+) 0.0 $ distVect4StruGeneByIdentity s1 s2
 
-distVect4StruGeneWithoutPri :: StruGene -> StruGene -> [Float]
+distVect4StruGeneWithoutPri :: StruGene -> StruGene -> [Double]
 distVect4StruGeneWithoutPri s1 s2 = [d1, d2, d3, d4, d5]
     where
-    d1 = distPhraSynSet (fst6 s1) (fst6 s2)
-    d2 = fromIntegral $ distPhraSyn (snd6 s1) (snd6 s2)
-    d3 = fromIntegral $ distPhraSyn (thd6 s1) (thd6 s2)
-    d4 = distPhraSynSet (fth6 s1) (fth6 s2)
+    d1 = distPhraSynSetByIdentity (fst6 s1) (fst6 s2)
+    d2 = distPhraSynByIdentity (snd6 s1) (snd6 s2)
+    d3 = distPhraSynByIdentity (thd6 s1) (thd6 s2)
+    d4 = distPhraSynSetByIdentity (fth6 s1) (fth6 s2)
     d5 = case fif6 s1 == fif6 s2 of
             True -> 0.0
             False -> 1.0

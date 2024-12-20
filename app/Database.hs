@@ -14,6 +14,7 @@ module Database (
   fromMySQLNullText,           -- MySQLValue (MySQLNull)-> String
   fromMySQLNullVarchar,        -- MySQLValue (MySQLNull) -> String
   fromMySQLFloat,              -- MySQLValue (MySQLFloat) -> Float
+  fromMySQLDouble,             -- MySQLValue (MySQLDouble) -> Double
   toMySQLInt8,                 -- Int -> MySQLValue (MySQLInt8)
   toMySQLInt16U,               -- Int -> MySQLValue (MySQLInt16U)
   toMySQLInt32U,               -- Int -> MySQLValue (MySQLInt32U)
@@ -25,6 +26,7 @@ module Database (
   toMySQLNullText,             -- MySQLValue (MySQLNull)
   toMySQLNullVarchar,          -- MySQLValue (MySQLNull)
   toMySQLFloat,                -- Float -> MySQLValue (MySQLFloat)
+  toMySQLDouble,               -- Double -> MySQLValue (MySQLDouble)
   getColumnDB,                 -- ColumnDef -> ByteString
   getColumnTable,              -- ColumnDef -> ByteString
   getColumnOrigTable,          -- ColumnDef -> ByteString
@@ -114,6 +116,10 @@ fromMySQLFloat :: MySQLValue -> Float
 fromMySQLFloat (MySQLFloat a) = read (show a) :: Float
 fromMySQLFloat _ = error "fromMySQLFloat: Parameter error."
 
+fromMySQLDouble :: MySQLValue -> Double
+fromMySQLDouble (MySQLDouble a) = read (show a) :: Double
+fromMySQLDouble _ = error "fromMySQLDouble: Parameter error."
+
 toMySQLInt8 :: Int -> MySQLValue
 toMySQLInt8 v = MySQLInt8 (read (show v) :: Int8)
 
@@ -146,6 +152,9 @@ toMySQLNullVarchar = MySQLNull
 
 toMySQLFloat :: Float -> MySQLValue
 toMySQLFloat v = MySQLFloat (read (show v) :: Float)
+
+toMySQLDouble :: Double -> MySQLValue
+toMySQLDouble v = MySQLDouble (read (show v) :: Double)
 
 getColumnDB :: ColumnDef -> ByteString
 getColumnDB (ColumnDef db _ _ _ _ _ _ _ _ _) = read (show db) :: ByteString

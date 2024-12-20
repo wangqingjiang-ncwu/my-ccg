@@ -395,7 +395,7 @@ doParseSentByStruGene username = do
              doParseSentByStruGene username                    -- Rear recursion
 
 {- 8_3_1. Parse sentence by resolving syntactic ambiguity according to StruGene sample with highest similarity degree,
- - Similarity degree calculated by grammatic attribute being same or not is called simple similarity.
+ - Similarity degree calculated by grammatic attribute being same or not is called identity similarity.
  - Similarity degree calculated by grammatic attribute's concurrent contexts is called embedded similarity.
  -}
 doParseSentByHighestSimilarity :: String -> IO ()
@@ -410,7 +410,7 @@ doParseSentByHighestSimilarity username = do
       else do
              case line of
                "?" -> putStr ""                                -- Do nothing
-               "1" -> parseSentByStruGeneFromConf "StruGeneSimple"     -- It is one kind of weighted-sum similarity
+               "1" -> parseSentByStruGeneFromConf "StruGeneIdentity"   -- Identity similarity
                "2" -> parseSentByStruGeneFromConf "StruGeneEmbedded"   -- Embedded similarity
              doParseSentByHighestSimilarity username           -- Rear recursion
 

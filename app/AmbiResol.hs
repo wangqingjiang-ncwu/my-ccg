@@ -320,8 +320,10 @@ readAmbiResol1FromStr str = (lp, rp, ct, ot, pr)
 readPhraSynFromStr :: String -> PhraSyn
 readPhraSynFromStr str = (ca, ta, ps)
     where
-    (caStr, ta, ps)  = stringToTriple str
+    (caStr, taStr, psStr)  = stringToTriple str
     ca = getCateFromString caStr
+    ta = read taStr :: Tag                        -- Sometime, It is necessary of changing from String to Tag.
+    ps = read psStr :: PhraStru
 
 readPhraSynListFromStr :: String -> [PhraSyn]
 readPhraSynListFromStr "[]" = []
@@ -464,12 +466,12 @@ readStreamByContext2ClauTagPrior :: [Context2ClauTagPrior] -> S.InputStream [MyS
 readStreamByContext2ClauTagPrior es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByContext2ClauTagPrior (es ++ [((readPhraSynListFromStr (fromMySQLText (x!!0)),
-                                                      readPhraSynFromStr (fromMySQLText (x!!1)),
-                                                      readPhraSynFromStr (fromMySQLText (x!!2)),
-                                                      readPhraSynListFromStr (fromMySQLText (x!!3)),
-                                                      fromMySQLInt8 (x!!4)),
-                                                      stringToCTPList (fromMySQLText (x!!5)))
-                                                    ]) is
+                                                             readPhraSynFromStr (fromMySQLText (x!!1)),
+                                                             readPhraSynFromStr (fromMySQLText (x!!2)),
+                                                             readPhraSynListFromStr (fromMySQLText (x!!3)),
+                                                             fromMySQLInt8 (x!!4)),
+                                                             stringToCTPList (fromMySQLText (x!!5)))
+                                                          ]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], change it into a StruGene2Sample value, append it

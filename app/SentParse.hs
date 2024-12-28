@@ -1628,21 +1628,31 @@ parseSentByStruGeneFromConf resolMethod = do
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
 
-    let startIdx = getConfProperty "defaultStartIdx" confInfo
-    let startSn = read startIdx :: Int
-    let endIdx = getConfProperty "defaultEndIdx" confInfo
-    let endSn = read endIdx :: Int
+    contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        contOrNot2 <- getLineUntil ("'tree_target' table will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        if contOrNot2 == "c"
+          then do
+
+            let startIdx = getConfProperty "defaultStartIdx" confInfo
+            let startSn = read startIdx :: Int
+            let endIdx = getConfProperty "defaultEndIdx" confInfo
+            let endSn = read endIdx :: Int
 --    conn <- getConn
 --    let sqlstat = DS.fromString $ "select count(*) from " ++ script_source
 --    (defs, is) <- query_ conn sqlstat
 --    rows <- readStreamByInt64 [] is
 --    let endSn = head rows
 
-    startSn <- getNumUntil ("Please input which sentence to start [1 .. " ++ show endSn ++ "]: ")  [startSn .. endSn]
-    endSn <- getNumUntil ("Please input which sentence to end [" ++ show startSn ++ " .. " ++ show endSn ++ "]: ") [startSn .. endSn]
-    putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
-    sentList <- getSentListFromDB startSn endSn
-    parseSentByStruGene resolMethod startSn endSn sentList script_source tree_target
+            startSn <- getNumUntil ("Please input which sentence to start [1 .. " ++ show endSn ++ "]: ")  [startSn .. endSn]
+            endSn <- getNumUntil ("Please input which sentence to end [" ++ show startSn ++ " .. " ++ show endSn ++ "]: ") [startSn .. endSn]
+            putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
+            sentList <- getSentListFromDB startSn endSn
+            parseSentByStruGene resolMethod startSn endSn sentList script_source tree_target
+
+          else putStrLn "Operation was canceled."
+      else putStrLn "Operation was canceled."
 
 {- Recursively parse all sentences and resolve syntactic ambiguity by StruGene sample which has highest similarity degree.
  -}
@@ -1957,6 +1967,7 @@ evaluateExperimentalTreebank = do
     experimentalTreebank <- readStreamByInt32TextText [] is
     let startSn = fst3 (head experimentalTreebank)
     let endSn = fst3 (last experimentalTreebank)
+    putStrLn $ "Experimental Treebank: " ++ experimental_treebank
     putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
 
     finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
@@ -2503,8 +2514,8 @@ storeTree sn treeStr = do
  -}
 readTree_String :: SentIdx -> String -> IO String
 readTree_String sn tree_source = do
---    confInfo <- readFile "Configuration"               -- Read the local configuration file
---    let tree_source = getConfProperty "tree_source" confInfo
+    confInfo <- readFile "Configuration"               -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
 
     conn <- getConn
     let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num = ?"
@@ -2529,7 +2540,7 @@ dispTreeOfSent [] = putStr ""                          -- Nothing to display.
 dispTreeOfSent (s:cs) = do
     let clauTreeStr = stringToTuple s
     putStrLn $ "Clause No.: " ++ (fst clauTreeStr)
-    let pcs = getClauPhraCate (snd clauTreeStr)
+    let pcs = getClauPhraCate s
     let spls = divPhraCateBySpan pcs                   -- Span lines
     showTreeStru spls spls
     dispTreeOfSent cs
@@ -2590,8 +2601,8 @@ getClauPhraCate :: String -> [PhraCate]
 getClauPhraCate "" = []
 getClauPhraCate str = map getPhraCateFromString (stringToList' phraCateListStr)
     where
-      clauTreeStr = stringToTuple str                                   -- ("ClauIdx", "[PhraCate]")
-      phraCateListStr = snd clauTreeStr                                 -- "[PhraCate]"
+      clauTreeStrTuple = stringToTuple str                                      -- ("ClauIdx", "[PhraCate]")
+      phraCateListStr = snd clauTreeStrTuple                                    -- "[PhraCate]"
 
 -- Get a clause's [PhraCate] from string value of (clauIdx, [[Rule]], [PhraCate]).
 getClauBanPCs :: String -> [PhraCate]

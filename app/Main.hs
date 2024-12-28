@@ -328,54 +328,74 @@ doParseSent username = do
  -}
 doParseSentByHumanMind :: String -> IO ()
 doParseSentByHumanMind username = do
-    putStr "Please input value of 'serial_num': "
-    line <- getLine
-    let sn = read line :: Int
-
-    ok <- checkIpc sn username
-    if ok
-      then do                          -- Pass authentication!
-        conn <- getConn
-        stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
-        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
-        cate_tree_check <- S.read is
-        let cate_tree_check' = case cate_tree_check of
-                                 Just x -> x
-                                 Nothing -> error "doParseSent: No cate_tree_check was read."
-        skipToEof is                                                   -- Go to the end of the stream.
-        let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
-        let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
-        if (cate_check == 0 || tree_check == 1)
+    confInfo <- readFile "Configuration"
+    let tree_target = getConfProperty "tree_target" confInfo
+    contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        contOrNot2 <- getLineUntil ("'tree_target' table will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        if contOrNot2 == "c"
           then do
-             putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
-             doParseSent username
-          else if (cate_check == 1 && tree_check == 0)
-                 then do
-                   getSentFromDB sn >>= getSent >>= parseSent sn
-                   doParseSent username
-                 else do
-                   putStrLn "Value of cate_check or tree_check is abnormal."
-                   doParseSent username
-      else do
-        putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
-        doParseSent username
+            putStr "Please input value of 'serial_num': "
+            line <- getLine
+            let sn = read line :: Int
+
+            ok <- checkIpc sn username
+            if ok
+              then do                          -- Pass authentication!
+                conn <- getConn
+                stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
+                (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
+                cate_tree_check <- S.read is
+                let cate_tree_check' = case cate_tree_check of
+                                         Just x -> x
+                                         Nothing -> error "doParseSent: No cate_tree_check was read."
+                skipToEof is                                                   -- Go to the end of the stream.
+                let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
+                let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
+                if (cate_check == 0 || tree_check == 1)
+                  then do
+                    putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
+                    doParseSent username
+                  else if (cate_check == 1 && tree_check == 0)
+                         then do
+                           getSentFromDB sn >>= getSent >>= parseSent sn
+                           doParseSent username
+                         else do
+                           putStrLn "Value of cate_check or tree_check is abnormal."
+                           doParseSent username
+              else do
+                putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
+                doParseSent username
+          else putStrLn "Operation was canceled."
+      else putStrLn "Operation was canceled."
 
 {- 8_2. According to the previously created script, parse the sentence indicated by serial_num.
  -}
 doParseSentByScript :: String -> IO ()
 doParseSentByScript username = do
-    putStr "Please input serial_num of start sentence: "
-    line1 <- getLine
-    let startSn = read line1 :: Int
-    putStr "Please input serial_num of end sentence: "
-    line2 <- getLine
-    let endSn = read line2 :: Int
+    confInfo <- readFile "Configuration"
+    let tree_target = getConfProperty "tree_target" confInfo
+    contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        contOrNot2 <- getLineUntil ("'tree_target' table will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        if contOrNot2 == "c"
+          then do
+            putStr "Please input serial_num of start sentence: "
+            line1 <- getLine
+            let startSn = read line1 :: Int
+            putStr "Please input serial_num of end sentence: "
+            line2 <- getLine
+            let endSn = read line2 :: Int
 
-    if startSn > endSn
-      then putStrLn "No sentence is designated."
-      else parseSentsByScript startSn endSn
+            if startSn > endSn
+              then putStrLn "No sentence is designated."
+              else parseSentsByScript startSn endSn
 
-    doParseSent username
+            doParseSent username
+          else putStrLn "Operation was canceled."
+      else putStrLn "Operation was canceled."
 
 {- 8_3. By resolving syntactic ambiguity according to StruGene samples,
  - parse the sentence indicated by serial_num.
@@ -656,15 +676,17 @@ doExperiments :: String -> IO ()
 doExperiments username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Parse sentence using all lexcial rules"
+    putStrLn " 2 -> Test context similarity degree 1.0 only happens between one StruGene sample and itself"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
              case line of
                "?" -> putStr ""                                -- Do nothing
                "1" -> doParseSentWithAllLexRules username
+               "2" -> doTestSim1HappenBetweenOneStruGeneSampleAndItself username
              doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
@@ -691,6 +713,18 @@ doParseSentWithAllLexRules username = do
       else do
              getSentFromDB sn >>= getSent >>= parseSentWithAllLexRules sn
              interpreter username
+
+{- B.2 Test context similarity degree 1.0 only happens between one StruGene sample and itself.
+ -}
+doTestSim1HappenBetweenOneStruGeneSampleAndItself :: String -> IO ()
+doTestSim1HappenBetweenOneStruGeneSampleAndItself username = do
+    startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+    endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+    context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+    let startIdx' = case startIdx of
+                      0 -> 1
+                      _ -> startIdx
+    findWhereSim1HappenAmongStruGeneSamples startIdx' 0 context2ClauTagPriorBase
 
 -- C. Various maintenance tools.
 doMaintenance :: String -> IO ()

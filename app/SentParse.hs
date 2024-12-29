@@ -1956,31 +1956,37 @@ evaluateExperimentalTreebank = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let benchmark_treebank = getConfProperty "benchmark_treebank" confInfo
     let experimental_treebank = getConfProperty "experimental_treebank" confInfo
-    let query = DS.fromString ("select serial_num, tree, script from " ++ benchmark_treebank)       -- Query is instance of IsString.
-    stmt <- prepareStmt conn query
-    (defs, is) <- queryStmt conn stmt []
-    benchmarkTreebank <- readStreamByInt32TextText [] is
 
-    let query = DS.fromString ("select serial_num, tree, script from " ++ experimental_treebank)
-    stmt <- prepareStmt conn query
-    (defs, is) <- queryStmt conn stmt []
-    experimentalTreebank <- readStreamByInt32TextText [] is
-    let startSn = fst3 (head experimentalTreebank)
-    let endSn = fst3 (last experimentalTreebank)
-    putStrLn $ "Experimental Treebank: " ++ experimental_treebank
-    putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
+    contOrNot <- getLineUntil ("'experimental_treebank' table is " ++ experimental_treebank ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
 
-    finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
-    let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
-    putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
-    putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))                     -- Precision = TP / (TP + FP)
+        let query = DS.fromString ("select serial_num, tree, script from " ++ benchmark_treebank)       -- Query is instance of IsString.
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt []
+        benchmarkTreebank <- readStreamByInt32TextText [] is
 
-    let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
-    putStrLn $ "Recall = " ++ (printf "%.4f" (recall :: Double))                           -- Recall = TP / (TP + FN)
+        let query = DS.fromString ("select serial_num, tree, script from " ++ experimental_treebank)
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt []
+        experimentalTreebank <- readStreamByInt32TextText [] is
+        let startSn = fst3 (head experimentalTreebank)
+        let endSn = fst3 (last experimentalTreebank)
+        putStrLn $ "Experimental Treebank: " ++ experimental_treebank
+        putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
 
-    let f1Score = 2.0 * (precision * recall) / (precision + recall)
-    putStrLn $ "F1Score = " ++ (printf "%.4f" (f1Score :: Double))                          -- F1Score
+        finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
+        let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
+        putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
+        putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))                     -- Precision = TP / (TP + FP)
 
+        let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
+        putStrLn $ "Recall = " ++ (printf "%.4f" (recall :: Double))                           -- Recall = TP / (TP + FN)
+
+        let f1Score = 2.0 * (precision * recall) / (precision + recall)
+        putStrLn $ "F1Score = " ++ (printf "%.4f" (f1Score :: Double))                          -- F1Score
+      else putStrLn "Operation was canceled."
+      
 -- According to a benchmark treebank, there are statistical numbers of a certain machine-building treebank.
 type NumOfManPositPhrase = Int         -- Num. of phrases in a manually built tree, namely TP + FN
 type NumOfManNegPhrase = Int           -- Num. of phrases in a manually built banned phrase category set namely banPCs

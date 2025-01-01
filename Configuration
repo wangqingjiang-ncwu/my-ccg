@@ -7,11 +7,24 @@ Database:ccg4c
 # Where parsing trees and scripts come from and go to, such as 'corpus', 'treebank1'.
 # When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
 script_source:corpus
-script_target:corpus
 tree_source:corpus
 # tree_target:corpus
 # tree_target:treebank_by_strugene2_embedded_sim
 # tree_target:treebank_by_strugene2_identity_sim_first_prior
+# tree_target:treebank_202412
+# tree_target:treebank_by_strugene2_identity_sim_Hit
+tree_target:treebank_by_strugene2_identity_sim_MaxFreq
+# tree_target:treebank_by_strugene2_embedded_sim_Hit
+# tree_target:treebank_by_strugene2_embedded_sim_MaxFreq
+
+# Algorithm of selecting a context with the highest similarity degree in StruGene samples.
+# Strongly recommend to use algorithm 'Hit' because hit is more credibal than highest similarity degree.
+# strugene_context_selection_algo:First
+strugene_context_selection_algo:Hit
+
+# Algorithm of selecting a prior according to the highest number of occurrences or sample origin.
+strugene_prior_selection_algo:MaxFreq
+# strugene_prior_selection_algo:Hit
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
 # In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.
@@ -24,22 +37,25 @@ cate_conv_ambig_resol_target:treebank1
 # Actually, no matter what ambiguity resolution model is selected, the model samples should exist for every sentence in treebanks.
 # Model 'stru_gene' should be selected when parsing tree was creatly at the first time, then other models are selected when parsing by scripts
 # with purpose that samples of those models can be obtained.
-#ambi_resol_model:stru_gene
-#ambi_resol_model:ambi_resol1
-ambi_resol_model:stru_gene_202408
+# ambi_resol_model:stru_gene
+# ambi_resol_model:ambi_resol1
+# ambi_resol_model:stru_gene_202408
+ambi_resol_model:stru_gene_202412
 
 # Sample table in MySQL database 'ccg4c' of syntax ambiguity resolution.
-#ambi_resol_samples:stru_gene2
-ambi_resol_samples:stru_gene_202408
-#ambi_resol_samples:treebank_clust_res_k200_s18000_sg_aa
+# ambi_resol_samples:stru_gene
+# ambi_resol_samples:stru_gene_202408
+ambi_resol_samples:stru_gene_202412
+# ambi_resol_samples:treebank_clust_res_k200_s18000_sg_aa
 
 # Benchmark treebank
 benchmark_treebank:corpus
 
 # Experimental treebank
-experimental_treebank:treebank_by_strugene2_identity_sim
-# experimental_treebank:treebank_by_strugene2_embedded_sim
-# experimental_treebank:treebank_by_strugene2_embedded_sim_hit_prior
+# experimental_treebank:treebank_by_strugene2_identity_sim_MaxFreq
+# experimental_treebank:treebank_by_strugene2_identity_sim_Hit
+# experimental_treebank:treebank_by_strugene2_embedded_sim_MaxFreq
+experimental_treebank:treebank_by_strugene2_embedded_sim_Hit
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.

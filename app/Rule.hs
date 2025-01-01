@@ -65,6 +65,7 @@ appF cate1 cate2
     | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)                    -- np/*np in structure U1P is ok.
     | isAvail && (cateEqual ca1 verbCate || cateEqual ca1 verbCate2) = (lca, ">", semComb se1 se2, "VO", True)
     | isAvail && (ca1 == advCate || ca1 == baPhraseCate) = (lca, ">", semComb se1 se2, "DHv", True)
+    | isAvail && (ca1 == advCate || ca1 == predCate) = (lca, ">", semComb se1 se2, "DHv", True)
     | isAvail && (ca1 == prep2AdvCate || ca1 == prep2CompCate) = (lca, ">", semComb se1 se2, "PO", True)
     | isAvail' && ca1 == advCate4Adj = (lca, ">", semComb se1 se2, "DHa", True)
     | isAvail && (ca1 == aux3Cate || ca1 == aux3dCate) = (leftCate ca1, ">", semComb se1 se2, "U3P", True)
@@ -229,7 +230,7 @@ raiFc cate1 cate2
 
 {- Backward type raising and harmonic composition: (Y/X)\Z X -> (Y/X)\Z Y\(Y/X)-> Y\Z
  - '被'字结构 MOs
- - 被pb 他r 打vt => 被pb (他r 打vt)vi => (s/#(s/.np))\#np np (s\.np)/.np => (s/#(s/.np))\#np s/.np => (s/#(s/.np))\#np s\#(s/#(s/.np)) => s\#np, namely raiBh.
+ - 被pb 他r 打vt => 被pb (他r 打vt)vi => (s/#(s/.np))\.np np (s\.np)/.np => (s/#(s/.np))\.np s/.np => (s/#(s/.np))\.np s\#(s/#(s/.np)) => s\.np, namely raiBh.
  - Seemingly, the functional name "raiBh" should be "raiBB", because 'h' is not necessary for representing harmonic，while backward direction in combination should be reflected.
  -}
 raiBh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)

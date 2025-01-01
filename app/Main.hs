@@ -333,7 +333,7 @@ doParseSentByHumanMind username = do
     contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil ("'tree_target' table will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input value of 'serial_num': "
@@ -371,6 +371,7 @@ doParseSentByHumanMind username = do
       else putStrLn "Operation was canceled."
 
 {- 8_2. According to the previously created script, parse the sentence indicated by serial_num.
+ - The parsing result will be compared with the result created manually, and then dropped away.
  -}
 doParseSentByScript :: String -> IO ()
 doParseSentByScript username = do
@@ -379,7 +380,7 @@ doParseSentByScript username = do
     contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil ("'tree_target' table will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input serial_num of start sentence: "
@@ -397,8 +398,8 @@ doParseSentByScript username = do
           else putStrLn "Operation was canceled."
       else putStrLn "Operation was canceled."
 
-{- 8_3. By resolving syntactic ambiguity according to StruGene samples,
- - parse the sentence indicated by serial_num.
+{- 8_3. By resolving syntactic ambiguity according to StruGene samples, parse the sentences indicated by serial_nums.
+ - Parsing result including parsing scripts will be stored into database table indicated by 'tree_target'.
  -}
 doParseSentByStruGene :: String -> IO ()
 doParseSentByStruGene username = do
@@ -439,6 +440,7 @@ doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
     confInfo <- readFile "Configuration"               -- Read the local configuration file
     let tree_source = getConfProperty "tree_source" confInfo
+    putStrLn $ "tree_source is " ++ tree_source ++ "."
 
     putStr "Please input value of 'serial_num': "
     line <- getLine

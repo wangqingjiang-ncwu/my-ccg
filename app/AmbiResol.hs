@@ -21,6 +21,7 @@ module AmbiResol (
     stringToClauTagPrior,       -- String -> ClauTagPrior
     removeFromCTPListByClauTag,    -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     hasClauTagInCTPList,        -- ClauTag -> [ClauTagPrior] -> Bool
+    filterInCTPListByClauTag,   -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
     priorWithHighestFreq,       -- [ClauTagPrior] -> Prior
     fromMaybePrior,             -- Maybe Prior -> Prior
@@ -64,6 +65,8 @@ module AmbiResol (
     readStreamByContext2OverType,      -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
     StruGene2,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
     StruGene2Sample,     -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+    getContextFromStruGene2,           -- StruGene2 -> ContextOfSG
+    fromStruGene2ByHighestFreqPrior,   -- StruGene2 -> StruGene
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
@@ -249,12 +252,19 @@ hasSentSampleInSynAmbiResol sentIdx clauIdxOfStart clauIdxOfEnd =
           else hasSentSampleInSynAmbiResol sentIdx (clauIdxOfStart + 1) clauIdxOfEnd
       else return False
 
--- Decide whether there is any ClauTagPrior value with given ClauTag value in a [ClauTagPrior] value.
+-- Decide whether there is any ClauTagPrior value with given ClauTag value in a [ClauTagPrior] list.
 hasClauTagInCTPList :: ClauTag -> [ClauTagPrior] -> Bool
 hasClauTagInCTPList _ [] = False
 hasClauTagInCTPList clauTag (x:xs)
     | clauTag == fst x = True
     | otherwise = hasClauTagInCTPList clauTag xs
+
+-- Filter ClauTagPrior values with given ClauTag value in a [ClauTagPrior] list.
+filterInCTPListByClauTag :: ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+filterInCTPListByClauTag _ [] = []
+filterInCTPListByClauTag clauTag (x:xs)
+    | clauTag == fst x = x : filterInCTPListByClauTag clauTag xs
+    | otherwise = filterInCTPListByClauTag clauTag xs
 
 -- Overtype context 'ContextOfSG', clause-tagged prior and its context 'Context2ClauTagPrior', and sample base of 'Context2ClauTagPrior'.
 type ContextOfSG = (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
@@ -456,6 +466,14 @@ readStreamByContext2OverType es is = do
  -}
 type StruGene2 = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
 type StruGene2Sample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+
+-- Get ContextOfSG value from StruGene2 value.
+getContextFromStruGene2 :: StruGene2 -> ContextOfSG
+getContextFromStruGene2 struGene2 = (\x -> (fst6 x, snd6 x, thd6 x, fth6 x, fif6 x)) struGene2
+
+-- Convert a StruGene2 value to a StruGene value by doing priorWithHighestFreq opertion.
+fromStruGene2ByHighestFreqPrior :: StruGene2 -> StruGene
+fromStruGene2ByHighestFreqPrior (a,b,c,d,e,clauTagPrior) = (a,b,c,d,e, (fromMaybePrior . priorWithHighestFreq) clauTagPrior)
 
 {- Read a value from input stream [MySQLValue], change it into a Context2ClauTagPrior value, append it
  - to existed Context2ClauTagPrior list, then read the next until read Nothing.

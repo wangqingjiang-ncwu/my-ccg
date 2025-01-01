@@ -11,8 +11,10 @@ module Clustering (
     distPhraSynByIdentity,     -- PhraSyn -> PhraSyn -> Double
     distPhraSynSetByIdentity,  -- [PhraSyn] -> [PhraSyn] -> Double
     distVect4StruGeneByIdentity,         -- StruGene -> StruGene -> [Double]
+    distVect4ContextOfSGByIdentity,      -- ContextOfSG -> ContextOfSG -> [Double]
     DistWeiRatioList,          -- [Int], namely [wle, wlo, wro, wre, wot, wpr]
     dist4StruGeneByWeightSum,  -- StruGene -> StruGene -> DistWeiRatioList -> Double
+    dist4ContextOfSGByWeightSum,         -- ContextOfSG -> ContextOfSG -> DistWeiRatioList -> Double
     dist4StruGeneByArithMean,  -- StruGene -> StruGene -> Double
     StruGene,                  -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     getKModeByMaxMinPoint,     -- [StruGeneSample] -> [StruGeneSample] -> Map.Map SIdx Double -> Int -> [StruGene]
@@ -40,7 +42,8 @@ module Clustering (
     autoRunGetAmbiResolAccuracyOfAllClustRes, -- String -> String -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> IO ()
     getRandomsList,                           -- Int -> Int -> Int -> [Int] -> IO [Int]
     getAmbiResolAccuracyOfAClustRes,          -- IO Double
-    getAmbiResolSamples,                      -- IO [StruGeneSample]
+    getStruGeneSamples,                       -- IO [StruGeneSample]
+    getStruGene2Samples,                      -- IO [StruGene2Sample]
 
     clusteringAnalysis,      -- Int -> IO ()
     SentClauPhraList,        -- [[[PhraCate]]]
@@ -153,6 +156,21 @@ distVect4StruGeneByIdentity s1 s2 = [d1, d2, d3, d4, d5, d6]
             True -> 0.0
             False -> 1.0
 
+{- The distance vector between two StruGene contexts or two StruGene2 contexts.
+ - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType), the distance vector is obtained by following function.
+ - Elements in distance vector all are in [0, 1].
+ -}
+distVect4ContextOfSGByIdentity :: ContextOfSG -> ContextOfSG -> [Double]
+distVect4ContextOfSGByIdentity c1 c2 = [d1, d2, d3, d4, d5]
+    where
+    d1 = distPhraSynSetByIdentity (fst5 c1) (fst5 c2)
+    d2 = distPhraSynByIdentity (snd5 c1) (snd5 c2)
+    d3 = distPhraSynByIdentity (thd5 c1) (thd5 c2)
+    d4 = distPhraSynSetByIdentity (fth5 c1) (fth5 c2)
+    d5 = case fif5 c1 == fif5 c2 of
+            True -> 0.0
+            False -> 1.0
+
 -- Weigth ratio list of distances on StruGene elements between two StruGene samples.
 type DistWeiRatioList = [Int]     -- [wle, wlo, wro, wre, wot, wpr]
 
@@ -164,6 +182,16 @@ dist4StruGeneByWeightSum :: StruGene -> StruGene -> DistWeiRatioList -> Double
 dist4StruGeneByWeightSum s1 s2 distWeiRatioList = sum distList / fromIntegral ratioTotal
     where
     distList = map (\x -> fromIntegral (fst x) * snd x) $ zip distWeiRatioList $ distVect4StruGeneByIdentity s1 s2
+    ratioTotal = sum distWeiRatioList
+
+{- Calculate distance between contexts of two StruGene samples.
+ - (1) Weightedly sum distances only on StruGene context components;
+ - (2) Normalize to range [0, 1].
+ -}
+dist4ContextOfSGByWeightSum :: ContextOfSG -> ContextOfSG -> DistWeiRatioList -> Double
+dist4ContextOfSGByWeightSum c1 c2 distWeiRatioList = sum distList / fromIntegral ratioTotal
+    where
+    distList = map (\x -> fromIntegral (fst x) * snd x) $ zip distWeiRatioList $ distVect4ContextOfSGByIdentity c1 c2
     ratioTotal = sum distWeiRatioList
 
 {- Arithmetically meaned distance between two StruGenes.
@@ -1003,35 +1031,27 @@ distVect4StruGeneWithoutPri s1 s2 = [d1, d2, d3, d4, d5]
             True -> 0.0
             False -> 1.0
 
-{- Read original ambiguity resolution samples or their clustering result,
+{- Read original StruGene samples or their clustering result,
  - the source of which is indicated by attribute 'ambi_resol_samples' in configuration.
+ - This function is obsoleted.
  -}
-getAmbiResolSamples :: IO [StruGeneSample]
-getAmbiResolSamples = do
+getStruGeneSamples :: IO [StruGeneSample]
+getStruGeneSamples = do
     confInfo <- readFile "Configuration"
     let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
     conn <- getConn
 
     putStrLn $ "Get samples from " ++ ambi_resol_samples
 
-    if ambi_resol_samples == "stru_gene2"
+    if ambi_resol_samples == "stru_gene"
       then do
         let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_samples
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGeneSampleList <- readStreamByInt324TextInt8Text [] is              -- [StruGeneSample]
         return struGeneSampleList
-      else if ambi_resol_samples == "stru_gene_202408"       -- Extract highest-frequency Prior value from ClauTagPrior value List.
-        then do
-          let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_samples
-          stmt <- prepareStmt conn sqlstat
-          (defs, is) <- queryStmt conn stmt []
-
-          struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
---          putStrLn $ "struGene2SampleList!!0: " ++ show (struGene2SampleList!!0)
-          let struGeneSampleList = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, (fromMaybePrior . priorWithHighestFreq . svt7) x)) struGene2SampleList
-          return struGeneSampleList
-        else if (length (splitAtDeli '_' ambi_resol_samples) > 4 && (splitAtDeli '_' ambi_resol_samples)!!4 == "sg")
+      else
+        if (length (splitAtDeli '_' ambi_resol_samples) > 4 && (splitAtDeli '_' ambi_resol_samples)!!4 == "sg")
           then do
             let sqlstat = DS.fromString $ "select modes from " ++ ambi_resol_samples ++ " where iNo = (select max(iNo) from " ++ ambi_resol_samples ++ ") - 1"
                                     -- MySQL table 'ambi_resol_samples' have at least two records.
@@ -1044,8 +1064,29 @@ getAmbiResolSamples = do
             let sgs = zip [1..len] modeList
             return (map (\x -> (fst x, fst6 (snd x), snd6 (snd x), thd6 (snd x), fth6 (snd x), fif6 (snd x), sth6 (snd x))) sgs)
           else do
-            putStrLn "getAmbiResolSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
+            putStrLn "getStruGeneSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
             return []
+
+{- Read stru_gene_202408 samples, the source of which is indicated by attribute 'ambi_resol_samples' in configuration.
+ - Sample type StruGene2Sample :: (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
+ -}
+getStruGene2Samples :: IO [StruGene2Sample]
+getStruGene2Samples = do
+    confInfo <- readFile "Configuration"
+    let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
+    conn <- getConn
+
+    putStrLn $ "Get samples from " ++ ambi_resol_samples
+    case ambi_resol_samples of
+      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
+        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_samples
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+        struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
+        return struGene2SampleList
+      _ -> do
+        putStrLn "getStruGene2Samples: Value of property 'ambi_resol_samples' does not match any MySQL table."
+        return []
 
 -- Implementation of menu 'D. Clustering analysis'.
 clusteringAnalysis :: Int -> IO ()
@@ -2206,27 +2247,61 @@ getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase = do
  - contextOfSG: A ClauTagPrior context.
  - context2ClauTagPriorBase: All samples of mapping from ContextOfSG to ClauTagPrior.
  - ContextOfSGPair2Sim :: ((ContextOfSG, ContextOfSG), simDeg)
+ - Algorithms
+ -   No.1: First. Return the first element among all elements with the highest similarity degree in Context2ClauTagPrior list.
+ -   No.2: Hit. If hit a StruGene context, return the context corresponding Context2ClauTagPrior value. Otherwise,
+ -         return the first element among all elements with the highest similarity degree in Context2ClauTagPrior list.
  -}
 findStruGeneSampleByMaxContextSim :: ContextOfSG -> Context2ClauTagPriorBase -> IO (SIdx, SimDeg, Context2ClauTagPrior)
 findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase = do
-    let contextOfSGList = map fst context2ClauTagPriorBase                      -- [ContextOfSG]
-    if elem (contextOfSG) contextOfSGList
-      then do                                                                   -- Hit the context of a certain sample
-        putStrLn "findStruGeneSampleByMaxContextSim: Hit a sample."
-        let idx = elemIndex (contextOfSG) contextOfSGList                         -- Find its position
-        let idx' = maybe (-1) (+0) idx                                          -- '-1' is impossible.
-        return $ (idx' + 1, 1.0, context2ClauTagPriorBase!!idx')                -- Similarity degree is 1.0 when hitting happens.
-      else do
-        putStrLn $ "findStruGeneSampleByMaxContextSim: Not hit by contextOfSG: " ++ show contextOfSG        
-        let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
-        contextOfSGPairSimTuple' <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
-        let contextOfSGPairSimTuple = (tail (fst contextOfSGPairSimTuple'), tail (snd contextOfSGPairSimTuple'))
-        let contextOfSGPair2SimList = snd contextOfSGPairSimTuple               -- [((ContextOfSG, ContextOfSG), SimDeg)]
-        let simDegList = map snd contextOfSGPair2SimList                        -- [SimDeg]
-        let maxSim = maximum simDegList                                         -- 1.0 is possible.
-        let idx = elemIndex maxSim simDegList                                   -- Use the first element with maximum
-        let idx' = maybe (-1) (+0) idx
-        return $ (idx' + 1, maxSim, context2ClauTagPriorBase!!idx')             -- SIdx values are from 1 to begin.
+    confFile <- readFile "Configuration"
+    let strugene_context_selection_algo = getConfProperty "strugene_context_selection_algo" confFile
+
+    case strugene_context_selection_algo of
+      "First" -> do                                                             -- Only used for experimental comparsion
+        let contextOfSGList = map fst context2ClauTagPriorBase                  -- [ContextOfSG]
+        if elem (contextOfSG) contextOfSGList
+          then do                                                                   -- Hit the context of a certain sample
+              contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
+              let contextOfSGPair2SimList = snd contextOfSGPairSimTuple         -- [((ContextOfSG, ContextOfSG), SimDeg)]
+              let simDegList = map snd contextOfSGPair2SimList                  -- [SimDeg]
+              let maxSim = maximum simDegList                                   -- 1.0 is possible.
+              let idx = elemIndex maxSim simDegList                             -- Use the first element with maximum
+              let idx' = maybe (-1) (+0) idx
+              return $ (idx' + 1, maxSim, context2ClauTagPriorBase!!idx')       -- SIdx values are from 1 to begin.
+          else do
+              putStrLn $ "findStruGeneSampleByMaxContextSim: Missing contextOfSG: " ++ show contextOfSG
+              let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
+              contextOfSGPairSimTuple' <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
+              let contextOfSGPairSimTuple = (tail (fst contextOfSGPairSimTuple'), tail (snd contextOfSGPairSimTuple'))
+              let contextOfSGPair2SimList = snd contextOfSGPairSimTuple         -- [((ContextOfSG, ContextOfSG), SimDeg)]
+              let simDegList = map snd contextOfSGPair2SimList                  -- [SimDeg]
+              let maxSim = maximum simDegList                                   -- 1.0 is possible.
+              let idx = elemIndex maxSim simDegList                             -- Use the first element with maximum
+              let idx' = maybe (-1) (+0) idx
+              return $ (idx' + 1, maxSim, context2ClauTagPriorBase!!idx')       -- SIdx values are from 1 to begin.
+
+      "Hit" -> do                                                               -- Strongly recommended for use
+        let contextOfSGList = map fst context2ClauTagPriorBase                  -- [ContextOfSG]
+        if elem (contextOfSG) contextOfSGList
+          then do                                                               -- Hit the context of a certain sample
+            putStrLn "findStruGeneSampleByMaxContextSim: Hit a sample."
+            let idx = elemIndex (contextOfSG) contextOfSGList                   -- Find its position
+            let idx' = maybe (-1) (+0) idx                                      -- '-1' is impossible.
+            return $ (idx' + 1, 1.0, context2ClauTagPriorBase!!idx')            -- Similarity degree is 1.0 when hitting happens.
+          else do
+            putStrLn $ "findStruGeneSampleByMaxContextSim: Missing contextOfSG: " ++ show contextOfSG
+            let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
+            contextOfSGPairSimTuple' <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
+            let contextOfSGPairSimTuple = (tail (fst contextOfSGPairSimTuple'), tail (snd contextOfSGPairSimTuple'))
+            let contextOfSGPair2SimList = snd contextOfSGPairSimTuple           -- [((ContextOfSG, ContextOfSG), SimDeg)]
+            let simDegList = map snd contextOfSGPair2SimList                    -- [SimDeg]
+            let maxSim = maximum simDegList                                     -- 1.0 is possible.
+            let idx = elemIndex maxSim simDegList                               -- Use the first element with maximum
+            let idx' = maybe (-1) (+0) idx
+            return $ (idx' + 1, maxSim, context2ClauTagPriorBase!!idx')         -- SIdx values are from 1 to begin.
+
+      _ -> error $ "findStruGeneSampleByMaxContextSim: Algo. " ++ strugene_context_selection_algo ++ " is undefined."
 
 {- Among set of ContestOfSG values, calculate similarity degrees between one element and all elements,
  - If one element has similarity degree 1.0 only with itself, print '[OK]';

@@ -297,7 +297,8 @@ cateComb onOff pc1 pc2
  - (1) The verb's type follows conjunction type (X\*X)/*X,
  - (2) A phrase with structure HX follows,
  - (3) An object acts as the subject, and no '被' makes the verb change into a predicate, namely “受事做主语” (Object as Subject).
- - (4) '被' makes transitive verbs change into a predicate.
+ - (4) The verb's type follows adverb type (s\.np)/#(s\.np),
+ - (5) '被' makes transitive verbs change into a predicate. This rule is obsoleted.
  -}
       vt_P_Conj = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
       ctspaByvtToP_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_Conj, elem Pvt onOff]
@@ -311,6 +312,10 @@ cateComb onOff pc1 pc2
       ctspaByvtToP_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- csp_1, cate2 <- vt_P_SP, elem Pvt onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == npCate]
+      vt_P_DHv = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
+      ctspaByvtToP_DHv = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_SP, elem Pvt onOff]
+          where
+          csp_1 = removeDup [x| x <- csp1, fst3 x == advCate]
 {-
  - Early category of '被' was advCate. When modifing a transitive verb without object, the verb was converted into predicate verb.
  - Present category of '被' is (s/#(s/.np))\.np. When modifing a transitive verb without object, the verb is converted into OE category s/.np.
@@ -321,7 +326,7 @@ cateComb onOff pc1 pc2
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == advCate]
  -}
-      ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP
+      ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP ++ ctspaByvtToP_DHv
       catesByvtToP = [(fst5 cate, "P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP]
 
 {- The conversion from transitive verb's types to object-extractioned type happens when the preposition '被' type happens to the left of this verb.

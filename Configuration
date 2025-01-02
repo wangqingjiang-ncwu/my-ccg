@@ -7,6 +7,7 @@ Database:ccg4c
 # Where parsing trees and scripts come from and go to, such as 'corpus', 'treebank1'.
 # When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
 script_source:corpus
+# script_source:treebank1
 tree_source:corpus
 # tree_target:corpus
 # tree_target:treebank_by_strugene2_embedded_sim

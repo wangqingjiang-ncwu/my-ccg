@@ -322,7 +322,7 @@ data Rule = Ss | Ps | Os | As | Hns | Ns
           | Npe
           | Aq
           | Jfc | Jbc
-          | U3du3 deriving (Eq)
+          | U3du3 deriving (Eq, Ord)
 
 lexRule :: [Rule]
 lexRule = [Ss, Ps, Os, As, Hns, Ns, Sv, Ov, Av, Hnv, Dv, Cnv, Cvv, Nv, Pvt, OEvt, Vtvi, Avd, Sa, Oa, Hna, Na, Pa, Va, Da, Daa, Cva, Cna, Caa, Pn, Vn, An, Cnn, Cvn, Dn, Dan, ADJn, Snd, Ond, Hnnd, Sd, Od, Ad, Hnd, Cvd, Nd, ADJd, Dad, Dsd, Dxd, Doed, Dp, Ooe, Hnoe, Noe, Npe, Aq, Jfc, Jbc, U3du3]

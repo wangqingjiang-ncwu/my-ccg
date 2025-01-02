@@ -24,9 +24,9 @@ module SentParse (
     updateStruGene',      -- ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
     parseSentsByScript,   -- SentIdx -> SentIdx -> IO ()
     parseSentByScript,    -- SentIdx -> [String] -> IO Bool
-    parseSentByScript',   -- SentIdx -> [String] -> [Script] -> IO Bool
-    parseClauseWithScript,            -- [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> IO ([[Rule]],[PhraCate],[PhraCate])
-    doTransWithScript,    -- [PhraCate] -> [PhraCate] -> Script -> IO ([Rule], [PhraCate], [PhraCate])
+    parseSentByScript',   -- SentIdx -> [String] -> [Script] -> IO (Bool, SLROfSent, [Tree], [Script], TagOfClauAnaly)
+    parseClauseWithScript,      -- ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], BanPCs, SLROfClause)
+    doTransWithScript,          -- ClauTag -> [PhraCate] -> BanPCs -> [OverPair] -> Script -> IO ([Rule], [PhraCate], BanPCs, [OverPair])
     getPhraStruCSFromStruGene2,       -- Int -> Int -> IO ()
     autoverifyEffectOfPhraStruCS,     -- Int -> IO ()
     autoRunGrammarAmbiResol,          -- Int -> Int -> IO ()
@@ -36,12 +36,12 @@ module SentParse (
     parseASentByStruGene,    -- SynAmbiResolMethod -> SentIdx -> [String] -> String -> String -> IO ()
     getStruGene1FromAmbiResol1,       -- Int -> Int -> IO ()
     evaluateExperimentalTreebank,     -- IO ()
-    doTransWithManualResol,           -- [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
-    ambiResolByManualResol,           -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
-    ambiResolByManualResol',          -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
+    doTransWithManualResol,     -- ClauTag -> [Rule] -> [PhraCate] -> BanPCs -> [OverPair] -> IO ([Rule], [PhraCate], BanPCs, [OverPair])
+    ambiResolByManualResol,     -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+    ambiResolByManualResol',    -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
     updateAmbiResol,      -- [PhraCate] -> [OverPair] -> IO ()
     updateAmbiResol',     -- [PhraCate] -> OverPair -> IO ()
-    storeClauseParsingToTreebank,     -- SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+    storeClauseParsingToTreebank,     -- SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], BanPCs) -> IO ()
     storeTree,            -- SentIdx -> String -> IO ()
     readTree_String,      -- SentIdx -> IO String
     sentToClauses,        -- String -> IO [String]
@@ -822,9 +822,9 @@ parseSentsByScript startSn endSn = do
             then putStrLn $ "parseSentsByScript: Skip sentence No. " ++ show [startSn' .. endSn]
             else putStrLn "parseSentsByScript: End."
 
-type NumOfClauEqual = Int
-type ClauIdxOfClauUnequal = [Int]                                 -- 不等小句的编号的列表
-type TagOfClauAnaly = (NumOfClauEqual, ClauIdxOfClauUnequal)      -- 相等小句的个数，不等小句的编号
+type NumOfClauEqual = Int                                         -- Num. of clauses with same parsing trees.
+type ClauIdxOfClauUnequal = [Int]                                 -- Indices List of clauses with different trees.
+type TagOfClauAnaly = (NumOfClauEqual, ClauIdxOfClauUnequal)      -- Comparing results between original and new parsing.
 
 {- Re-parse a sentence according the previously created parsing script.
  - Here every clause is a String, and parsing starts from the first clause.
@@ -874,33 +874,42 @@ parseSentByScript sn cs = do
  -}
 
     finFlagAndSLRAndTree <- parseSentByScript' sn cs script'
-    if (fst4 finFlagAndSLRAndTree)
+    if (fst5 finFlagAndSLRAndTree)
       then do
-        let query = DS.fromString ("select tree from " ++ tree_source ++ " where serial_num = ?")       -- Query is instance of IsString.
+        let query = DS.fromString ("select tree from " ++ tree_source ++ " where serial_num = ?")
         stmt <- prepareStmt conn query
         (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
         rows <- S.toList is
         let origTrees = readTrees $ fromMySQLText ((rows!!0)!!0)
-        let origTrees' = map (\t -> (fst t, (sortPhraCateBySpan . snd) t)) origTrees         -- PhraCates are ordered by span for every clause.
-        let newTree = thd4 finFlagAndSLRAndTree
-{-
-        putStrLn "origTrees: "
-        showTrees origTrees'
-        putStrLn ""
-        putStrLn "newTree: "
-        showTrees newTree
- -}
+        let origTrees' = map (\t -> (fst t, (sortPhraCateBySpan . snd) t)) origTrees    -- PhraCates are ordered by span for every clause.
+        let newTree = thd5 finFlagAndSLRAndTree                                 -- [Tree]
+        let newScript = fth5 finFlagAndSLRAndTree                               -- [Script]
+
         putStrLn "parseSentByScript: Finished parsing."
+        let tagOfClauAnaly = (length origTrees, (fst . fif5) finFlagAndSLRAndTree, (snd . fif5) finFlagAndSLRAndTree)   -- Compare original tree with new tree.
 
-        let tagOfClauAnaly = (length origTrees, (fst . fth4) finFlagAndSLRAndTree, (snd . fth4) finFlagAndSLRAndTree)   -- Compare original tree with new tree.
-
-        let sqlstat = DS.fromString $ "update " ++ cate_conv_ambig_resol_target ++ " set SLR = ?, tagClause = ? where serial_num = ?"
-        stmt <- prepareStmt conn sqlstat
-        ok <- executeStmt conn stmt [toMySQLText (nClauseSLRToString (snd4 finFlagAndSLRAndTree)), toMySQLText (show tagOfClauAnaly), toMySQLInt32 sn]
-        close conn
+        let query = DS.fromString ("select serial_num from " ++ cate_conv_ambig_resol_target ++ " where serial_num = ?")
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
+        rows <- S.toList is
+        if rows == []
+          then do
+            let query = DS.fromString ("insert into " ++ cate_conv_ambig_resol_target ++ " set serial_num = ?, tree = ?, script = ?, SLR = ?, tagClause = ?")
+            stmt <- prepareStmt conn query
+            ok <- executeStmt conn stmt [toMySQLInt32 sn, toMySQLText (nTreeToString newTree), toMySQLText (nScriptToString newScript), toMySQLText (nClauseSLRToString (snd5 finFlagAndSLRAndTree)), toMySQLText (show tagOfClauAnaly)]
+            let rn = getOkAffectedRows ok
+            putStrLn $ "parseSentByScript: " ++ show rn ++ " row(s) were inserted in " ++ cate_conv_ambig_resol_target ++ "."
+            close conn
+          else do
+            let sqlstat = DS.fromString $ "update " ++ cate_conv_ambig_resol_target ++ " set tree = ?, script = ?, SLR = ?, tagClause = ? where serial_num = ?"
+            stmt <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt [toMySQLText (nTreeToString newTree), toMySQLText (nScriptToString newScript), toMySQLText (nClauseSLRToString (snd5 finFlagAndSLRAndTree)), toMySQLText (show tagOfClauAnaly), toMySQLInt32 sn]
+            let rn = getOkAffectedRows ok
+            putStrLn $ "parseSentByScript: " ++ show rn ++ " row(s) were updated in " ++ cate_conv_ambig_resol_target ++ "."
+            close conn
 
         putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
-        putStrLn $ "Sentence No."++ show sn ++" has "++ show (length origTrees) ++" clauses, in which "++ show ((fst . fth4) finFlagAndSLRAndTree) ++ " clauses are the same with the origial clauses."
+        putStrLn $ "Sentence No."++ show sn ++" has "++ show (length origTrees) ++" clauses, in which "++ show ((fst . fif5) finFlagAndSLRAndTree) ++ " clauses are the same with the origial clauses."
         if fst3 tagOfClauAnaly /= snd3 tagOfClauAnaly
           then do
 -- Let user know sentential parsing difference happens, and decide whether to parse the following sentences.
@@ -925,15 +934,15 @@ parseSentByScript sn cs = do
  - Tree ::= (ClauIdx, [PhraCate]) is parsing result of one clause.
  - TagOfClauAnaly ::= (NumOfClauEqual, ClauIdxOfClauUnequal)      -- 相等小句的个数，不等小句的编号
  -}
-parseSentByScript' :: SentIdx -> [String] -> [Script] -> IO (Bool, SLROfSent, [Tree], TagOfClauAnaly)
-parseSentByScript' _ [] _ = return (True, [], [], (0,[]))
+parseSentByScript' :: SentIdx -> [String] -> [Script] -> IO (Bool, SLROfSent, [Tree], [Script], TagOfClauAnaly)
+parseSentByScript' _ [] _ = return (True, [], [], [], (0,[]))
 parseSentByScript' sn cs scripts = do
     finFlagAndSLRAndTree <- parseSentByScript' sn (take (length cs - 1) cs) (take (length cs - 1) scripts)     -- 前递归，即先分析第一个小句。
-    let numOfClauEqual = fst $ fth4 finFlagAndSLRAndTree
-    let clauIdxOfClauUnequal = snd $ fth4 finFlagAndSLRAndTree
+    let numOfClauEqual = fst $ fif5 finFlagAndSLRAndTree                        -- Num. of clauses with same parsing trees.
+    let clauIdxOfClauUnequal = snd $ fif5 finFlagAndSLRAndTree                  -- [ClauIdx]
     let clauIdx = length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
-    if (fst4 finFlagAndSLRAndTree)                                              -- True means the previous clauses has been finished parsing.
+    if (fst5 finFlagAndSLRAndTree)                                              -- True means the previous clauses has been finished parsing.
       then do
         let nPCs = initPhraCate $ getNCate $ words (last cs)
         putStr "Before parsing: "
@@ -963,32 +972,32 @@ parseSentByScript' sn cs scripts = do
         let origClauIdxTree = origTrees!!(clauIdx-1)                            -- (ClauIdx, [PhraCate]) of the last clause.
         close conn
 
-        rtbPCs <- parseClauseWithScript (sn, clauIdx) [] nPCs [] [] lastScript []                -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
+        rtbPCs <- parseClauseWithScript (sn, clauIdx) [] nPCs [] [] lastScript []   -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
         let newClauIdxTree = snd4 rtbPCs
-        let judgeClauIdxTree = [x | x <- (snd origClauIdxTree), elem x newClauIdxTree]     -- [PhraCate]
-        let numOfClauEqual' = case (length judgeClauIdxTree == length (snd origClauIdxTree)) of
+        let judgeClauIdxTree = quickSort4Phrase (snd origClauIdxTree) == quickSort4Phrase newClauIdxTree   -- Bool
+        let numOfClauEqual' = case judgeClauIdxTree of
                                 True -> numOfClauEqual + 1
                                 False -> numOfClauEqual
 
-        let newSLRSampleOfSent = (snd4 finFlagAndSLRAndTree) ++ [fth4 rtbPCs]
-        let newTreeOfSent = (thd4 finFlagAndSLRAndTree) ++ [(clauIdx, snd4 rtbPCs)]
+        let newSLRSampleOfSent = snd5 finFlagAndSLRAndTree ++ [fth4 rtbPCs]              -- [SLROfClause]
+        let newTreeOfSent = thd5 finFlagAndSLRAndTree ++ [(clauIdx, snd4 rtbPCs)]        -- [Tree]
+        let newScriptOfSent = fth5 finFlagAndSLRAndTree ++ [(clauIdx, fst4 rtbPCs, thd4 rtbPCs)]     -- [Script]
         let rtbPCs' = (fst4 rtbPCs, snd4 rtbPCs, thd4 rtbPCs)
-        if rtbPCs' == ([],[],[])
-          then return (False, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual',clauIdxOfClauUnequal))
-          else if (length judgeClauIdxTree == length (snd origClauIdxTree))
-               then return (True, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual',clauIdxOfClauUnequal))    -- False means the current clause is terminated manually.
+        if rtbPCs' == ([],[],[])         -- False means the current clause is terminated manually.
+          then return (False, newSLRSampleOfSent, newTreeOfSent, newScriptOfSent, (numOfClauEqual',clauIdxOfClauUnequal))
+          else if judgeClauIdxTree
+               then return (True, newSLRSampleOfSent, newTreeOfSent, newScriptOfSent, (numOfClauEqual',clauIdxOfClauUnequal))
                else do
                  let clauIdxOfClauUnequal' = clauIdxOfClauUnequal ++ [clauIdx]
                  putStrLn "origClauTree:"
                  showNPhraCateLn (sortPhraCateBySpan (snd origClauIdxTree))
                  putStrLn "newClauTree:"
                  showNPhraCateLn newClauIdxTree
-                 return (True, newSLRSampleOfSent, newTreeOfSent, (numOfClauEqual', clauIdxOfClauUnequal'))
+                 return (True, newSLRSampleOfSent, newTreeOfSent, newScriptOfSent, (numOfClauEqual', clauIdxOfClauUnequal'))
 
       else do
         putStrLn $ "Skip clause " ++ show clauIdx
---        return (False, snd4 finFlagAndSLRAndTree, thd4 finFlagAndSLRAndTree, numOfClauEqual)
-        return (False, snd4 finFlagAndSLRAndTree, thd4 finFlagAndSLRAndTree, fth4 finFlagAndSLRAndTree)
+        return (False, snd5 finFlagAndSLRAndTree, thd5 finFlagAndSLRAndTree, fth5 finFlagAndSLRAndTree, fif5 finFlagAndSLRAndTree)
 
 type Stub = [PhraCate]
 type SLROfATrans = (Stub, [Rule])
@@ -1004,7 +1013,7 @@ type SLROfSent = [SLROfClause]
  -     Otherwise, return the quadruple ([[Rule]], resultant tree PCs, accumulated banned PCs, SLR List Of This Clause).
  - 'overPairs' records the overlapping phrases and their ambiguity resolution in previous rounds of transitions. Before the first round, it should be empty.
  -}
-parseClauseWithScript :: ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], [PhraCate], SLROfClause)
+parseClauseWithScript :: ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], BanPCs, SLROfClause)
 parseClauseWithScript clauTag rules nPCs banPCs overPairs script origSLRSample = do
     rtboPCs <- doTransWithScript clauTag nPCs banPCs overPairs script
                                                -- Tree = (ClauIdx, [PhraCate])
@@ -1049,7 +1058,7 @@ parseClauseWithScript clauTag rules nPCs banPCs overPairs script origSLRSample =
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[],[]) as the terminating flag.
  - 'prevOverPairs' is so far known overlapping phrasal pairs and their ambiguity resolution.
  -}
-doTransWithScript :: ClauTag -> [PhraCate] -> [PhraCate] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
+doTransWithScript :: ClauTag -> [PhraCate] -> BanPCs -> [OverPair] -> Script -> IO ([Rule], [PhraCate], BanPCs, [OverPair])
 doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
@@ -1834,7 +1843,7 @@ parseASentByStruGene2' resolMethod sentIdx cs scripts struGene2s = do
  -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  - Syntax ambiguity resolution is done by machine.
  -}
-parseClauseWithStruGene :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> [StruGene] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithStruGene :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> Script -> [StruGene] -> IO ([[Rule]],[PhraCate],BanPCs)
 parseClauseWithStruGene resolMethod clauTag rules nPCs banPCs script struGenes = do
     rtbPCs <- doTransWithStruGene resolMethod clauTag nPCs banPCs script struGenes
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
@@ -1868,7 +1877,7 @@ parseClauseWithStruGene resolMethod clauTag rules nPCs banPCs script struGenes =
  -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  - Syntax ambiguity resolution is done by machine.
  -}
-parseClauseWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> Script -> [StruGene2] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> Script -> [StruGene2] -> IO ([[Rule]],[PhraCate],BanPCs)
 parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCs script struGene2s = do
     rtbPCs <- doTransWithStruGene2 resolMethod clauTag nPCs banPCs script struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
@@ -1943,7 +1952,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCs script struGenes = do
  - nbPCs: The tuple (phrase set, banned set) after this transition
  - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
  -}
-doTransWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [PhraCate] -> Script -> [StruGene2] -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> BanPCs -> Script -> [StruGene2] -> IO ([Rule], [PhraCate], BanPCs)
 doTransWithStruGene2 resolMethod clauTag nPCs banPCs script struGene2s = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
@@ -2314,7 +2323,7 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
  - rules used in this trip, the resultant phrases, and the banned phrases.
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
-doTransWithManualResol :: ClauTag -> [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([Rule], [PhraCate], [PhraCate], [OverPair])
+doTransWithManualResol :: ClauTag -> [Rule] -> [PhraCate] -> BanPCs -> [OverPair] -> IO ([Rule], [PhraCate], BanPCs, [OverPair])
 doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs = do
     putStr "Rule switches: "
     showOnOff onOff
@@ -2663,7 +2672,7 @@ updateAmbiResol' clauTag nPCs overPair = do
 {- Add the parsing result of a clause into treebank designated by <Configuration>.
  - Now, parameter <clauIdx> has not been used for checking.
  -}
-storeClauseParsingToTreebank :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [PhraCate]) -> IO ()
+storeClauseParsingToTreebank :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], BanPCs) -> IO ()
 storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     confInfo <- readFile "Configuration"
     let tree_target = getConfProperty "tree_target" confInfo

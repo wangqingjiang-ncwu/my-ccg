@@ -10,6 +10,8 @@ module Main (
 import Control.Monad
 import qualified System.IO.Streams as S
 import qualified Data.Map as Map
+import Data.List (sort)
+import Data.Tuple.Utils
 import System.IO
 import Data.Time.Clock
 import qualified Data.String as DS
@@ -376,11 +378,18 @@ doParseSentByHumanMind username = do
 doParseSentByScript :: String -> IO ()
 doParseSentByScript username = do
     confInfo <- readFile "Configuration"
-    let tree_target = getConfProperty "tree_target" confInfo
-    contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    let script_source = getConfProperty "script_source" confInfo                     -- Script source
+    let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
+    let cate_conv_ambig_resol_target = getConfProperty "cate_conv_ambig_resol_target" confInfo        -- SLR sample target.
+
+    putStrLn $ " script_source: " ++ script_source
+    putStrLn $ " tree_source: " ++ tree_source
+    putStrLn $ " cate_conv_ambig_resol_target: " ++ cate_conv_ambig_resol_target
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil (cate_conv_ambig_resol_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input serial_num of start sentence: "
@@ -679,9 +688,10 @@ doExperiments username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Parse sentence using all lexcial rules"
     putStrLn " 2 -> Test context similarity degree 1.0 only happens between one StruGene sample and itself"
+    putStrLn " 3 -> Test identity between two parsing scripts"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -689,6 +699,7 @@ doExperiments username = do
                "?" -> putStr ""                                -- Do nothing
                "1" -> doParseSentWithAllLexRules username
                "2" -> doTestSim1HappenBetweenOneStruGeneSampleAndItself username
+               "3" -> doTestScriptIdentity username
              doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
@@ -727,6 +738,35 @@ doTestSim1HappenBetweenOneStruGeneSampleAndItself username = do
                       0 -> 1
                       _ -> startIdx
     findWhereSim1HappenAmongStruGeneSamples startIdx' 0 context2ClauTagPriorBase
+
+{- B.3 Test identity between two parsing scripts.
+ -}
+doTestScriptIdentity :: String -> IO ()
+doTestScriptIdentity username = do
+    confInfo <- readFile "Configuration"
+    let script_source = getConfProperty "script_source" confInfo
+    let treebank_source = getConfProperty "cate_conv_ambig_resol_source" confInfo
+
+    putStrLn $ " script_source: " ++ script_source
+    putStrLn $ " treebank_source: " ++ treebank_source
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        conn <- getConn
+        let query = DS.fromString ("select " ++ script_source ++ ".serial_num as serial_num, "
+                    ++ script_source ++ ".script as script1, " ++ treebank_source ++ ".script as script2 from "
+                    ++ script_source ++ " inner join " ++ treebank_source ++ " where "
+                    ++ script_source ++ ".serial_num = " ++ treebank_source ++ ".serial_num")
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt []
+        issList <- readStreamByInt32TextText [] is   -- [(Int, String, String)]
+        let snScript2List = map (\x -> (fst3 x, readScripts (snd3 x), readScripts (thd3 x))) issList   -- [(SentIdx, [Script], [Script])]
+        let checkList = map (\x -> (fst3 x, sort (snd3 x) == sort (thd3 x))) snScript2List   -- [(Int, Bool)]
+        let oks = filter (\x -> snd x == True) checkList
+        putStrLn $ "doTestScriptIdentity: Identical scripts = " ++ show oks
+        close conn
+      else putStrLn "doTestScriptIdentity: Test is cancelled."
 
 -- C. Various maintenance tools.
 doMaintenance :: String -> IO ()

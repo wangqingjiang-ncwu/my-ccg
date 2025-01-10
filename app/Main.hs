@@ -168,7 +168,6 @@ doGetRawSentForASent username = do
     line <- getLine
     let sn = read line :: Int
     getRawSentForASent sn >>= putStrLn
-    interpreter username
 
 {- 2. Copy raw sentence indicated by serial_num to column 'raw_sent2', here 'username' MUST
    be the intellectual property creator (ipc) of the row indicated by serial_num.
@@ -191,19 +190,13 @@ doCopyRawSentForASent username = do
                            Nothing -> error "doCopyRawSentForASent: No pos_check was read."
         skipToEof is                                                   -- Go to the end of the stream.
         if pos_check' == 1
-          then do
-             putStrLn "Creating column 'raw_sent2' failed because column 'pos_check' is 1."
-             interpreter username
+          then putStrLn "Creating column 'raw_sent2' failed because column 'pos_check' is 1."
           else if pos_check' == 0
                  then do
                    copyRawSentForASent sn
-                   interpreter username
                  else do
                    putStrLn "pos_check value is abnormal."
-                   interpreter username
-      else do
-        putStrLn "Copying failed! you are not the intellectual property creator of this sentence."
-        interpreter username
+      else putStrLn "Copying failed! you are not the intellectual property creator of this sentence."
 
 -- 3. Get the revised part-of-speech marked sentence indicated by serial_num.
 doGetRawSent2ForASent :: String -> IO ()
@@ -212,7 +205,6 @@ doGetRawSent2ForASent username = do
     line <- getLine
     let sn = read line :: Int
     getRawSent2ForASent sn >>= putStrLn
-    interpreter username
 
 {- 4. Create CCG-marked sentence from its revised part-of-speech marks, here 'username' MUST
    be the intellectual property creator (ipc) of the row indicated by serial_num.
@@ -235,20 +227,14 @@ doPosToCateForASent username = do
                            Nothing -> error "doPosToCateForASent: No pos_check was read."
         skipToEof is                                                   -- Go to the end of the stream.
         if pos_check' == 0
-          then do
-             putStrLn "Creating column 'cate_sent' failed because column 'pos_check' is 0."
-             interpreter username
+          then putStrLn "Creating column 'cate_sent' failed because column 'pos_check' is 0."
+
           else if pos_check' == 1
                  then do
                    putStrLn "doPosToCateForASent: pos_check'==1"
                    posToCateForASent sn
-                   interpreter username
-                 else do
-                   putStrLn "pos_check value is abnormal."
-                   interpreter username
-      else do
-        putStrLn "Creating CCG marks failed! you are not the intellectual property creator of this sentence."
-        interpreter username
+                 else putStrLn "pos_check value is abnormal."
+      else putStrLn "Creating CCG marks failed! you are not the intellectual property creator of this sentence."
 
 -- 5. Get CCG-marked sentence indicated by serial_num.
 doGetCateSentForASent :: String -> IO ()
@@ -257,7 +243,6 @@ doGetCateSentForASent username = do
     line <- getLine
     let sn = read line :: Int
     getCateSentForASent sn >>= putStrLn
-    interpreter username
 
 {- 6. Copy CCG-marked sentence indicated by serial_num to column cate_sent2, here 'username' MUST
    be the intellectual property creator (ipc) of the row indicated by serial_num.
@@ -280,19 +265,11 @@ doCopyCateForASent username = do
                             Nothing -> error "doCopyCateForASent: No cate_check was read."
         skipToEof is                                                   -- Go to the end of the stream.
         if cate_check' == 1
-          then do
-             putStrLn "Creating column 'cate_sent2' failed because column 'cate_check' is 1."
-             interpreter username
+          then putStrLn "Creating column 'cate_sent2' failed because column 'cate_check' is 1."
           else if cate_check' == 0
-             then do
-               copyCateForASent sn
-               interpreter username
-             else do
-               putStrLn "cate_check value is abnormal."
-               interpreter username
-      else do
-        putStrLn "Copying failed! you are not the intellectual property creator of this sentence."
-        interpreter username
+             then copyCateForASent sn
+             else putStrLn "cate_check value is abnormal."
+      else putStrLn "Copying failed! you are not the intellectual property creator of this sentence."
 
 -- 7. Get revised CCG-marked sentence indicated by serial_num.".
 doGetCateSent2ForASent :: String -> IO ()
@@ -301,7 +278,6 @@ doGetCateSent2ForASent username = do
     line <- getLine
     let sn = read line :: Int
     getCateSent2ForASent sn >>= putStrLn
-    interpreter username
 
 {- 8. Parse the sentence indicated by serial_num, here 'username' MUST
  - be the intellectual property creator (ipc) of the row indicated by serial_num.
@@ -312,8 +288,9 @@ doParseSent username = do
     putStrLn " 1 -> Do parsing by human mind"
     putStrLn " 2 -> Do parsing by script"
     putStrLn " 3 -> Do parsing by StruGene"
+    putStrLn " 4 -> Do parsing by grammar ambiguity resolution"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","0"] True
 
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
@@ -323,6 +300,7 @@ doParseSent username = do
                "1" -> doParseSentByHumanMind username
                "2" -> doParseSentByScript username
                "3" -> doParseSentByStruGene username
+               "4" -> doParseSentByGrammarAmbiResol username
              doParseSent username                              -- Rear recursion
 
 {- 8_1. Human-Machine-interactively Parse the sentence indicated by serial_num, here 'username' MUST
@@ -332,7 +310,7 @@ doParseSentByHumanMind :: String -> IO ()
 doParseSentByHumanMind username = do
     confInfo <- readFile "Configuration"
     let tree_target = getConfProperty "tree_target" confInfo
-    contOrNot <- getLineUntil ("'tree_target' table is " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    contOrNot <- getLineUntil (" tree_target: " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
         contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
@@ -355,20 +333,11 @@ doParseSentByHumanMind username = do
                 skipToEof is                                                   -- Go to the end of the stream.
                 let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
                 let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
-                if (cate_check == 0 || tree_check == 1)
-                  then do
-                    putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
-                    doParseSent username
-                  else if (cate_check == 1 && tree_check == 0)
-                         then do
-                           getSentFromDB sn >>= getSent >>= parseSent sn
-                           doParseSent username
-                         else do
-                           putStrLn "Value of cate_check or tree_check is abnormal."
-                           doParseSent username
+                if (cate_check == 1 && tree_check == 0)
+                  then getSentFromDB sn >>= getSent >>= parseSent sn
+                  else putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
               else do
                 putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
-                doParseSent username
           else putStrLn "Operation was canceled."
       else putStrLn "Operation was canceled."
 
@@ -380,16 +349,16 @@ doParseSentByScript username = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo                     -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
-    let cate_conv_ambig_resol_target = getConfProperty "cate_conv_ambig_resol_target" confInfo        -- SLR sample target.
+    let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
-    putStrLn $ " cate_conv_ambig_resol_target: " ++ cate_conv_ambig_resol_target
+    putStrLn $ " tree_target: " ++ tree_target
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil (cate_conv_ambig_resol_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input serial_num of start sentence: "
@@ -403,7 +372,6 @@ doParseSentByScript username = do
               then putStrLn "No sentence is designated."
               else parseSentsByScript startSn endSn
 
-            doParseSent username
           else putStrLn "Operation was canceled."
       else putStrLn "Operation was canceled."
 
@@ -444,18 +412,38 @@ doParseSentByHighestSimilarity username = do
                "2" -> parseSentByStruGeneFromConf "StruGeneEmbedded"   -- Embedded similarity
              doParseSentByHighestSimilarity username           -- Rear recursion
 
+{- 8_4. By resolving categorial ambiguity according to SLR samples and resolving syntactic ambiguity according to StruGene samples,
+ - parse the sentences indicated by serial_nums.
+ - Parsing result including parsing scripts will be stored into database table indicated by 'tree_target'.
+ -}
+doParseSentByGrammarAmbiResol :: String -> IO ()
+doParseSentByGrammarAmbiResol username = do
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else parseSentByGrammarAmbiResol startSn endSn
+
 -- 9. Display parsing Trees of the sentence indicated by serial_num.
 doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
     confInfo <- readFile "Configuration"               -- Read the local configuration file
     let tree_source = getConfProperty "tree_source" confInfo
-    putStrLn $ "tree_source is " ++ tree_source ++ "."
+    putStrLn $ " tree_source: " ++ tree_source
 
-    putStr "Please input value of 'serial_num': "
-    line <- getLine
-    let sn = read line :: Int
-    readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
-    interpreter username
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        putStr "Please input value of 'serial_num': "
+        line <- getLine
+        let sn = read line :: Int
+        readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
+      else putStrLn "Operation was cancelled."
 
 {-- 9. Display parsing Trees of the sentence indicated by serial_num, which is for comparing differences between two kinds of parsing trees.
 doDisplayTreesForASent :: String -> IO ()
@@ -745,7 +733,7 @@ doTestScriptIdentity :: String -> IO ()
 doTestScriptIdentity username = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
-    let treebank_source = getConfProperty "cate_conv_ambig_resol_source" confInfo
+    let treebank_source = getConfProperty "cate_ambig_resol_source" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " treebank_source: " ++ treebank_source
@@ -957,7 +945,7 @@ doOnceClustering :: IO ()
 doOnceClustering = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let kVal = read (getConfProperty "kVal" confInfo) :: Int
     let sNum = read (getConfProperty "sNum" confInfo) :: Int
@@ -970,11 +958,11 @@ doOnceClustering = do
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
     let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
-    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
                ++ ", distDef = " ++ distDef ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum
                ++ ", distWeiRatioList = " ++ show distWeiRatioList'
-    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
-                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"
@@ -991,7 +979,7 @@ doClustering4DiffKValSNum :: IO ()
 doClustering4DiffKValSNum = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
     let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
@@ -1008,14 +996,14 @@ doClustering4DiffKValSNum = do
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
     let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
-    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
                ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
                ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
                ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
                ++ ", distWeiRatioList = " ++ show distWeiRatioList'
 
-    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
-                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"
@@ -1031,7 +1019,7 @@ storeAmbiResolAccuracy4AllClustRes :: IO ()
 storeAmbiResolAccuracy4AllClustRes = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
     let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
@@ -1040,13 +1028,13 @@ storeAmbiResolAccuracy4AllClustRes = do
     let deltaSNum = read (getConfProperty "deltaSNum" confInfo) :: Int
     let topSNum = read (getConfProperty "topSNum" confInfo) :: Int
 
-    putStrLn $ "The current ambi_resol_model is set as: " ++ ambi_resol_model
+    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
                ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
                ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
                ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
 
-    let arm = if | ambi_resol_model == "stru_gene" -> "SG"
-                 | ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"

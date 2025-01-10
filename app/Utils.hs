@@ -83,6 +83,7 @@ module Utils (
     compFiveLists,     -- [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
     dispList,          --  (Eq a, Show a) => Int -> [a] -> IO ()
     getMatchedElemPair2SimList,   -- (Eq a, Ord b, Num b) => [((a, a), b)] -> [((a, a), b)] -> [((a, a), b)]
+    formatDoubleAList, -- Show a => [(Double, a)] -> Int -> [(String, a)]
     ) where
 
 import Data.Tuple
@@ -90,6 +91,7 @@ import Data.List (elemIndex)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.String as DS
+import Text.Printf
 
 -- Functions on four tuple.
 
@@ -684,7 +686,7 @@ dispELemList (x:xs) = do
 
 {- Match element pairs which have similarity degrees from high to low.
  - (1) Suppose similarity degree matrix M = [((a,b),sim(a,b))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
- -     If there are n phrases, then there exists a similarity degree between every two phrases, and the matrix size is (n >< n). 
+ -     If there are n phrases, then there exists a similarity degree between every two phrases, and the matrix size is (n >< n).
  - (2) If sim(c,d) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
  -     [x | x <-M, notElem ((fst . fst) x) [c,d] && notElem ((snd . fst) x) [c,d]];
  -     Repeat (1)(2) until M is empty.
@@ -703,3 +705,8 @@ getMatchedElemPair2SimList matchedElemPair2SimList elemPair2SimMatrix = getMatch
     (e1, e2) = fst elemWithMaxSim                                               -- (PhraSyn, PhraSyn)
     matchedElemPair2SimList' = matchedElemPair2SimList ++ [elemWithMaxSim]
     elemPair2SimMatrix' = [x | x <- elemPair2SimMatrix, notElem ((fst . fst) x) [e1, e2] && notElem ((snd . fst) x) [e1, e2]]  -- Remove related elements
+
+{- Get the format print of [(Double, a)] with given decimal places to represent Double values.
+ -}
+formatDoubleAList :: Show a => [(Double, a)] -> Int -> [(String, a)]       -- 'a' may be any showable type, Polymorphism!
+formatDoubleAList doubleAList n = map (\x -> (printf ("%." ++ show n ++"f") (fst x), snd x)) doubleAList

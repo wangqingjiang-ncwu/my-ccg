@@ -712,14 +712,14 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
     putStrLn $ "The clustering of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " begins."
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
 
-    if | arm == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'ambi_resol_model' is not correct."
+    if | arm == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'syntax_ambi_resol_model' is not correct."
        | df == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'distDef' is not correct."
        | otherwise -> do
 --           t1 <- getCurrentTime
 {-初始聚类随机选点
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
            struGeneSampleList <- readStreamByInt324TextInt8Text [] is
@@ -737,7 +737,7 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            stmt <- prepareStmt conn sqlstat
            executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering result.
 
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id >= ? and id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 sNum]
 
@@ -821,18 +821,18 @@ autoRunGetAmbiResolAccuracyOfAllClustRes arm df kVal bottomKVal deltaKVal topKVa
 --    putStrLn $ "The ambiguity resolution accuracy of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " is counting."
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
 
     let ambiResolAccuracyTbl = "ambi_Resol_Accuracy_for_randomModes"
     let sqlstat = DS.fromString $ "create table if not exists " ++ ambiResolAccuracyTbl ++ " (kVal int, sNum int, samplesCount int, accuracyForRandomModes1 float, accuracyForRandomModes2 float, primary key (kVal, sNum, samplesCount))"
     stmt <- prepareStmt conn sqlstat
     executeStmt conn stmt []                          -- Create a new MySQL table for storing all ambiguity resolution accuracy.
 
-    if | arm == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'ambi_resol_model' is not correct."
+    if | arm == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'syntax_ambi_resol_model' is not correct."
        | df == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'distDef' is not correct."
        | otherwise -> do
 
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
            struGeneSampleList <- readStreamByInt324TextInt8Text [] is
@@ -904,8 +904,8 @@ queryStruGenebySIdsList idsList struGeneList = do
     length idsList
     conn <- getConn
     confInfo <- readFile "Configuration"
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
-    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id = ? "
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id = ? "
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 x]
 
@@ -963,8 +963,8 @@ getAmbiResolAccuracyOfAClustRes = do
 --    let finalModesListStr = last (init modesListOfAllIterations)
     let finalModesList = readStruGeneListFromStr finalModesListStr
 
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
-    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_model ++ " where id >= ? and id <= ? "
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ? "
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
 
@@ -1032,29 +1032,29 @@ distVect4StruGeneWithoutPri s1 s2 = [d1, d2, d3, d4, d5]
             False -> 1.0
 
 {- Read original StruGene samples or their clustering result,
- - the source of which is indicated by attribute 'ambi_resol_samples' in configuration.
+ - the source of which is indicated by attribute 'syntax_ambi_resol_model' in configuration.
  - This function is obsoleted.
  -}
 getStruGeneSamples :: IO [StruGeneSample]
 getStruGeneSamples = do
     confInfo <- readFile "Configuration"
-    let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     conn <- getConn
 
-    putStrLn $ "Get samples from " ++ ambi_resol_samples
+    putStrLn $ "Get samples from " ++ syntax_ambi_resol_model
 
-    if ambi_resol_samples == "stru_gene"
+    if syntax_ambi_resol_model == "stru_gene"
       then do
-        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ ambi_resol_samples
+        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGeneSampleList <- readStreamByInt324TextInt8Text [] is              -- [StruGeneSample]
         return struGeneSampleList
       else
-        if (length (splitAtDeli '_' ambi_resol_samples) > 4 && (splitAtDeli '_' ambi_resol_samples)!!4 == "sg")
+        if (length (splitAtDeli '_' syntax_ambi_resol_model) > 4 && (splitAtDeli '_' syntax_ambi_resol_model)!!4 == "sg")
           then do
-            let sqlstat = DS.fromString $ "select modes from " ++ ambi_resol_samples ++ " where iNo = (select max(iNo) from " ++ ambi_resol_samples ++ ") - 1"
-                                    -- MySQL table 'ambi_resol_samples' have at least two records.
+            let sqlstat = DS.fromString $ "select modes from " ++ syntax_ambi_resol_model ++ " where iNo = (select max(iNo) from " ++ syntax_ambi_resol_model ++ ") - 1"
+                                    -- MySQL table 'syntax_ambi_resol_model' have at least two records.
             stmt <- prepareStmt conn sqlstat
             (defs, is) <- queryStmt conn stmt []
             modeListStrList <- readStreamByText [] is
@@ -1064,28 +1064,28 @@ getStruGeneSamples = do
             let sgs = zip [1..len] modeList
             return (map (\x -> (fst x, fst6 (snd x), snd6 (snd x), thd6 (snd x), fth6 (snd x), fif6 (snd x), sth6 (snd x))) sgs)
           else do
-            putStrLn "getStruGeneSamples: Value of property 'ambi_resol_samples' does not match any MySQL table."
+            putStrLn "getStruGeneSamples: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
             return []
 
-{- Read stru_gene_202408 samples, the source of which is indicated by attribute 'ambi_resol_samples' in configuration.
+{- Read stru_gene_202408 samples, the source of which is indicated by attribute 'syntax_ambi_resol_model' in configuration.
  - Sample type StruGene2Sample :: (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
  -}
 getStruGene2Samples :: IO [StruGene2Sample]
 getStruGene2Samples = do
     confInfo <- readFile "Configuration"
-    let ambi_resol_samples = getConfProperty "ambi_resol_samples" confInfo
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     conn <- getConn
 
-    putStrLn $ "Get samples from " ++ ambi_resol_samples
-    case ambi_resol_samples of
+    putStrLn $ "Get samples from " ++ syntax_ambi_resol_model
+    case syntax_ambi_resol_model of
       x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
-        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_samples
+        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambi_resol_model
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
         return struGene2SampleList
       _ -> do
-        putStrLn "getStruGene2Samples: Value of property 'ambi_resol_samples' does not match any MySQL table."
+        putStrLn "getStruGene2Samples: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
         return []
 
 -- Implementation of menu 'D. Clustering analysis'.
@@ -1787,7 +1787,7 @@ type NumOfRightOverPair = Int
 type NumOfRightExtendPair = Int
 type ContextOfOTPair2Sim = ((ContextOfOT, ContextOfOT), SimDeg)
 
-{- Reading overtype and its context from the sample database of a certain ambi_resol_model, such as 'stru_gene_202408'.
+{- Reading overtype and its context from the sample database of a certain syntax_ambi_resol_model, such as 'stru_gene_202408'.
  - If start index and end index are both 0, then all records in sample database will be read.
  - Context2OverTypeBase :: [Context2OverType]
  - Context2OverType :: (ContextOfOT, OverType)
@@ -1797,13 +1797,13 @@ getContext2OverTypeBase :: SIdx -> SIdx -> IO Context2OverTypeBase
 getContext2OverTypeBase startIdx endIdx = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
-    case ambi_resol_model of
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    case syntax_ambi_resol_model of
       "stru_gene_202408" -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
-          let sqlstat = DS.fromString $ "select count(*) from " ++ ambi_resol_model
+          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambi_resol_model
           (defs, is) <- query_ conn sqlstat
           rows <- readStreamByInt64 [] is
           let endIdx' = case endIdx of
@@ -1812,8 +1812,8 @@ getContext2OverTypeBase startIdx endIdx = do
 
           putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
 
-          putStrLn $ "The source of overtypes and their contexts is set as: " ++ ambi_resol_model     -- Display the source of overtypes and their contexts
-          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType from " ++ ambi_resol_model ++ " where id >= ? and id <= ?"
+          putStrLn $ "The source of overtypes and their contexts is set as: " ++ syntax_ambi_resol_model     -- Display the source of overtypes and their contexts
+          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ?"
           stmt <- prepareStmt conn sqlstat
           (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
 
@@ -1982,7 +1982,7 @@ type NumOfContextOfSG = Int       -- ContextOfSG :: (LeftExtend, LeftOver, Right
 type NumOfContextOfSGPair = Int
 type ContextOfSGPair2Sim = ((ContextOfSG, ContextOfSG), SimDeg)
 
-{- Reading Prior and its context from the sample database of a certain ambi_resol_model, such as 'stru_gene_202408'.
+{- Reading Prior and its context from the sample database of a certain syntax_ambi_resol_model, such as 'stru_gene_202408'.
  - If start index and end index are both 0, then all records in sample database will be read.
  - Context2ClauTagPrior :: (ContextOfSG, Prior)
  - Context2ClauTagPriorBase :: [Context2ClauTagPrior]
@@ -1992,13 +1992,13 @@ getContext2ClauTagPriorBase :: SIdx -> SIdx -> IO [Context2ClauTagPrior]
 getContext2ClauTagPriorBase startIdx endIdx = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo
-    case ambi_resol_model of
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    case syntax_ambi_resol_model of
       "stru_gene_202408" -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
-          let sqlstat = DS.fromString $ "select count(*) from " ++ ambi_resol_model
+          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambi_resol_model
           (defs, is) <- query_ conn sqlstat
           rows <- readStreamByInt64 [] is
           let endIdx' = case endIdx of
@@ -2007,8 +2007,8 @@ getContext2ClauTagPriorBase startIdx endIdx = do
 
           putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
 
-          putStrLn $ "The source of priors and their contexts is set as: " ++ ambi_resol_model     -- Display the source of priors and their contexts
-          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ ambi_resol_model ++ " where id >= ? and id <= ?"
+          putStrLn $ "The source of priors and their contexts is set as: " ++ syntax_ambi_resol_model     -- Display the source of priors and their contexts
+          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ?"
           stmt <- prepareStmt conn sqlstat
           (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
 

@@ -191,10 +191,10 @@ fromMaybePrior Nothing = Noth                 -- Default value of Prior
 hasClauTagInSynAmbiResol :: ClauTag -> IO Bool
 hasClauTagInSynAmbiResol clauTag = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
 
     conn <- getConn
-    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
@@ -216,10 +216,10 @@ removeClauTagPriorFromSynAmbiResol sn clauIdxOfStart clauIdxOfEnd = do
 removeClauTagPriorFromSynAmbiResol' :: ClauTag -> IO ()
 removeClauTagPriorFromSynAmbiResol' clauTag = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let ambi_resol_model = getConfProperty "ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
 
     conn <- getConn
-    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
@@ -236,7 +236,7 @@ removeClauTagPriorFromSynAmbiResol' clauTag = do
     let ids = map toMySQLInt32U $ map fst idAndCTPStrList                       -- [MySQLInt32U]
     let rows = compFiveLists cTPList2' lpHitCounts rpHitCounts nothHitCounts ids               -- [[MySQLText, MySqlInt32U]]
 --    putStrLn $ "removeClauTagPriorFromSynAmbiResol': rows: " ++ show rows
-    let sqlstat' = DS.fromString $ "update " ++ ambi_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
+    let sqlstat' = DS.fromString $ "update " ++ syntax_ambi_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
     oks <- executeMany conn sqlstat' rows
     putStrLn $ "removeClauTagPriorFromSynAmbiResol': " ++ show (length oks) ++ " rows have been updated."
     close conn

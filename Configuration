@@ -20,11 +20,6 @@ tree_source:corpus
 #
 tree_target:treebank_including_SLR
 
-# Algorithm of selecting a prior according to the highest number of occurrences or sample origin.
-# Recommend to use algorithm 'Hit'.
-# strugene_prior_selection_algo:MaxFreq
-strugene_prior_selection_algo:Hit
-
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
 # When parsing by scripts, the samples of selected model would be created.

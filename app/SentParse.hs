@@ -1366,12 +1366,10 @@ parseSentByGrammarAmbiResol startSn endSn = do
     let tree_target = getConfProperty "tree_target" confInfo
     let cate_ambig_resol_source = getConfProperty "cate_ambig_resol_source" confInfo
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let strugene_prior_selection_algo = getConfProperty "strugene_prior_selection_algo" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " cate_ambig_resol_source: " ++ cate_ambig_resol_source
     putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
-    putStrLn $ " strugene_prior_selection_algo: " ++ strugene_prior_selection_algo
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -1673,11 +1671,8 @@ parseSentByStruGeneFromConf resolMethod = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
-    let strugene_prior_selection_algo = getConfProperty "strugene_prior_selection_algo" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
-    putStrLn $ " strugene_prior_selection_algo: " ++ strugene_prior_selection_algo
-
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
@@ -2084,9 +2079,6 @@ ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = 
 
     let contextOfSG = (le,lo,ro,re,ot)
 
-    confFile <- readFile "Configuration"
-    let algo = getConfProperty "strugene_prior_selection_algo" confFile
-
     let contextOfSGList = map getContextFromStruGene2 struGene2s                   -- [ContextOfSG]
     let clauTagPriorListList = map sth6 struGene2s                                 -- [[ClauTagPrior]]
 
@@ -2107,11 +2099,9 @@ ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = 
                     Nothing -> -1                     -- Impossible position
         let clauTagPriorList = sth6 (struGene2s!!idx)                                    -- [ClauTagPrior]
         let hitClauTagPriorList = filterInCTPListByClauTag clauTag clauTagPriorList      -- [ClauTagPrior]
-        let prior = case algo of
-                      "MaxFreq" -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList
-                      "Hit" -> case hitClauTagPriorList of
-                                 [] -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList     -- Prior
-                                 _  -> snd (hitClauTagPriorList!!0)             -- Prior
+        let prior = case hitClauTagPriorList of
+                      [] -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList     -- Prior
+                      _  -> snd (hitClauTagPriorList!!0)                                 -- Prior
 
         let overPairs' = (lop, rop, prior):overPairs
         ambiResolByStruGene2 resolMethod clauTag nPCs overPairs' pcps struGene2s
@@ -2123,11 +2113,9 @@ ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = 
         let clauTagPriorList = (snd . thd3) context2ClauTagPriorTuple           -- [ClauTagPrior]
         let hitClauTagPriorList = filterInCTPListByClauTag clauTag clauTagPriorList        -- [ClauTagPrior]
 
-        let prior = case algo of
-                      "MaxFreq" -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList
-                      "Hit" -> case hitClauTagPriorList of
-                                 [] -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList
-                                 _  -> snd (hitClauTagPriorList!!0)             -- Prior
+        let prior = case hitClauTagPriorList of
+                      [] -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList
+                      _  -> snd (hitClauTagPriorList!!0)                        -- Prior
 
         let overPairs' = (lop, rop, prior):overPairs
         ambiResolByStruGene2 resolMethod clauTag nPCs overPairs' pcps struGene2s

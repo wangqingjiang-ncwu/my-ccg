@@ -839,7 +839,8 @@ parseSentByScript sn cs = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo                -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                    -- Tree source
-    let tree_target = getConfProperty "tree_target" confInfo                    -- auto sample target.
+    let tree_target = getConfProperty "tree_target" confInfo                    -- auto sample target
+    let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
 
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
@@ -860,19 +861,13 @@ parseSentByScript sn cs = do
     let clauNum = length cs
     putStrLn $ " There are " ++ show clauNum ++ " clauses in total."
 
-{- Parsing by scripts can be conducted multiple times. Sometimes parsing includes errors, corresponding syntax ambiguity resolution samples are wrong.
- - If during parsing by scripts, syntax ambiguity resolution samples are written into database, then whenever a new parsing for a sentence begins,
- - the ambiguity samples for the sentence should be removed from database.
- - If during parsing by scripts, ambiguity samples are NOT created and written into database, which possibly are created during manually parsing,
- - PLEASE comment out the following codes.
- -}
-    hasCTPSample <- hasSentSampleInSynAmbiResol sn 1 clauNum
-    if hasCTPSample
-      then removeClauTagPriorFromSynAmbiResol sn 1 clauNum                      -- Remove all samples of this sentence in syntax ambiguity resolution database.
-      else putStrLn "parseSentByScript: No syntax ambiguity resolution sample."
-{-
- - Code End
- -}
+    if syntax_ambi_resol_sample_updata_switch == "On"
+      then do                                                      -- Update syntax ambiguity resolution samples in database
+        hasCTPSample <- hasSentSampleInSynAmbiResol sn 1 clauNum
+        if hasCTPSample
+          then removeClauTagPriorFromSynAmbiResol sn 1 clauNum     -- Remove all samples of this sentence in syntax ambiguity resolution database.
+          else putStrLn "parseSentByScript: No syntax ambiguity resolution sample."
+      else putStr ""                                               -- Do NOT update sample base
 
     finFlagAndSLRAndTree <- parseSentByScript' sn cs script'
     if (fst5 finFlagAndSLRAndTree)
@@ -912,8 +907,7 @@ parseSentByScript sn cs = do
         putStrLn $ "tagOfClauAnaly = " ++ show tagOfClauAnaly
         putStrLn $ "Sentence No."++ show sn ++" has "++ show (length origTrees) ++" clauses, in which "++ show ((fst . fif5) finFlagAndSLRAndTree) ++ " clauses are the same with the origial clauses."
         if fst3 tagOfClauAnaly /= snd3 tagOfClauAnaly
-          then do
--- Let user know sentential parsing difference happens, and decide whether to parse the following sentences.
+          then do          -- Let user know sentential parsing difference happens, and decide whether to parse the following sentences.
             cOrS <- getLineUntil "Press 'c' or RETURN to continue, 's' to skip the remaining parsing: " ["c","s"] True
             case cOrS of
               "c" -> return True
@@ -1126,12 +1120,11 @@ doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     let transOk = "y"                       -- If hoping manually decide whether transitive result is accepted, annotate this line.
     case transOk of
       "y" -> do                             -- Press key 'y' or directly press RETURN
-{- When NOT hope to create syntax ambiguity resolution samples, and write them into database, then comment out the following line of codes.
- -}
-               updateAmbiResol clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)        -- Record new ambiguity resolution fragments.
-{-
- - Code End
- -}
+               confInfo <- readFile "Configuration"
+               let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
+               if syntax_ambi_resol_sample_updata_switch == "On"
+                 then updateAmbiResol clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)    -- Record new ambiguity resolution fragments.
+                 else putStr ""             -- Do nothing
                return (onOff,sortPhraCateBySpan (fst nbPCs), snd nbPCs, removeDup4OverPair (prevOverPairs ++ overPairsByScript ++ overPairsByManual))
       "n" -> doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
       "e" -> return ([],[],[],[])      -- Return from doTrans, and indicate this is terminating exit.
@@ -1373,13 +1366,11 @@ parseSentByGrammarAmbiResol startSn endSn = do
     let tree_target = getConfProperty "tree_target" confInfo
     let cate_ambig_resol_source = getConfProperty "cate_ambig_resol_source" confInfo
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let strugene_context_selection_algo = getConfProperty "strugene_context_selection_algo" confInfo
     let strugene_prior_selection_algo = getConfProperty "strugene_prior_selection_algo" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " cate_ambig_resol_source: " ++ cate_ambig_resol_source
     putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
-    putStrLn $ " strugene_context_selection_algo: " ++ strugene_context_selection_algo
     putStrLn $ " strugene_prior_selection_algo: " ++ strugene_prior_selection_algo
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
@@ -1682,11 +1673,9 @@ parseSentByStruGeneFromConf resolMethod = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
-    let strugene_context_selection_algo = getConfProperty "strugene_context_selection_algo" confInfo
     let strugene_prior_selection_algo = getConfProperty "strugene_prior_selection_algo" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
-    putStrLn $ " strugene_context_selection_algo: " ++ strugene_context_selection_algo
     putStrLn $ " strugene_prior_selection_algo: " ++ strugene_prior_selection_algo
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
@@ -1862,7 +1851,8 @@ parseASentByStruGene2' resolMethod sentIdx cs scripts struGene2s = do
                                              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
     storeClauseParsingToTreebank sentIdx clauIdx rtbPCs                     -- Add the parsing result of this clause into database.
 
-{- Parsing a clause is a recursive transition process.
+{- This function is for 1st generation of model StruGene, and now is obsoleted.
+ - Parsing a clause is a recursive transition process.
  - Input: A sequence of [Rule], a sequence of phrasal categories, a sequence of banned phrasal categories, a parsing script of this clause,
           a sequence of modes and a sequence of distance weights.
  - Algo.:
@@ -1930,7 +1920,8 @@ parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCs script struGene2s
           showTreeStru spls spls
           return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
 
-{- Do a trip of transition, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
+{- This function is for 1st generation of model StruGene, and now is obsoleted.
+ - Do a trip of transition, and return the category-converted rules used in this trip, the resultant phrases, and the banned phrases.
  - resolMethod: One kind of syntactic ambiguity resolution method
  - clauTag: (SentIdx, ClauIdx)
  - nPCs: The current phrase set
@@ -2008,7 +1999,7 @@ doTransWithStruGene2 resolMethod clauTag nPCs banPCs script struGene2s = do
 
     return (onOff,(fst nbPCs),(snd nbPCs))
 
-{- Resolve ambiguities by StruGene samples.
+{- Resolve ambiguities by StruGene samples. This function is obsoleted.
  - resolMethod: One kind of syntactic ambiguity resolution method
  - clauTag: (SentIdx, ClauIdx)
  - nPCs: The current phrase set

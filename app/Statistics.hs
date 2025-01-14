@@ -102,7 +102,6 @@ countInTree bottomSn topSn funcIndex = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let tree_source = getConfProperty "tree_source" confInfo
-    putStrLn $ "The source of parsing trees is set as: " ++ tree_source         -- Display the source of parsing trees
     let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num >= ? and serial_num <= ?"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
@@ -284,7 +283,8 @@ countInTree bottomSn topSn funcIndex = do
          putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show (formatMapListWithFloatValue typeTagStruNormFreqDescList 4)
        else putStr ""
 
-    if funcIndex == 12                                          -- To calculate similarities between every pair of Categories.
+-- To calculate similarities between every pair of Categories.
+    if funcIndex == 12
        then do
          let typePair2SimTuple = getTypePair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
          let typePair2SimList = fth4 typePair2SimTuple
@@ -302,7 +302,8 @@ countInTree bottomSn topSn funcIndex = do
              showCatePair2SimList (formatMapListWithDoubleValue sparseTypePair2SimList 4)
        else putStr ""
 
-    if funcIndex == 13                                          -- To calculate similarities between every pair of grammatic rules.
+-- To calculate similarities between every pair of grammatic rules.
+    if funcIndex == 13
        then do
          let tagPair2SimTuple = getTagPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
          let tagPair2SimList = fth4 tagPair2SimTuple
@@ -342,30 +343,48 @@ countInTree bottomSn topSn funcIndex = do
 -- By Singular Value Decomposition (SVD), calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
     if funcIndex == 15
        then do
-         let phraSynPairSimTuple = getPhraSynPairSimFromSCPLBySVD sentClauPhraList
+         confInfo <- readFile "Configuration"
+         let distAlgo = getConfProperty "phra_gram_dist_algo" confInfo
+
+         let phraSynPairSimTuple = getPhraSynPairSimFromSCPLBySVD distAlgo sentClauPhraList
          let numOfPhraSynPair = length (fst5 phraSynPairSimTuple)
          putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show numOfPhraSynPair
+
+         let origSimMatrix = snd5 phraSynPairSimTuple
+         let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
+         let origSimByRMS = case distAlgo of
+                              "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                              "Manhattan" -> map ((/ 3.0) . sumElements) (toRows origSimMatrix)
+         let origSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByRMS     -- hmatrix
+
+         let orthSimMatrix = fth5 phraSynPairSimTuple
+         let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
+         let orthSimByRMS = case distAlgo of
+                              "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                              "Manhattan" -> map ((/ 3.0) . sumElements) (toRows orthSimMatrix)
+         let orthSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByRMS     -- hmatrix
+
          if (numOfPhraSynPair > 10)
            then do
              putStrLn "countInTree: The first 10 elements of phraSynPairList: "
              dispList 1 (take 10 (fst5 phraSynPairSimTuple))
-             putStrLn "countInTree: The first 10 elements of origSimMatrix: "
-             disp 4 (snd5 phraSynPairSimTuple ?? (Take 10, Drop 0))
-             putStrLn "countInTree: The first 10 rows and the first 10 columns of covSimMatrix: "
-             disp 6 (thd5 phraSynPairSimTuple ?? (Take 10, Take 10))
-             putStrLn "countInTree: The first 10 rows of orthSimMatrix: "
-             disp 4 (fth5 phraSynPairSimTuple ?? (Take 10, Drop 0))
+             putStrLn "countInTree: The first 10 elements of origSim2RMSMatrix: "
+             disp 4 (origSim2RMSMatrix ?? (Take 10, Drop 0))
+             putStrLn "countInTree: covSimMatrix: "
+             disp 4 (thd5 phraSynPairSimTuple)
+             putStrLn "countInTree: The first 10 rows of orthSim2RMSMatrix: "
+             disp 4 (orthSim2RMSMatrix ?? (Take 10, Drop 0))
              putStrLn "countInTree: The first 10 rows of phraSynPair2SimList: "
              dispList 1 (take 10 (fif5 phraSynPairSimTuple))
            else do
              putStrLn "countInTree: phraSynPairList: "
              dispList 1 (fst5 phraSynPairSimTuple)
-             putStrLn "countInTree: origSimMatrix: "
-             disp 4 (snd5 phraSynPairSimTuple)
+             putStrLn "countInTree: origSim2RMSMatrix: "
+             disp 4 origSim2RMSMatrix
              putStrLn "countInTree: covSimMatrix: "
-             disp 6 (thd5 phraSynPairSimTuple)
-             putStrLn "countInTree: orthSimMatrix: "
-             disp 4 (fth5 phraSynPairSimTuple)
+             disp 4 (thd5 phraSynPairSimTuple)
+             putStrLn "countInTree: orthSim2RMSMatrix: "
+             disp 4 orthSim2RMSMatrix
              putStrLn "countInTree: phraSynPair2SimList: "
              dispList 1 (fif5 phraSynPairSimTuple)
        else putStr ""

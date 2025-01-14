@@ -4,39 +4,49 @@ User:wqj
 Password:wqj
 Database:ccg4c
 
-# Where parsing trees and scripts come from and go to, such as 'corpus', 'treebank_by_corpus_script'.
+# The database tables where parsing trees and scripts come from.
+script_source:corpus
+tree_source:corpus
+
+# The database table where parsing trees go to.
 # When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
 # Other values of tree_target:
-#    - corpus
-#    - treebank_including_SLR
-#    - treebank_by_strugene2_identity_sim_Hit
-#    - treebank_by_strugene2_identity_sim_MaxFreq
-#    - treebank_by_strugene2_embedded_sim_Hit
-#    - treebank_by_strugene2_embedded_sim_MaxFreq
+#   - corpus
+#   - treebank_including_SLR
+#   - treebank_by_strugene2_identity_sim_euclidean_Hit
+#   - treebank_by_strugene2_identity_sim_euclidean_MaxFreq
+#   - treebank_by_strugene2_embedded_sim_euclidean_Hit
+#   - treebank_by_strugene2_embedded_sim_euclidean_MaxFreq
 #
-script_source:corpus
-tree_source:treebank_20250109
-tree_target:treebank_20250109
-
-# Algorithm of selecting a context with the highest similarity degree in StruGene samples.
-# Strongly recommend to use algorithm 'Hit' because hit is more credibal than highest similarity degree.
-# strugene_context_selection_algo:First
-strugene_context_selection_algo:Hit
+tree_target:treebank_including_SLR
 
 # Algorithm of selecting a prior according to the highest number of occurrences or sample origin.
+# Recommend to use algorithm 'Hit'.
 # strugene_prior_selection_algo:MaxFreq
 strugene_prior_selection_algo:Hit
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
-# Model 'stru_gene_202408' should be selected when parsing tree was creatly at the first time, then other models are selected
-# when parsing by scripts, with purpose that samples of those models can be obtained.
+# Model 'stru_gene_202412' is the newest one in StruGene series.
+# When parsing by scripts, the samples of selected model would be created.
 # Possible values of this property:
-#    - stru_gene
-#    - ambi_resol1
-#    - stru_gene_202408
-#    - stru_gene_202412
-#    - treebank_clust_res_k200_s18000_sg_aa
+#   - stru_gene
+#   - ambi_resol1
+#   - stru_gene_202408
+#   - stru_gene_202412
+#   - treebank_clust_res_k200_s18000_sg_aa
 syntax_ambi_resol_model:stru_gene_202412
+
+# Switch of updating syntax ambiguity resolution samples in database.
+# For examples, parsing by scripts sometimes includes errors, and corresponding syntax ambiguity resolution samples are wrong.
+# When NOT hope to update syntax ambiguity resolution samples in database, set this switch as Off.
+syntax_ambi_resol_sample_updata_switch:Off
+# syntax_ambi_resol_sample_updata_switch:On
+
+# Distance Algo. for phrasal grammar aspects.
+# Possible values:
+#   - Euclidean
+#   - Manhattan
+phra_gram_dist_algo:Manhattan
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
 # In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.

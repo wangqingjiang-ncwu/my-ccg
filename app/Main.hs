@@ -350,15 +350,19 @@ doParseSentByScript username = do
     let script_source = getConfProperty "script_source" confInfo                     -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
     let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
+    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " tree_target: " ++ tree_target
+    putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+    putStrLn $ " syntax_ambi_resol_sample_updata_switch: " ++ syntax_ambi_resol_sample_updata_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input serial_num of start sentence: "
@@ -553,8 +557,18 @@ doCountInTree username funcIndex = do
     putStr "Please input the value of 'serial_num' of end sentence: "
     line <- getLine
     let topSn = read line :: Int
-    countInTree bottomSn topSn funcIndex
-    doCountInTreebank username
+
+    confInfo <- readFile "Configuration"
+    let tree_source = getConfProperty "tree_source" confInfo
+    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+    putStrLn $ " tree_source: " ++ tree_source
+    putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        countInTree bottomSn topSn funcIndex
+      else putStrLn "Operation was cancelled."
 
 -- A1_2. Display statistical results from field 'script' in table 'corpus'.
 doCountInScript :: String -> Int -> IO ()
@@ -565,8 +579,15 @@ doCountInScript username funcIndex = do
     putStr "Please input the value of 'serial_num' of end sentence: "
     line <- getLine
     let topSn = read line :: Int
-    countInScript bottomSn topSn funcIndex
-    doCountInTreebank username
+
+    confInfo <- readFile "Configuration"
+    let script_source = getConfProperty "script_source" confInfo
+    putStrLn $ " script_source: " ++ script_source
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        countInScript bottomSn topSn funcIndex
+      else putStrLn "Operation was cancelled."
 
 -- A2. Display statistical results from table 'struGene'.
 doCountInStruGene :: String  -> IO ()

@@ -105,7 +105,7 @@ type LeftExtend = [PhraSyn]     -- Left neighbors
 type LeftOver = PhraSyn         -- Overlapping left phrase
 type RightOver = PhraSyn        -- Overlapping right phrase
 type RightExtend = [PhraSyn]    -- Right neighbors
-type OverType = Int                                -- Overlapping type, [0 .. 5]
+type OverType = Int             -- Overlapping type, [0 .. 5]
 data Prior = Lp | Rp | Noth deriving (Eq, Read)    -- Lp means left prior, Rp means right prior, Noth means nothing or both not.
 
 instance Show Prior where

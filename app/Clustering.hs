@@ -73,8 +73,8 @@ module Clustering (
     getContext2ClauTagPriorBase,     -- SIdx -> SIdx -> IO [Context2ClauTagPrior]
     getContextOfSGPairSimBySVD,      -- Context2ClauTagPriorBase -> IO ([(ContextOfSG, ContextOfSG)], Matrix Double, Matrix Double, [((ContextOfSG, ContextOfSG), SimDeg)])
     getContextOfSGPairSim,           -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-    getOneToAllContextOfSGSimByRMS,  -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-    getOneToAllContextOfSGSimByRMS', -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    getOneToAllContextOfSGSim,       -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    getOneToAllContextOfSGSim',      -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     findStruGeneSampleByMaxContextSim,   -- ContextOfSG -> Context2ClauTagPriorBase -> IO (SIdx, SimDeg, Context2ClauTagPrior)
     findWhereSim1HappenAmongStruGeneSamples,   -- SIdx -> Int -> [Context2ClauTagPrior] -> IO ()
 
@@ -1133,87 +1133,126 @@ clusteringAnalysis funcIndex = do
     -- 7. Get similarity degrees between any two contexts of overlapping types by Singular Value Decomposition.
     if funcIndex == 7
        then do
-         putStrLn "(1) From stru_gene_202408, collect all contexts of overlapping types."
-         startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [1 ..]
-         endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
-         context2OverTypeBase <- getContext2OverTypeBase startIdx endIdx        -- [(ContextOfOT, OverType)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
 
-         putStrLn "(2) Calculate similarity degrees between any two contexts of overlapping types."
-         contextOfOTPairSimTuple <- getContextOfOTPairSimBySVD context2OverTypeBase
-                                        -- (contextOfOTPairList, origSimMatrix, orthSimMatrix, contextOfOTPair2SimList)
-         let numOfContextOfOTPair = length (fst4 contextOfOTPairSimTuple)
-         putStrLn $ "Num. of context pairs of overtypes: " ++ show numOfContextOfOTPair
-
-         let origSimMatrix = snd4 contextOfOTPairSimTuple
-         let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
-         let origSimByRMS = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))       -- Root Mean Square
-         let origSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByRMS     -- hmatrix
-
-         let orthSimMatrix = thd4 contextOfOTPairSimTuple
-         let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
-         let orthSimByRMS = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))       -- Root Mean Square
-         let orthSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByRMS     -- hmatrix
-
-         if (numOfContextOfOTPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 elements of contextOfOTPairList: "
-             dispList 1 (take 10 (fst4 contextOfOTPairSimTuple))
-             putStrLn " The first 10 elements of origSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 (origSim2RMSMatrix ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of orthSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 (orthSim2RMSMatrix ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfOTPair2SimList: "
-             dispList 1 (take 10 (fth4 contextOfOTPairSimTuple))
-           else do
-             putStrLn " contextOfOTPairList: "
-             dispList 1 (fst4 contextOfOTPairSimTuple)
-             putStrLn " origSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 origSim2RMSMatrix
-             putStrLn " orthSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 orthSim2RMSMatrix
-             putStrLn " contextOfOTPair2SimList: "
-             dispList 1 (fth4 contextOfOTPairSimTuple)
-        else putStr ""
+             -- (1) From stru_gene_202408 or stru_gene_202412, collect all contexts of overlapping types.
+             startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [1 ..]
+             endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
+             context2OverTypeBase <- getContext2OverTypeBase startIdx endIdx        -- [(ContextOfOT, OverType)]
 
-    -- 8. Get similarity degrees between any two contexts of overlapping types directly by Euclidean metric.
+             -- (2) Calculate similarity degrees between any two contexts of overlapping types.
+             contextOfOTPairSimTuple <- getContextOfOTPairSimBySVD context2OverTypeBase    -- (contextOfOTPairList, origSimMatrix, orthSimMatrix, contextOfOTPair2SimList)
+             let numOfContextOfOTPair = length (fst4 contextOfOTPairSimTuple)
+             putStrLn $ "Num. of context pairs of overtypes: " ++ show numOfContextOfOTPair
+
+             let origSimMatrix = snd4 contextOfOTPairSimTuple
+             let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
+             let origSimDist = case overlap_type_dist_algo of
+                                 "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                                 "Manhattan" -> map ((/ 4.0) . sumElements) (toRows origSimMatrix)
+             let origSim2DistMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimDist     -- hmatrix
+
+             let orthSimMatrix = thd4 contextOfOTPairSimTuple
+             let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
+             let orthSimDist = case overlap_type_dist_algo of
+                                 "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                                 "Manhattan" -> map ((/ 4.0) . sumElements) (toRows orthSimMatrix)
+             let orthSim2DistMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimDist     -- hmatrix
+
+             if (numOfContextOfOTPair > 10)
+               then do
+                 putStrLn " The first 10 elements of contextOfOTPairList: "
+                 dispList 1 (take 10 (fst4 contextOfOTPairSimTuple))
+                 putStrLn $ " The first 10 elements of origSim2DistMatrix (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 (origSim2DistMatrix ?? (Take 10, Drop 0))
+                 putStrLn $ " The first 10 rows of orthSim2DistMatrix (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 (orthSim2DistMatrix ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of contextOfOTPair2SimList: "
+                 dispList 1 (take 10 (fth4 contextOfOTPairSimTuple))
+               else do
+                 putStrLn " contextOfOTPairList: "
+                 dispList 1 (fst4 contextOfOTPairSimTuple)
+                 putStrLn $ " origSim2DistMatrix (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 origSim2DistMatrix
+                 putStrLn $ " orthSim2DistMatrix (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 orthSim2DistMatrix
+                 putStrLn " contextOfOTPair2SimList: "
+                 dispList 1 (fth4 contextOfOTPairSimTuple)
+           else putStrLn "Operation was canceled."
+       else putStr ""
+
+    -- 8. Get similarity degrees between any two contexts of overlapping types directly.
     if funcIndex == 8
        then do
-         putStrLn "(1) From stru_gene_202408, collect all contexts of overlapping types."
-         startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
-         context2OverTypeBase <- getContext2OverTypeBase startIdx endIdx        -- [(ContextOfOT, OverType)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
 
-         putStrLn "(2) Calculate similarity degrees between any two contexts of overlapping types."
-         contextOfOTPairSimTuple <- getContextOfOTPairSim context2OverTypeBase
-
-         let origSimList = fst contextOfOTPairSimTuple
-         let contextOfOTPair2SimList = snd contextOfOTPairSimTuple
-         let origSimListWithRMS = zip origSimList (map snd contextOfOTPair2SimList)
-         let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst4 . fst) x, (snd4 . fst) x, (thd4 . fst) x, (fth4 . fst) x, snd x]) origSimListWithRMS
-
-         let numOfContextOfOTPair = length contextOfOTPair2SimList
-         putStrLn $ "Num. of context pairs of overtypes: " ++ show numOfContextOfOTPair
-
-         if (numOfContextOfOTPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 rows of origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfOTPair2SimList: "
-             dispList 1 (take 10 contextOfOTPair2SimList)
-           else do
-             putStrLn " origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 origSimMatrixWithRMS
-             putStrLn " contextOfOTPair2SimList: "
-             dispList 1 contextOfOTPair2SimList
-        else putStr ""
+             -- (1) From stru_gene_202408 or stru_gene_202412, collect all contexts of overlapping types.
+             startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
+             context2OverTypeBase <- getContext2OverTypeBase startIdx endIdx        -- [(ContextOfOT, OverType)]
 
--- 9. Get similarity degrees between any two phrasal overlapping types directly by Root Mean Square.
+             -- (2) Calculate similarity degrees between any two contexts of overlapping types.
+             contextOfOTPairSimTuple <- getContextOfOTPairSim context2OverTypeBase
+
+             let origSimList = fst contextOfOTPairSimTuple
+             let contextOfOTPair2SimList = snd contextOfOTPairSimTuple
+             let origSimListWithDist = zip origSimList (map snd contextOfOTPair2SimList)
+             let origSimMatrixWithDist = fromLists $ map (\x -> [(fst4 . fst) x, (snd4 . fst) x, (thd4 . fst) x, (fth4 . fst) x, snd x]) origSimListWithDist
+
+             let numOfContextOfOTPair = length contextOfOTPair2SimList
+             putStrLn $ "Num. of context pairs of overtypes: " ++ show numOfContextOfOTPair
+
+             if (numOfContextOfOTPair > 10)
+               then do
+                 putStrLn $ " The first 10 rows of origSimMatrixWithDist (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 (origSimMatrixWithDist ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of contextOfOTPair2SimList: "
+                 dispList 1 (take 10 contextOfOTPair2SimList)
+               else do
+                 putStrLn $ " origSimMatrixWithDist (Last column is " ++ overlap_type_dist_algo ++ " distance): "
+                 disp 4 origSimMatrixWithDist
+                 putStrLn " contextOfOTPair2SimList: "
+                 dispList 1 contextOfOTPair2SimList
+           else putStrLn "Operation was canceled."
+       else putStr ""
+
+-- 9. Get similarity degrees between any two phrasal overlapping types directly.
     if funcIndex == 9
        then do
-         startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
-         overTypePair2Sim <- getOverTypePair2Sim startIdx endIdx
-         putStrLn $ "overTypePair2Sim: " ++ show overTypePair2Sim
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
+           then do
+             startIdx <- getNumUntil "Please input index number of start overtype sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end overtype sample [Return for last]: " [0 ..]
+             overTypePair2Sim <- getOverTypePair2Sim startIdx endIdx
+             putStrLn $ "overTypePair2Sim: " ++ show overTypePair2Sim
+           else putStrLn "Operation was canceled."
        else putStr ""
 
 {- 10. Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition.
@@ -1222,167 +1261,232 @@ clusteringAnalysis funcIndex = do
  -}
     if funcIndex == 10
        then do
-         putStrLn "(1) From stru_gene_202408, collect all contexts of StruGene samples."
-         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
-         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
-         let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn "(2) Calculate similarity degrees between any two contexts of StruGene samples."
-         contextOfSGPairSimTuple <- getContextOfSGPairSimBySVD context2ClauTagPriorBase
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+         putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
 
-         let origSimMatrix = snd4 contextOfSGPairSimTuple
-         let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
-         let origSimByRMS = map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))        --  Root Mean Square
-         let origSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByRMS     -- hmatrix
-
-         let orthSimMatrix = thd4 contextOfSGPairSimTuple
-         let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
-         let orthSimByRMS = map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))        -- Root Mean Square
-         let orthSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByRMS     -- hmatrix
-
-         let numOfContextOfSGPair = rows origSimMatrix                          -- Int, Number of rows.
-         putStrLn $ "Num. of context pairs of StruGene samples: " ++ show numOfContextOfSGPair
-
-         if (numOfContextOfSGPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 elements of contextOfSGPairList: "
-             dispList 1 (take 10 (fst4 contextOfSGPairSimTuple))
-             putStrLn " The first 10 elements of origSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 (origSim2RMSMatrix ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of orthSim2RMSMatrix: "
-             disp 4 (orthSim2RMSMatrix ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfSGPair2SimList (Last column is Root Mean Square): "
-             dispList 1 (take 10 (fth4 contextOfSGPairSimTuple))
-           else do
-             putStrLn " contextOfSGPairList: "
-             dispList 1 (fst4 contextOfSGPairSimTuple)
-             putStrLn " origSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 origSim2RMSMatrix
-             putStrLn " orthSim2RMSMatrix (Last column is Root Mean Square): "
-             disp 4 orthSim2RMSMatrix
-             putStrLn " contextOfSGPair2SimList: "
-             dispList 1 (fth4 contextOfSGPairSimTuple)
+             -- (1) From stru_gene_202408 or stru_gene_202412, collect all contexts of StruGene samples.
+             startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+             context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+             let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
+
+             -- (2) Calculate similarity degrees between any two contexts of StruGene samples.
+             contextOfSGPairSimTuple <- getContextOfSGPairSimBySVD context2ClauTagPriorBase
+
+             let origSimMatrix = snd4 contextOfSGPairSimTuple
+             let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
+
+             let origSimDist = case strugene_context_dist_algo of
+                                 "Euclidean" -> map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                                 "Manhattan" -> map ((/ 5.0) . sumElements) (toRows origSimMatrix)
+             let origSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimDist     -- hmatrix
+
+             let orthSimMatrix = thd4 contextOfSGPairSimTuple
+             let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
+             let orthSimDist = case strugene_context_dist_algo of
+                                 "Euclidean" -> map (sqrt . (/ 5.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                                 "Manhattan" -> map ((/ 5.0) . sumElements) (toRows orthSimMatrix)
+             let orthSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimDist     -- hmatrix
+
+             let numOfContextOfSGPair = rows origSimMatrix                          -- Int, Number of rows.
+             putStrLn $ "Num. of context pairs of StruGene samples: " ++ show numOfContextOfSGPair
+
+             if (numOfContextOfSGPair > 10)
+               then do
+                 putStrLn " The first 10 elements of contextOfSGPairList: "
+                 dispList 1 (take 10 (fst4 contextOfSGPairSimTuple))
+                 putStrLn $ " The first 10 elements of origSim2RMSMatrix (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 (origSim2RMSMatrix ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of orthSim2RMSMatrix: "
+                 disp 4 (orthSim2RMSMatrix ?? (Take 10, Drop 0))
+                 putStrLn $ " The first 10 rows of contextOfSGPair2SimList (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 dispList 1 (take 10 (fth4 contextOfSGPairSimTuple))
+               else do
+                 putStrLn " contextOfSGPairList: "
+                 dispList 1 (fst4 contextOfSGPairSimTuple)
+                 putStrLn $ " origSim2RMSMatrix (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 origSim2RMSMatrix
+                 putStrLn $ " orthSim2RMSMatrix (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 orthSim2RMSMatrix
+                 putStrLn " contextOfSGPair2SimList: "
+                 dispList 1 (fth4 contextOfSGPairSimTuple)
+           else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 11. Get similarity degrees between any two contexts of StruGene samples by Root Mean Square.
+{- 11. Get similarity degrees between any two contexts of StruGene samples.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
  -}
     if funcIndex == 11
        then do
-         putStrLn "(1) From stru_gene_202408, collect all contexts of StruGene samples."
-         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
-         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
-         let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn "(2) Calculate similarity degrees between any two contexts of StruGene samples."
-         contextOfSGPairSimTuple <- getContextOfSGPairSim context2ClauTagPriorBase
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+         putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
 
-         let origSimList = fst contextOfSGPairSimTuple
-         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
-         let origSimListWithRMS = zip origSimList (map snd contextOfSGPair2SimList)
-         let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
-
-         let numOfContextOfSGPair = length contextOfSGPair2SimList                          -- Int, Number of rows.
-         putStrLn $ "Num. of context pairs of StruGene samples: " ++ show numOfContextOfSGPair
-
-         if (numOfContextOfSGPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 rows of origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfSGPair2SimList: "
-             dispList 1 (take 10 contextOfSGPair2SimList)
-           else do
-             putStrLn " origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 origSimMatrixWithRMS
-             putStrLn " contextOfSGPair2SimList: "
-             dispList 1 contextOfSGPair2SimList
+             -- (1) From stru_gene_202408 or stru_gene_202412, collect all contexts of StruGene samples.
+             startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+             context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+             let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
+
+             -- (2) Calculate similarity degrees between any two contexts of StruGene samples.
+             contextOfSGPairSimTuple <- getContextOfSGPairSim context2ClauTagPriorBase
+
+             let origSimList = fst contextOfSGPairSimTuple
+             let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
+             let origSimListWithRMS = zip origSimList (map snd contextOfSGPair2SimList)
+             let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
+
+             let numOfContextOfSGPair = length contextOfSGPair2SimList                          -- Int, Number of rows.
+             putStrLn $ "Num. of context pairs of StruGene samples: " ++ show numOfContextOfSGPair
+
+             if (numOfContextOfSGPair > 10)
+               then do
+                 putStrLn $ " The first 10 rows of origSimMatrixWithRMS (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of contextOfSGPair2SimList: "
+                 dispList 1 (take 10 contextOfSGPair2SimList)
+               else do
+                 putStrLn $ " origSimMatrixWithRMS (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 origSimMatrixWithRMS
+                 putStrLn " contextOfSGPair2SimList: "
+                 dispList 1 contextOfSGPair2SimList
+           else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 12. Among StruGene samples, calculate similarity degrees from one to all contexts by Root Mean Square.
+{- 12. Among StruGene samples, calculate similarity degrees from one to all contexts.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  -}
     if funcIndex == 12
        then do
-         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
-         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         let numOfStruGeneSample = length context2ClauTagPriorBase
-         sIdx <- getNumUntil "Please select one sample whose context will compare with others' contexts [Return for 1]: " [1 .. numOfStruGeneSample]
-         let contextOfSG = fst (context2ClauTagPriorBase!!(sIdx-1))             -- ContextOfSG
-         putStrLn $ "Its context is: " ++ show contextOfSG
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+         putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
 
-         contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
-
-         let origSimList = fst contextOfSGPairSimTuple
-         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
-         let origSimListWithRMS = zip origSimList (map snd contextOfSGPair2SimList)
-         let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
-
-         let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
-         let listOfContextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
-         putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
-         putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfContextOfSGWithSim1)
-
-         if (numOfContextOfSGPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 rows of origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfSGPair2SimList: "
-             dispList 1 (take 10 contextOfSGPair2SimList)
-           else do
-             putStrLn " origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 origSimMatrixWithRMS
-             putStrLn " contextOfSGPair2SimList: "
-             dispList 1 contextOfSGPair2SimList
+             startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+             context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+
+             let numOfStruGeneSample = length context2ClauTagPriorBase
+             sIdx <- getNumUntil "Please select one sample whose context will compare with others' contexts [Return for 1]: " [1 .. numOfStruGeneSample]
+             let contextOfSG = fst (context2ClauTagPriorBase!!(sIdx-1))             -- ContextOfSG
+             putStrLn $ "Its context is: " ++ show contextOfSG
+
+             contextOfSGPairSimTuple <- getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase
+
+             let origSimList = fst contextOfSGPairSimTuple
+             let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
+             let origSimListWithDist = zip origSimList (map snd contextOfSGPair2SimList)
+             let origSimMatrixWithDist = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithDist
+
+             let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
+             let listOfContextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
+             putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
+             putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfContextOfSGWithSim1)
+
+             if (numOfContextOfSGPair > 10)
+               then do
+                 putStrLn $ " The first 10 rows of origSimMatrixWithDist (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 (origSimMatrixWithDist ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of contextOfSGPair2SimList: "
+                 dispList 1 (take 10 contextOfSGPair2SimList)
+               else do
+                 putStrLn $ " origSimMatrixWithDist (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 origSimMatrixWithDist
+                 putStrLn " contextOfSGPair2SimList: "
+                 dispList 1 contextOfSGPair2SimList
+            else putStrLn "Operation was canceled."
         else putStr ""
 
-{- 13. Get similarity degrees between one ClauTagPrior context to every context of StruGene samples by Root Mean Square.
+{- 13. Get similarity degrees between one ClauTagPrior context to every context of StruGene samples.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - Input No.4 Sample , it is ([(((s\.np)/#(s\.np))/*np,"Desig","DE")],(np,">","AHn"),(s,"<","SP"),[],2)
  -}
     if funcIndex == 13
        then do
-         startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
-         endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
-         context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+         confInfo <- readFile "Configuration"
+         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn "Please input one StruGene context [LeftExtend, LeftOver, RightOVer, RigheExtend, OverType] to be compared: "
-         inputStr <- getLine
-         let contextOfSG = readContextOfSGFromStr inputStr                      -- ContextOfSG
+         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+         putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
 
-         contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase
-
-         let origSimList = fst contextOfSGPairSimTuple
-         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
-         let origSimListWithRMS = zip origSimList (map snd contextOfSGPair2SimList)
-         let origSimMatrixWithRMS = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithRMS
-
-         let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
-         let listOfContextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
-         putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
-         putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfContextOfSGWithSim1)
-
-         context2ClauTagPriorTuple <- findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase
-         let sIdx = fst3 context2ClauTagPriorTuple
-         let simDeg = snd3 context2ClauTagPriorTuple
-         let context2ClauTagPrior = thd3 context2ClauTagPriorTuple
-         putStrLn $ "Highest similarity degree " ++ show simDeg ++ " is obtained by No." ++ show sIdx ++ " sample: " ++ show context2ClauTagPrior
-
-         if (numOfContextOfSGPair > 10)
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
            then do
-             putStrLn " The first 10 rows of origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 (origSimMatrixWithRMS ?? (Take 10, Drop 0))
-             putStrLn " The first 10 rows of contextOfSGPair2SimList: "
-             dispList 1 (take 10 contextOfSGPair2SimList)
-           else do
-             putStrLn " origSimMatrixWithRMS (Last column is Root Mean Square): "
-             disp 4 origSimMatrixWithRMS
-             putStrLn " contextOfSGPair2SimList: "
-             dispList 1 contextOfSGPair2SimList
+             startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
+             endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
+             context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+
+             putStrLn "Please input one StruGene context [LeftExtend, LeftOver, RightOVer, RigheExtend, OverType] to be compared: "
+             inputStr <- getLine
+             let contextOfSG = readContextOfSGFromStr inputStr                      -- ContextOfSG
+
+             contextOfSGPairSimTuple <- getOneToAllContextOfSGSim' contextOfSG context2ClauTagPriorBase
+
+             let origSimList = fst contextOfSGPairSimTuple
+             let contextOfSGPair2SimList = snd contextOfSGPairSimTuple
+             let origSimListWithDist = zip origSimList (map snd contextOfSGPair2SimList)
+             let origSimMatrixWithDist = fromLists $ map (\x -> [(fst5 . fst) x, (snd5 . fst) x, (thd5 . fst) x, (fth5 . fst) x, (fif5 . fst) x, snd x]) origSimListWithDist
+
+             let numOfContextOfSGPair = length contextOfSGPair2SimList              -- Int, Number of rows.
+             let listOfContextOfSGWithSim1 = filter (\x -> snd x == 1.0) contextOfSGPair2SimList              -- [(ContextOfSG, ContestOfSG)]
+             putStrLn $ "Num. of ClauTagPrior context pairs: " ++ show numOfContextOfSGPair
+             putStrLn $ "Num. of ClauTagPrior context pairs with similarity degree 1.0: " ++ show (length listOfContextOfSGWithSim1)
+
+             context2ClauTagPriorTuple <- findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase
+             let sIdx = fst3 context2ClauTagPriorTuple
+             let simDeg = snd3 context2ClauTagPriorTuple
+             let context2ClauTagPrior = thd3 context2ClauTagPriorTuple
+             putStrLn $ "Highest similarity degree " ++ show simDeg ++ " is obtained by No." ++ show sIdx ++ " sample: " ++ show context2ClauTagPrior
+
+             if (numOfContextOfSGPair > 10)
+               then do
+                 putStrLn $ " The first 10 rows of origSimMatrixWithDist (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 (origSimMatrixWithDist ?? (Take 10, Drop 0))
+                 putStrLn " The first 10 rows of contextOfSGPair2SimList: "
+                 dispList 1 (take 10 contextOfSGPair2SimList)
+               else do
+                 putStrLn $ " origSimMatrixWithDist (Last column is " ++ strugene_context_dist_algo ++ " distance): "
+                 disp 4 origSimMatrixWithDist
+                 putStrLn " contextOfSGPair2SimList: "
+                 dispList 1 contextOfSGPair2SimList
+           else putStrLn "Operation was cancelled."
        else putStr ""
 
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
@@ -1805,7 +1909,7 @@ getContext2OverTypeBase startIdx endIdx = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     case syntax_ambi_resol_model of
-      "stru_gene_202408" -> do
+      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
@@ -1827,6 +1931,9 @@ getContext2OverTypeBase startIdx endIdx = do
           let context2OverTypeNum = length context2OverTypeBase                 -- The number of Context2OverType samples.
           putStrLn $ "getContext2OverTypeBase: context2OverTypeNum = " ++ show context2OverTypeNum
           return context2OverTypeBase
+      _ -> do
+        putStrLn "getContext2OverTypeBase: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+        return []
 
 {- Get similarity degree between two overtype contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend).
  - sim(contextOfOT1, contextOfOT2) = f(leSim, loSim, roSim, reSim), where
@@ -1874,8 +1981,12 @@ getContextOfOTPairSimBySVD context2OverTypeBase = do
     let (u, s, v) = svd origSimMatrix
     let orthSimMatrix = origSimMatrix LA.<> v
 
--- Norm of every row vector in matrix orthSimMatrix is Euclid disdance from original point to point (leSim', loSim', roSim', reSim').
-    let contextOfOTPairSimList = map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))   -- [Euclid distance of row vector], Mean Square Error.
+    confInfo <- readFile "Configuration"
+    let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+
+    let contextOfOTPairSimList = case overlap_type_dist_algo of
+                                   "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                                   "Manhattan" -> map ((/ 4.0) . sumElements) (toRows orthSimMatrix)
     let contextOfOTPair2SimList = zip contextOfOTPairList contextOfOTPairSimList     -- [((ContextOfOT, ContextOfOT), SimDeg)]
 
     return (contextOfOTPairList, origSimMatrix, orthSimMatrix, contextOfOTPair2SimList)
@@ -1915,7 +2026,12 @@ getContextOfOTPairSim context2OverTypeBase = do
                       , getSimDegFromAttPair2Sim (thd4 x) (thd4 y) roPair2SimList
                       , getSimDegFromAttPair2Sim (fth4 x) (fth4 y) rePair2SimList) | (x, y) <- contextOfOTPairList]
 
-    let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res] / 4.0) | (les,los,ros,res) <- origSimList]   -- Root Mean Square
+    confInfo <- readFile "Configuration"
+    let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+
+    let simList = case overlap_type_dist_algo of
+                    "Euclidean" -> [sqrt (sum [les * les, los * los, ros * ros, res * res] / 4.0) | (les,los,ros,res) <- origSimList]
+                    "Manhattan" -> [sum [les, los, ros, res] / 4.0 | (les,los,ros,res) <- origSimList]
     let contextOfOTPair2SimList = zip contextOfOTPairList simList     -- [((ContextOfOT, ContextOfOT), SimDeg)]
     return (origSimList, contextOfOTPair2SimList)
 
@@ -2006,7 +2122,7 @@ getContext2ClauTagPriorBase startIdx endIdx = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     case syntax_ambi_resol_model of
-      "stru_gene_202408" -> do
+      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
@@ -2028,6 +2144,9 @@ getContext2ClauTagPriorBase startIdx endIdx = do
           let context2ClauTagPriorNum = length context2ClauTagPriorBase                       -- The number of Context2OverType samples.
           putStrLn $ "getContext2ClauTagPriorBase: context2ClauTagPriorNum = " ++ show context2ClauTagPriorNum
           return context2ClauTagPriorBase
+      _ -> do
+        putStrLn "getContext2ClauTagPriorBase: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+        return []
 
 {- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
  - sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where
@@ -2121,6 +2240,7 @@ getContextOfSGPairSim context2ClauTagPriorBase = do
 
     confInfo <- readFile "Configuration"
     let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo    -- Distance algorithm for phrasal grammar aspects
+    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo    -- Distance algorithm for StruGene contexts
 
     let contextOfOTList = nub $ map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) contextOfSGList    -- [ContextOfOT]
     let phraSynPair2SimMap = getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList      -- Map (PhraSyn, PhraSyn) SimDeg
@@ -2157,7 +2277,10 @@ getContextOfSGPairSim context2ClauTagPriorBase = do
                       , getSimDegFromAttPair2Sim (fif5 x) (fif5 y) otPair2SimList
                        ) | (x, y) <- contextOfSGPairList]
 
-    let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]   -- Root Mean Square
+
+    let simList = case strugene_context_dist_algo of
+                    "Euclidean" -> [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]
+                    "Manhattan" -> [sum [les, los, ros, res, ots] / 5.0 | (les,los,ros,res,ots) <- origSimList]
     let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
     return (origSimList, contextOfSGPair2SimList)
 
@@ -2167,8 +2290,8 @@ getContextOfSGPairSim context2ClauTagPriorBase = do
  - otPair2SimList: Similarity degrees between overlapping types calculated by first 500 StruGene samples.
  - origSimList: List of (leSim, loSim, roSim, reSim, otSim), in which every quintuple is corresponding to one tuple (contextOfSG1, contextOfSG2) in contextOfSGPairList.
  -}
-getOneToAllContextOfSGSimByRMS :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
+getOneToAllContextOfSGSim :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase = do
     let contextOfSGList = nub $ map fst context2ClauTagPriorBase                -- [ContextOfSG], here there is no repetitive ContextOfSG values.
 --    putStrLn $ "contextOfSG: " ++ show contextOfSG
 --    putStrLn $ "contextOfSGList: " ++ show contextOfSGList
@@ -2189,6 +2312,7 @@ getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
                                                                                 -- PhraSyn order in every pair was rectified.
     confInfo <- readFile "Configuration"
     let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+    let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
 
 --    putStrLn $ "phraSynPairs: " ++ show phraSynPairs
 --    putStrLn $ "origSimMatrix: " ++ show (snd3 (getPhraSynPairSim phra_gram_dist_algo phraSynPairs))
@@ -2229,12 +2353,19 @@ getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
                                                                                 -- [((RightExtend, RightExtend), SimDeg)]
 --    putStrLn $ "rePair2SimList: " ++ show rePair2SimList
 
--- Using the first 500 samples of stru_gene_202408, calculate similarity degrees between overlapping types as follows.
-    let otPair2SimList = [((1,1),1.0),((1,2),7.3351553900482406e-3),((1,3),4.8666647227816856e-2),((1,4),3.3917793725912755e-2),((1,5),0.4247127394531829)
-                         ,((2,2),1.0),((2,3),0.11777246281776142),((2,4),0.1761503383674159),((2,5),1.0017916991325765e-2)
-                         ,((3,3),1.0),((3,4),0.5887136000291061),((3,5),7.134132733982824e-2)
-                         ,((4,4),1.0),((4,5),5.1362972267575656e-2)
-                         ,((5,5),1.0)]
+-- Euclidean OverType value similarities are calculated by using the first 500 samples of stru_gene_202408,
+-- Manhattan OverType value similarities are calculated by using the first 500 samples of stru_gene_202412.
+    let otPair2SimList = case overlap_type_dist_algo of
+                           "Euclidean" -> [((1,1),1.0),((1,2),7.3351553900482406e-3),((1,3),4.8666647227816856e-2),((1,4),3.3917793725912755e-2),((1,5),0.4247127394531829)
+                                          ,((2,2),1.0),((2,3),0.11777246281776142),((2,4),0.1761503383674159),((2,5),1.0017916991325765e-2)
+                                          ,((3,3),1.0),((3,4),0.5887136000291061),((3,5),7.134132733982824e-2)
+                                          ,((4,4),1.0),((4,5),5.1362972267575656e-2)
+                                          ,((5,5),1.0)]
+                           "Manhattan" -> [((1,1),1.0),((1,2),4.470173439533701e-2),((1,3),0.20418481026327456),((1,4),0.16004358484296605),((1,5),0.12951425063877822)
+                                          ,((2,2),1.0),((2,3),0.14760105015849836),((2,4),0.21749622640726418),((2,5),9.390008726364139e-3)
+                                          ,((3,3),1.0),((3,4),0.5220146998431232),((3,5),5.141417139299777e-2)
+                                          ,((4,4),1.0),((4,5),4.3757227872407406e-2)
+                                          ,((5,5),1.0)]
     let contextOfSGPairList = [(contextOfSG, y) | y <- contextOfSGList]         -- [(ContextOfSG, ContextOfSG)]
 
     let numOfContextOfSGPair = length contextOfSGPairList
@@ -2245,7 +2376,12 @@ getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
                       , getSimDegFromAttPair2Sim (fif5 contextOfSG) (fif5 y) otPair2SimList
                        ) | y <- contextOfSGList]
 
-    let simList = [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]   -- Root Mean Square
+    confInfo <- readFile "Configuration"
+    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
+
+    let simList = case strugene_context_dist_algo of
+                    "Euclidean" -> [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]
+                    "Manhattan" -> [(sum [les, los, ros, res, ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]
     let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
     return (origSimList, contextOfSGPair2SimList)
 
@@ -2254,14 +2390,14 @@ getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase = do
  - context2ClauTagPriorBase: All samples of mapping from ContextOfSG to ClauTagPrior
  - contextOfSG can belong to context2ClauTagPriorBase or NOT.
  -}
-getOneToAllContextOfSGSimByRMS' :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-getOneToAllContextOfSGSimByRMS' contextOfSG context2ClauTagPriorBase = do
+getOneToAllContextOfSGSim' :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+getOneToAllContextOfSGSim' contextOfSG context2ClauTagPriorBase = do
     let contextOfSGList = map fst context2ClauTagPriorBase                      -- [ContextOfSG]
     if (elem contextOfSG contextOfSGList)
-      then getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
+      then getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase
       else do
         let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
-        contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
+        contextOfSGPairSimTuple <- getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase'
         return (tail (fst contextOfSGPairSimTuple), tail (snd contextOfSGPairSimTuple))
 
 {- Given one StruGene context, get the ClauTagPrior of StruGene sample whose context is most similar to that StruGene context.
@@ -2284,7 +2420,7 @@ findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase = do
       else do
         putStrLn $ "findStruGeneSampleByMaxContextSim: Missing contextOfSG: " ++ show contextOfSG
         let context2ClauTagPriorBase' = (contextOfSG, []) : context2ClauTagPriorBase     -- Insert contextOfSG at the head position of contextOfSGList
-        contextOfSGPairSimTuple' <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase'
+        contextOfSGPairSimTuple' <- getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase'
         let contextOfSGPairSimTuple = (tail (fst contextOfSGPairSimTuple'), tail (snd contextOfSGPairSimTuple'))
         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple           -- [((ContextOfSG, ContextOfSG), SimDeg)]
         let simDegList = map snd contextOfSGPair2SimList                    -- [SimDeg]
@@ -2304,7 +2440,7 @@ findWhereSim1HappenAmongStruGeneSamples startIdx offset context2ClauTagPriorBase
     if offset < (length context2ClauTagPriorBase)
       then do
         let contextOfSG = fst (context2ClauTagPriorBase!!offset)                -- ContextOfSG
-        contextOfSGPairSimTuple <- getOneToAllContextOfSGSimByRMS contextOfSG context2ClauTagPriorBase
+        contextOfSGPairSimTuple <- getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase
         let contextOfSGPair2SimList = snd contextOfSGPairSimTuple               -- [((ContextOfSG, ContextOfSG), SimDeg)]
         let contextOfSGPair2SimList' = zip [0 ..] contextOfSGPair2SimList       -- [(Int, ((ContextOfSG, ContextOfSG), SimDeg))]
         let listOfContextOfSGWithSim1 = filter (\x -> (snd . snd) x == 1.0) contextOfSGPair2SimList'   -- Keep items whose similarity Degrees are 1.0

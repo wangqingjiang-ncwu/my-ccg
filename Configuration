@@ -18,7 +18,7 @@ tree_source:corpus
 #   - treebank_by_strugene2_embedded_sim_euclidean_Hit
 #   - treebank_by_strugene2_embedded_sim_euclidean_MaxFreq
 #
-tree_target:treebank_including_SLR
+tree_target:treebank_by_embedded_ph_euc_ot_euc_sg_man_Sn301_400
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -37,11 +37,13 @@ syntax_ambi_resol_model:stru_gene_202412
 syntax_ambi_resol_sample_updata_switch:Off
 # syntax_ambi_resol_sample_updata_switch:On
 
-# Distance Algo. for phrasal grammar aspects.
+# Distance Algo. for phrasal grammar aspects, overlapping types and StruGene contexts.
 # Possible values:
 #   - Euclidean
 #   - Manhattan
-phra_gram_dist_algo:Manhattan
+phra_gram_dist_algo:Euclidean
+overlap_type_dist_algo:Euclidean
+strugene_context_dist_algo:Manhattan
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
 # In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.
@@ -53,10 +55,8 @@ cate_ambig_resol_target:treebank_including_SLR
 benchmark_treebank:corpus
 
 # Experimental treebank
-# experimental_treebank:treebank_by_strugene2_identity_sim_MaxFreq
-# experimental_treebank:treebank_by_strugene2_identity_sim_Hit
-# experimental_treebank:treebank_by_strugene2_embedded_sim_MaxFreq
-experimental_treebank:treebank_by_strugene2_embedded_sim_Hit
+# experimental_treebank:treebank_by_strugene2_embedded_sim_euclidean_Hit_Sn301_400
+experimental_treebank:treebank_by_embedded_ph_euc_ot_euc_sg_man_Sn301_400
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
@@ -104,5 +104,7 @@ wot:1
 wpr:1
 
 # Default start index and end index in corpus.
-defaultStartIdx:1
-defaultEndIdx:200
+# defaultStartIdx:1
+# defaultEndIdx:200
+defaultStartIdx:301
+defaultEndIdx:400

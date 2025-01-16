@@ -1671,8 +1671,15 @@ parseSentByStruGeneFromConf resolMethod = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
+    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+    let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
+    putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+    putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+    putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
+
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
@@ -1684,7 +1691,7 @@ parseSentByStruGeneFromConf resolMethod = do
             let endIdx = getConfProperty "defaultEndIdx" confInfo
             let endSn = read endIdx :: Int
 
-            startSn <- getNumUntil ("Please input which sentence to start [1 .. " ++ show endSn ++ "]: ")  [startSn .. endSn]
+            startSn <- getNumUntil ("Please input which sentence to start [" ++ show startSn ++ " .. " ++ show endSn ++ "]: ")  [startSn .. endSn]
             endSn <- getNumUntil ("Please input which sentence to end [" ++ show startSn ++ " .. " ++ show endSn ++ "]: ") [startSn .. endSn]
             putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
             sentList <- getSentListFromDB startSn endSn
@@ -2180,8 +2187,9 @@ evaluateExperimentalTreebank = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let benchmark_treebank = getConfProperty "benchmark_treebank" confInfo
     let experimental_treebank = getConfProperty "experimental_treebank" confInfo
+    putStrLn $ "experimental_treebank: " ++ experimental_treebank
 
-    contOrNot <- getLineUntil ("'experimental_treebank' table is " ++ experimental_treebank ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    contOrNot <- getLineUntil (" Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
 
@@ -2196,7 +2204,6 @@ evaluateExperimentalTreebank = do
         experimentalTreebank <- readStreamByInt32TextText [] is
         let startSn = fst3 (head experimentalTreebank)
         let endSn = fst3 (last experimentalTreebank)
-        putStrLn $ "Experimental Treebank: " ++ experimental_treebank
         putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
 
         finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
@@ -2232,11 +2239,10 @@ type MachAmbiResolRes = ((NumOfManPositPhrase, NumOfManNegPhrase)
  -}
 findMachAmbiResolRes :: SentIdx -> SentIdx -> [(SentIdx, String, String)] -> [(SentIdx, String, String)] -> MachAmbiResolRes -> IO (MachAmbiResolRes)
 findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank origMachAmbiResolRes = do
-    let index = startSn - 1
-    let treeOfStartSn = stringToList $ snd3 (benchmarkTreebank!!index)          -- [ClauseStr]
-    let treeOfStartSn' = stringToList $ snd3 (experimentalTreebank!!index)      -- [ScriptStr]
-    let scriptOfStartSn = stringToList $ thd3 (benchmarkTreebank!!index)
-    let scriptOfStartSn' = stringToList $ thd3 (experimentalTreebank!!index)
+    let treeOfStartSn = stringToList $ snd3 . head  $ filter (\x -> fst3 x == startSn) benchmarkTreebank        -- [ClauseStr]
+    let treeOfStartSn' = stringToList $ snd3 . head  $ filter (\x -> fst3 x == startSn) experimentalTreebank
+    let scriptOfStartSn = stringToList $ thd3 . head  $ filter (\x -> fst3 x == startSn) benchmarkTreebank      -- [ScriptStr]
+    let scriptOfStartSn' = stringToList $ thd3 . head  $ filter (\x -> fst3 x == startSn) experimentalTreebank
 
     putStrLn $ "Sentence No.:" ++ show startSn
     currentMachAmbiResolRes <- findMachAmbiResolResOfASent 1 treeOfStartSn treeOfStartSn' scriptOfStartSn scriptOfStartSn' origMachAmbiResolRes

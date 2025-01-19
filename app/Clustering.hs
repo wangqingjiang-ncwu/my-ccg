@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
--- This module was written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
+-- This module was originally written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
 -- To complete clustering, the distances between phrases shoule be defined firstly. Unfortunately it is not a simple problem.
 -- To evaluate similarity between two values of every grammatic attribute, mutual explanation was proposed by Qing-jiang WANG at 2024 autumn.
 
@@ -1076,8 +1076,10 @@ getStruGene2Samples :: IO [StruGene2Sample]
 getStruGene2Samples = do
     confInfo <- readFile "Configuration"
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    conn <- getConn
+    let startSn = read (getConfProperty "syntax_resol_sample_startsn" confInfo) :: Int
+    let endSn = read (getConfProperty "syntax_resol_sample_endsn" confInfo) :: Int
 
+    conn <- getConn
     putStrLn $ "Get samples from " ++ syntax_ambi_resol_model
     case syntax_ambi_resol_model of
       x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
@@ -1085,7 +1087,11 @@ getStruGene2Samples = do
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
-        return struGene2SampleList
+        let struGene2SampleList' = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, removeFromCTPListBySentIdxRange (svt7 x) startSn endSn)) struGene2SampleList
+        let struGene2SampleList'' = filter (\x -> svt7 x /= []) struGene2SampleList'
+        let sentSnRange = getSentRangeByStruGeneSamples struGene2SampleList'' (maxBound :: Int, minBound :: Int)
+        putStrLn $ "  startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
+        return struGene2SampleList''
       _ -> do
         putStrLn "getStruGene2Samples: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
         return []

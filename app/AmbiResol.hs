@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module AmbiResol (
@@ -14,14 +14,17 @@ module AmbiResol (
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
     ContextOfSG,         -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
-    ClauTag,             -- (Int, Int), actually (SentIdx, ClauIdx)
+    ClauTag,             -- (Int, Int), actually is (SentIdx, ClauIdx)
     ClauTagPrior,        -- (ClauTag, Prior)
     stringToCTPListList,        -- String -> [[ClauTagPrior]]
     stringToCTPList,            -- String -> [ClauTagPrior]
     stringToClauTagPrior,       -- String -> ClauTagPrior
-    removeFromCTPListByClauTag,    -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+    removeFromCTPListByClauTag,        -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+    removeFromCTPListBySentIdxRange,   -- [ClauTagPrior] -> SentIdx -> SentIdx -> [ClauTagPrior]
     hasClauTagInCTPList,        -- ClauTag -> [ClauTagPrior] -> Bool
     filterInCTPListByClauTag,   -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
+    hasSentIdxInCTPList,        -- SentIdx -> [ClauTagPrior] -> Bool
+    getSentRangeByStruGeneSamples,  -- [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
     countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
     priorWithHighestFreq,       -- [ClauTagPrior] -> Prior
     fromMaybePrior,             -- Maybe Prior -> Prior
@@ -76,6 +79,7 @@ module AmbiResol (
 import Category
 import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Utils
+import Data.List (nub)
 import Data.Tuple.Utils
 import Text.Printf
 import Corpus (SentIdx, ClauIdx)
@@ -141,7 +145,7 @@ type Context2OverTypeBase = [Context2OverType]
  - For a given context of stru-gene model sample, different clauses might select different resolution policies.
  - The type is used for storage of stru_gene samples.
  -}
-type ClauTag = (Int, Int)                    -- Actually (SentIdx, ClauIdx)
+type ClauTag = (SentIdx, ClauIdx)
 type ClauTagPrior = (ClauTag, Prior)
 
 -- Convert a [[String]] value to its corresponding [[ClauTagPrior]] value.
@@ -159,6 +163,10 @@ stringToClauTagPrior str = (\x -> (stringToIntTuple (fst x), read (snd x) :: Pri
 -- Remove ClauTagPrior values whose ClauTag member equals to a given ClatTag value.
 removeFromCTPListByClauTag :: ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
 removeFromCTPListByClauTag clauTag cTPList = filter (\ctp -> fst ctp /= clauTag) cTPList
+
+-- Remove ClauTagPrior values whose SentIdx member equals to a given SentIdx value.
+removeFromCTPListBySentIdxRange :: [ClauTagPrior] -> SentIdx -> SentIdx -> [ClauTagPrior]
+removeFromCTPListBySentIdxRange cTPList startSn endSn = filter (\ctp -> elem ((fst . fst) ctp) [startSn .. endSn]) cTPList
 
 -- count Prior values in [ClauTagPrior].
 countPriorInCTPList :: Prior -> [ClauTagPrior] -> Int
@@ -259,12 +267,31 @@ hasClauTagInCTPList clauTag (x:xs)
     | clauTag == fst x = True
     | otherwise = hasClauTagInCTPList clauTag xs
 
--- Filter ClauTagPrior values with given ClauTag value in a [ClauTagPrior] list.
+{- Filter ClauTagPrior values with given ClauTag value in a [ClauTagPrior] list.
+ - This function is unnecessary and actually can be replaced with Data.List.filter.
+ -}
 filterInCTPListByClauTag :: ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
 filterInCTPListByClauTag _ [] = []
 filterInCTPListByClauTag clauTag (x:xs)
     | clauTag == fst x = x : filterInCTPListByClauTag clauTag xs
     | otherwise = filterInCTPListByClauTag clauTag xs
+
+-- Decide whether there is any ClauTagPrior value with given SentIdx value in a [ClauTagPrior] list, where ClauTagPrior :: ((SentIdx, ClauIdx), Prior).
+hasSentIdxInCTPList :: SentIdx -> [ClauTagPrior] -> Bool
+hasSentIdxInCTPList _ [] = False
+hasSentIdxInCTPList sentIdx (x:xs)
+    | sentIdx == fst (fst x) = True
+    | otherwise = hasSentIdxInCTPList sentIdx xs
+
+-- Sentence serial number range from which StruGene samples were generated.
+getSentRangeByStruGeneSamples :: [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
+getSentRangeByStruGeneSamples [] origRange = origRange
+getSentRangeByStruGeneSamples (x:xs) origRange = getSentRangeByStruGeneSamples xs newRange
+    where
+    sentSnList = nub $ map (fst . fst) (svt7 x)
+    minSentSn = minimum sentSnList
+    maxSentSn = maximum sentSnList
+    newRange = (minimum [fst origRange, minSentSn], maximum [snd origRange, maxSentSn])
 
 -- Overtype context 'ContextOfSG', clause-tagged prior and its context 'Context2ClauTagPrior', and sample base of 'Context2ClauTagPrior'.
 type ContextOfSG = (LeftExtend, LeftOver, RightOver, RightExtend, OverType)

@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module Utils (
@@ -193,7 +193,9 @@ svt8 (_,_,_,_,_,_,g,_) = g
 eth8 :: (a,b,c,d,e,f,g,h) -> h
 eth8 (_,_,_,_,_,_,_,h) = h
 
--- Remove duplicate elements in a list.
+{- Remove duplicate elements in a list.
+ - Actually, Data.List.nub is better than the following removeDup series of functions.
+ -}
 
 removeDup :: Eq a => [a] -> [a]
 removeDup [] = []

@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
 
--- Sentential Parsing by scripts were orignally written by Qian-qian WANG at 2023, based on which modification was done by Qing-jiang WANG at 2024.
+-- Sentential Parsing by scripts were orignally written by Qian-qian WANG at 2023.
 
 module SentParse (
     getSentFromDB,        -- SentIdx -> IO String
@@ -37,10 +37,10 @@ module SentParse (
     getStruGene1FromAmbiResol1,       -- Int -> Int -> IO ()
     evaluateExperimentalTreebank,     -- IO ()
     doTransWithManualResol,     -- ClauTag -> [Rule] -> [PhraCate] -> BanPCs -> [OverPair] -> IO ([Rule], [PhraCate], BanPCs, [OverPair])
-    ambiResolByManualResol,     -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
-    ambiResolByManualResol',    -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
-    updateAmbiResol,      -- [PhraCate] -> [OverPair] -> IO ()
-    updateAmbiResol',     -- [PhraCate] -> OverPair -> IO ()
+    syntaxAmbiResolByManualResol,     -- [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+    syntaxAmbiResolByManualResol',    -- [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
+    updateSyntaxAmbiResolSample,      -- [PhraCate] -> [OverPair] -> IO ()
+    updateSyntaxAmbiResolSample',     -- [PhraCate] -> OverPair -> IO ()
     storeClauseParsingToTreebank,     -- SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], BanPCs) -> IO ()
     storeTree,            -- SentIdx -> String -> IO ()
     readTree_String,      -- SentIdx -> IO String
@@ -91,8 +91,12 @@ getSentFromDB sn = do
 -- Get some sentences from table corpus, actually the sentences are content of column cate_sent2.
 getSentListFromDB :: SentIdx -> SentIdx -> IO [(Int, String)]
 getSentListFromDB startSn endSn = do
+    confInfo <- readFile "Configuration"
+    let sent_source = getConfProperty "sent_source" confInfo
+
     conn <- getConn
-    stmt <- prepareStmt conn "select serial_num, cate_sent2 from corpus where serial_num >= ? and serial_num <= ?"
+    let sqlstat = DS.fromString $ "select serial_num, cate_sent2 from " ++ sent_source ++ " where serial_num >= ? and serial_num <= ?"
+    stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]
     sentList <- readStreamByInt32Text [] is
     return sentList
@@ -840,7 +844,7 @@ parseSentByScript sn cs = do
     let script_source = getConfProperty "script_source" confInfo                -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                    -- Tree source
     let tree_target = getConfProperty "tree_target" confInfo                    -- auto sample target
-    let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
+    let syntax_ambi_resol_sample_update_switch = getConfProperty "syntax_ambi_resol_sample_update_switch" confInfo
 
     conn <- getConn
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
@@ -861,7 +865,7 @@ parseSentByScript sn cs = do
     let clauNum = length cs
     putStrLn $ " There are " ++ show clauNum ++ " clauses in total."
 
-    if syntax_ambi_resol_sample_updata_switch == "On"
+    if syntax_ambi_resol_sample_update_switch == "On"
       then do                                                      -- Update syntax ambiguity resolution samples in database
         hasCTPSample <- hasSentSampleInSynAmbiResol sn 1 clauNum
         if hasCTPSample
@@ -994,6 +998,7 @@ parseSentByScript' sn cs scripts = do
         putStrLn $ "Skip clause " ++ show clauIdx
         return (False, snd5 finFlagAndSLRAndTree, thd5 finFlagAndSLRAndTree, fth5 finFlagAndSLRAndTree, fif5 finFlagAndSLRAndTree)
 
+-- The 1st Model of category ambiguity resolution.
 type Stub = [PhraCate]
 type SLROfATrans = (Stub, [Rule])
 type SLROfClause = [SLROfATrans]
@@ -1075,26 +1080,26 @@ doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     let pcps = getOverlap nPCs2                     -- [(PhraCate, PhraCate)]
 
 --    if (hasDup4OverPair prevOverPairs)
---      then putStrLn "ambiResolByScript: prevOverPairs includes duplicate elements."
---      else putStrLn "ambiResolByScript: prevOverPairs does NOT include duplicate elements."
+--      then putStrLn "doTransWithScript: prevOverPairs includes duplicate elements."
+--      else putStrLn "doTransWithScript: prevOverPairs does NOT include duplicate elements."
 
     let overPairsByPrev = ambiResolByPrevOverPair [] pcps prevOverPairs         -- [OverPair], phrasal pairs appearing in the previous rounds of transitions.
---    putStr "ambiResolByScript: overPairsByPrev: "
+--    putStr "doTransWithScript: overPairsByPrev: "
 --    showNOverPair overPairsByPrev
 
     let pcpsWithPrior1 = map (\x->(fst3 x, snd3 x)) overPairsByPrev
     let pcps1 = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior1]
     let overPairsByScript = ambiResolByScript nPCs2 [] pcps1 script             -- [OverPair], phrasal pairs are resoluted by script.
---    putStr "ambiResolByScript: overPairsByScript: "
+--    putStr "doTransWithScript: overPairsByScript: "
 --    showNOverPair overPairsByScript
 
     let pcpsWithPrior2 = map (\x->(fst3 x, snd3 x)) overPairsByScript
     let pcps2 = [pcp | pcp <- pcps1, notElem pcp pcpsWithPrior2]                -- [(PhraCate, PhraCate)] not resolved by script.
     if pcps2 /= []
-      then putStrLn "ambiResolByManualResol: Begin manual resolution ..."
+      then putStrLn "syntaxAmbiResolByManualResol: Begin manual resolution ..."
       else putStr ""
-    overPairsByManual <- ambiResolByManualResol nPCs2 [] pcps2                  -- [OverPair], phrasal pairs are resoluted manually.
-    putStr "ambiResolByManualResol: overPairsByManual: "
+    overPairsByManual <- syntaxAmbiResolByManualResol nPCs2 [] pcps2                  -- [OverPair], phrasal pairs are resoluted manually.
+    putStr "syntaxAmbiResolByManualResol: overPairsByManual: "
     showNOverPair overPairsByManual
 
     let overPairs = overPairsByPrev ++ overPairsByScript ++ overPairsByManual   -- All phrasal pairs with their ambiguity resolution policies in this round of transition.
@@ -1105,9 +1110,9 @@ doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     let pcs2 = quickSort4Phrase  [x | x <- snd nbPCs, notElem4Phrase x (snd nbPCs')]    -- The phrases newly banned in original parsing tree.
     if pcs1 == pcs2
       then do
-        putStr "ambiResolByManualResol: cleanupNbPCs: Phrases moved from parsing tree to banned phrasal set: "
+        putStr "syntaxAmbiResolByManualResol: cleanupNbPCs: Phrases moved from parsing tree to banned phrasal set: "
         showNPhraCateLn pcs1
-      else putStrLn "ambiResolByManualResol: cleanupNbPCs: Not identical!"
+      else putStrLn "syntaxAmbiResolByManualResol: cleanupNbPCs: Not identical!"
 
 --    putStr "Transitive result after pruning: "
 --    showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
@@ -1121,9 +1126,9 @@ doTransWithScript clauTag nPCs banPCs prevOverPairs script = do
     case transOk of
       "y" -> do                             -- Press key 'y' or directly press RETURN
                confInfo <- readFile "Configuration"
-               let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
-               if syntax_ambi_resol_sample_updata_switch == "On"
-                 then updateAmbiResol clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)    -- Record new ambiguity resolution fragments.
+               let syntax_ambi_resol_sample_update_switch = getConfProperty "syntax_ambi_resol_sample_update_switch" confInfo
+               if syntax_ambi_resol_sample_update_switch == "On"
+                 then updateSyntaxAmbiResolSample clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)    -- Record new ambiguity resolution fragments.
                  else putStr ""             -- Do nothing
                return (onOff,sortPhraCateBySpan (fst nbPCs), snd nbPCs, removeDup4OverPair (prevOverPairs ++ overPairsByScript ++ overPairsByManual))
       "n" -> doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
@@ -1357,19 +1362,21 @@ verifyEffectOfPhraStruCS proportion currentId endId numOfCorrPred ambiguNum tota
 parseSentByGrammarAmbiResol :: SentIdx -> SentIdx -> IO ()
 parseSentByGrammarAmbiResol startSn endSn = do
     confInfo <- readFile "Configuration"
-    let wle = read (getConfProperty "wle" confInfo) :: Int
-    let wlo = read (getConfProperty "wlo" confInfo) :: Int
-    let wro = read (getConfProperty "wro" confInfo) :: Int
-    let wre = read (getConfProperty "wre" confInfo) :: Int
-    let wot = read (getConfProperty "wot" confInfo) :: Int
-    let distWeiRatioList = [wle, wlo, wro, wre, wot]                            -- ContextOfSG distance
+    let sent_source = getConfProperty "sent_source" confInfo
     let tree_target = getConfProperty "tree_target" confInfo
     let cate_ambig_resol_source = getConfProperty "cate_ambig_resol_source" confInfo
+    let cate_resol_sample_startsn = getConfProperty "cate_resol_sample_startsn" confInfo
+    let cate_resol_sample_endsn = getConfProperty "cate_resol_sample_endsn" confInfo
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_resol_sample_startsn = getConfProperty "syntax_resol_sample_startsn" confInfo
+    let syntax_resol_sample_endsn = getConfProperty "syntax_resol_sample_endsn" confInfo
 
+    putStrLn $ " sent_source: " ++ sent_source
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " cate_ambig_resol_source: " ++ cate_ambig_resol_source
+    putStrLn $ "   startSn = " ++ cate_resol_sample_startsn ++ ", endSn = " ++ cate_resol_sample_endsn
     putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+    putStrLn $ "   startSn = " ++ syntax_resol_sample_startsn ++ ", endSn = " ++ syntax_resol_sample_endsn
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -1380,37 +1387,37 @@ parseSentByGrammarAmbiResol startSn endSn = do
             conn <- getConn
             let query = DS.fromString ("select SLR from " ++ cate_ambig_resol_source ++ " where serial_num >= ? and serial_num <= ?")
             stmt <- prepareStmt conn query
-            (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 200]
+            (defs, is) <- queryStmt conn stmt [toMySQLInt32 (read cate_resol_sample_startsn :: Int), toMySQLInt32 (read cate_resol_sample_endsn :: Int)]
 
 --    rows <- S.toList is
 --    let sLRListOfSent = map (\x -> readSLROfSent (fromMySQLText (x!!0))) rows
-            sLRStrListOfSent <- readStreamByText [] is        -- [String], each string is the string of SLRs of one sentence.
-            let sLRListOfSent = map readSLROfSent sLRStrListOfSent
-            let sLRListOfClause = foldl (++) [] sLRListOfSent
-            let sLRListOfTrans = foldl (++) [] sLRListOfClause
+            sLRStrListOfSent <- readStreamByText [] is                          -- [String], each string is the string of SLRs of one sentence.
+            let sLRListOfSent = map readSLROfSent sLRStrListOfSent              -- [SLROfSent], namely [[SLROfClause]]
+            let sLRListOfClause = foldl (++) [] sLRListOfSent                   -- [SLROfClause], namely [[SLROfATrans]]
+            let sLRListOfTrans = foldl (++) [] sLRListOfClause                  -- [SLROfATrans]
 
             sentList <- getSentListFromDB startSn endSn
-            parseSentByGrammarAmbiResol' startSn endSn sLRListOfTrans sentList tree_target distWeiRatioList
+            parseSentByGrammarAmbiResol' startSn endSn sLRListOfTrans sentList tree_target
             close conn
           else putStrLn "Operation was canceled."
       else putStrLn "Operation was canceled."
 
-parseSentByGrammarAmbiResol' :: SentIdx -> SentIdx -> SLROfClause -> [(SentIdx, String)] -> String -> DistWeiRatioList -> IO ()
-parseSentByGrammarAmbiResol' sn endSn sLR sentList tree_target distWeiRatioList = do
+parseSentByGrammarAmbiResol' :: SentIdx -> SentIdx -> SLROfClause -> [(SentIdx, String)] -> String -> IO ()
+parseSentByGrammarAmbiResol' sn endSn sLR sentList tree_target = do
     putStrLn $ "The sentence of serial_num = " ++ show sn ++ " will be analyzed by grammar ambiguity resolution. "
     let sent = snd $ sentList!!0
     cs <- getSent sent
     let sn' = sn + 1
     let sentList' = tail sentList
 
-    parseASentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList
+    parseASentByGrammarAmbiResol sn cs sLR tree_target
 
     if sn' > endSn
       then putStrLn "parseSentByGrammarAmbiResol': End"
-      else parseSentByGrammarAmbiResol' sn' endSn sLR sentList' tree_target distWeiRatioList
+      else parseSentByGrammarAmbiResol' sn' endSn sLR sentList' tree_target
 
-parseASentByGrammarAmbiResol :: SentIdx -> [String] -> SLROfClause -> String -> DistWeiRatioList -> IO ()
-parseASentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList = do
+parseASentByGrammarAmbiResol :: SentIdx -> [String] -> SLROfClause -> String -> IO ()
+parseASentByGrammarAmbiResol sn cs sLR tree_target = do
     conn <- getConn
     putStrLn $ " Num. of SLR samples = " ++ show (length sLR)
     let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, tree_check tinyint default 0)"
@@ -1428,31 +1435,34 @@ parseASentByGrammarAmbiResol sn cs sLR tree_target distWeiRatioList = do
         ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
         let rn = getOkAffectedRows ok
         close conn
-        if (rn /= 0)
-          then putStrLn $ "parseASentByGrammarAmbiResol: " ++ show rn ++ " row(s) were inserted."
-          else error "parseASentByGrammarAmbiResol: insert failed!"
+        case rn of
+          1 -> putStrLn $ "parseASentByGrammarAmbiResol: " ++ show rn ++ " row(s) were inserted."
+          0 -> putStrLn "parseASentByGrammarAmbiResol: No rows were inserted."
+          _ -> putStrLn "parseASentByGrammarAmbiResol: Insert failed!"
       else do
         let query' = DS.fromString ("update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?")   -- Query is instance of IsString.
         stmt' <- prepareStmt conn query'
         ok <- executeStmt conn stmt' [toMySQLText "[]", toMySQLText "[]", toMySQLInt32 sn]
         let rn = getOkAffectedRows ok
         close conn
-        if (rn /= 0)
-          then putStrLn $ "parseASentByGrammarAmbiResol: " ++ show rn ++ " row(s) were initialized."
-          else error "parseASentByGrammarAmbiResol: update failed!"
+        case rn of
+          1 -> putStrLn $ "parseASentByGrammarAmbiResol: " ++ show rn ++ " row was initialized."
+          0 -> putStrLn $ "parseASentByGrammarAmbiResol: No rows were changed."
+          _ -> error "parseASentByGrammarAmbiResol: update failed."
 
     struGene2Samples <- getStruGene2Samples                                     -- [StruGene2Sample]
     if struGene2Samples /= []
       then do
         putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
-        parseASentByGrammarAmbiResol' sn cs sLR struGene2Samples distWeiRatioList
+        let struGene2s = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples       -- [StruGene2]
+        parseASentByGrammarAmbiResol' sn cs sLR struGene2s
         putStrLn "parseASentByGrammarAmbiResol: Finished parsing."
       else error "parseASentByGrammarAmbiResol: struGene2Samples is Null."
 
-parseASentByGrammarAmbiResol' :: SentIdx -> [String] -> SLROfClause -> [StruGene2Sample] -> DistWeiRatioList -> IO ()
-parseASentByGrammarAmbiResol' _ [] _ _ _ = return ()
-parseASentByGrammarAmbiResol' sn cs sLR struGene2Samples distWeiRatioList = do
-    parseASentByGrammarAmbiResol' sn (take (length cs - 1) cs) sLR struGene2Samples distWeiRatioList
+parseASentByGrammarAmbiResol' :: SentIdx -> [String] -> SLROfClause -> [StruGene2] -> IO ()
+parseASentByGrammarAmbiResol' _ [] _ _ = return ()
+parseASentByGrammarAmbiResol' sn cs sLR struGene2s = do
+    parseASentByGrammarAmbiResol' sn (take (length cs - 1) cs) sLR struGene2s
 
     let clauIdx = length cs
     putStrLn $ "  ===== Clause No." ++ show clauIdx ++ " ====="
@@ -1462,20 +1472,20 @@ parseASentByGrammarAmbiResol' sn cs sLR struGene2Samples distWeiRatioList = do
     putStr "Word semantic sequence: "
     showNSeman nPCs
 
-    rtbPCs <- parseClauseWithGrammarAmbiResol (sn, clauIdx) [] nPCs [] sLR (length nPCs) struGene2Samples distWeiRatioList
+    rtbPCs <- parseClauseWithGrammarAmbiResol (sn, clauIdx) [] nPCs [] sLR (length nPCs) struGene2s
                                              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
     storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
 
-parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> SLROfClause -> Int -> [StruGene2Sample] -> DistWeiRatioList -> IO ([[Rule]],[PhraCate],[PhraCate])
-parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCs sLR lengthOfClause struGene2Samples distWeiRatioList = do
-    rtbPCs <- doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2Samples distWeiRatioList
+parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> BanPCs -> SLROfClause -> Int -> [StruGene2] -> IO ([[Rule]],[PhraCate],[PhraCate])
+parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCs sLR lengthOfClause struGene2s = do
+    rtbPCs <- doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
       then return ([],[],[])                   -- Return ([],[],[]) as the terminating flag.
       else if nPCs /= (snd3 rtbPCs)
-        then do
-          parseClauseWithGrammarAmbiResol clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) sLR lengthOfClause struGene2Samples distWeiRatioList
+        then
+          parseClauseWithGrammarAmbiResol clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) sLR lengthOfClause struGene2s
                                                -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, and accumulated banned PCs.
         else do                                -- Phrasal closure has been formed.
@@ -1486,38 +1496,40 @@ parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCs sLR lengthOfClause str
           showTreeStru spls spls
           return (rules ++ [fst3 rtbPCs], snd3 rtbPCs, thd3 rtbPCs)
 
-{- Merge Rule lists which have minimal distance.
+-- Local definition of similarity degree.
+type SimDeg = Double
+
+{- Return merged Rule lists which have minimal distance. Before merging, rule lists are ordered by ascending similarity degrees.
+ - Additionally, return the remaining (SimDeg, [Rule]) value list.
+ - For [(0.1,[A/n])],  return ([A/n], [])
+ - For [(0.1,[A/n]),(0.1,[S/v]),(0.2,[Hn/a]),(0.4,[O/n])],  return ([A/n, S/v], [(0.2,[Hn/a]),(0.4,[O/n])])
  -}
-getRuleListOfMinDist :: [(Double,[Rule])] -> [Rule] -> IO ([Rule],[(Double,[Rule])])
-getRuleListOfMinDist distRuleList ruleList = do
-    let distRuleList' = tail distRuleList
-    if fst (head distRuleList) == fst (head distRuleList')
-      then do
-        let ruleList' = ruleList ++ snd (head distRuleList')
-        getRuleListOfMinDist distRuleList' ruleList'
-      else return (ruleList,distRuleList')
+getRuleListOfMinDist :: [(SimDeg,[Rule])] -> ([Rule],[(SimDeg,[Rule])])
+getRuleListOfMinDist [] =  ([], [])
+getRuleListOfMinDist [(_, rules)] = (rules, [])
+getRuleListOfMinDist (x:(y:zs))
+    | abs (fst x - fst y) < 1.0e-5 = getRuleListOfMinDist ((fst x, snd x ++ snd y):zs)
+    | otherwise = (snd x, (y:zs))
 
 {- One transition of category combinations, in which category ambiguity resolution is done based upon model SLR,
  - and syntax ambiguity resolution is done based upon model StruGene2.
  -}
-doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> BanPCs -> SLROfClause -> Int -> [StruGene2Sample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
-doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2Samples distWeiRatioList = do
+doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> BanPCs -> SLROfClause -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s = do
     putStrLn "nPCs="
     showNPhraCateLn nPCs
     let ctpOfnPCs = ctpOfCateList nPCs []                                       -- [(Category, Tag, PhraStru)], namely [PhraStru]
     putStrLn "ctpOfnPCs="
     showNPhraSynLn ctpOfnPCs
-    let ctpOfsLR = map (\x -> (ctpOfCateList (fst x) [], snd x)) sLR            -- [([PhraSyn],[Rule])]
-    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity ctpOfnPCs (fst x), snd x)) ctpOfsLR     -- [(Double, [Rule])]
+    let ctpOfsLR = map (\x -> (ctpOfCateList (fst x) [], snd x)) sLR            -- [([PhraSyn],[Rule])], because sLR :: [(Stub, [Rule])]
+    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity ctpOfnPCs (fst x), snd x)) ctpOfsLR     -- [(SimDeg, [Rule])]
     putStrLn $ "distRuleListWithoutSort = " ++ show (formatDoubleAList (take 30 distRuleListWithoutSort) 4)
-    let distRuleList = sortOn fst distRuleListWithoutSort                       -- [(Double, [Rule])] ordered ascendingly
+    let distRuleList = nubBy (\x y -> snd x == snd y) $ sortOn fst distRuleListWithoutSort       -- Ascending SimDegs and no duplicate [Rule]
     putStrLn $ "distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
 
-    let ruleList = snd (head distRuleList)                                      -- [Rule] with minimal distance
-    ruleListAndDistRuleList <- getRuleListOfMinDist distRuleList ruleList       -- ([Rule], [(Double,[Rule])])
-    let distRuleList' = snd ruleListAndDistRuleList
-    let ruleList' = removeDup' (fst ruleListAndDistRuleList) []                 -- [Rule]
-    let rules = take (length ruleList') ruleList'      -- get all elems of ruleList
+    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double,[Rule])])
+    let distRuleList' = snd ruleListAndDistRuleList                             -- Remaining distance rule list
+    let rules = fst ruleListAndDistRuleList                                     -- [Rule]
 
     putStr "Rule switches: "
     showOnOff rules                              -- Display rule switches
@@ -1529,61 +1541,64 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2Samp
     showNPhraCateLn pcs
     let spanList = map spOfCate nPCs                                            -- [Span]
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1                    -- End of transitions
-      then doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList' lengthOfClause struGene2Samples distWeiRatioList
-      else do
-        let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
-        let overPairs = ambiResolByGrammarAmbiResol clauTag nPCs2 [] pcps struGene2Samples distWeiRatioList    -- [OverPair], namely [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
-        putStr "doTransWithGrammarAmbiResol: overPairs: "
-        showNOverPairid overPairs
+      then if distRuleList' /= []
+             then doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList' lengthOfClause struGene2s
+             else return (rules, nPCs, banPCs)                                  -- No SLR sample is availble.
+      else if pcs /= []
+             then do
+               let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+               overPairs <- ambiResolByStruGene2 "StruGeneIdentity" clauTag nPCs2 [] pcps struGene2s    -- [OverPair], namely [(PhraCate, PhraCate, Prior)]
+               putStr "doTransWithGrammarAmbiResol: overPairs: "
+               showNOverPair overPairs
 
-        let overPairs' = map (\x -> (fst4 x, snd4 x, thd4 x)) overPairs
-        nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
-
-        putStr "New phrases after pruning: "
-        showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
-        putStr "Banned phrases: "
-        showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
-        return (rules,(fst nbPCs),(snd nbPCs))
+               nbPCs <- transWithPruning rules nPCs banPCs overPairs                   -- Get transitive result with pruning.
+               putStr "New phrases after pruning: "
+               showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
+               putStr "Banned phrases: "
+               showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+               return (rules,(fst nbPCs),(snd nbPCs))
+             else return (rules, nPCs, banPCs)
 
 {- This function is called when one time of transition creates no new phrase before pruning and parsing tree is NOT formed.
  - Recursively use [Rule] with next miminal distance to do category conversions.
  -}
-doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> BanPCs -> SLROfClause -> [(Double,[Rule])] -> Int -> [StruGene2Sample] -> DistWeiRatioList -> IO ([Rule], [PhraCate], [PhraCate])
-doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList lengthOfClause struGene2Samples distWeiRatioList = do
+doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> BanPCs -> SLROfClause -> [(Double,[Rule])] -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [PhraCate])
+doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList lengthOfClause struGene2s = do
     putStrLn $ "doTransWithGrammarAmbiResol' distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
 
-    let ruleList = snd (head distRuleList)
-    ruleListAndDistRuleList <- getRuleListOfMinDist distRuleList ruleList       -- ([Rule], [(Double,[Rule])])
-    let distRuleList' = snd ruleListAndDistRuleList                             -- [(Double,[Rule])]
-    let ruleList' = removeDup' (fst ruleListAndDistRuleList) []                 -- [Rule]
-    let rules = take (length ruleList') ruleList'                               -- get all elems of ruleList, why do as this?
+    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double,[Rule])])
+    let distRuleList' = snd ruleListAndDistRuleList                             -- [(Double,[Rule])], the remaining distance rules list
+    let rules = fst ruleListAndDistRuleList                                     -- [Rule]
 
     putStr "Rule switches: "
     showOnOff rules                              -- Display rule switches
     let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
---    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     let pcs = [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     showNPhraCateLn pcs
     let spanList = map (\x -> spOfCate x) nPCs
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1
-      then doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList' lengthOfClause struGene2Samples distWeiRatioList
-      else do
-        let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
-        let overPairs = ambiResolByGrammarAmbiResol clauTag nPCs2 [] pcps struGene2Samples distWeiRatioList    -- [OverPairid], namely [(PhraCate, PhraCate, Prior, SIdx)]
-        putStr "doTransWithGrammarAmbiResol: overPairs: "
-        showNOverPairid overPairs
+      then if distRuleList' /= []
+             then doTransWithGrammarAmbiResol' clauTag nPCs banPCs sLR distRuleList' lengthOfClause struGene2s
+             else return (rules, nPCs, banPCs)                                  -- No SLR sample is available.
+      else if pcs /= []
+             then do
+               let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
+               overPairs <- ambiResolByStruGene2 "StruGeneIdentity" clauTag nPCs2 [] pcps struGene2s     -- [OverPair], namely [(PhraCate, PhraCate, Prior)]
+               putStr "doTransWithGrammarAmbiResol: overPairs: "
+               showNOverPair overPairs
 
-        let overPairs' = map (\x -> (fst4 x, snd4 x, thd4 x)) overPairs
-        nbPCs <- transWithPruning rules nPCs banPCs overPairs'                     -- Get transitive result with pruning.
+               nbPCs <- transWithPruning rules nPCs banPCs overPairs                   -- Get transitive result with pruning.
+               putStr "New phrases after pruning: "
+               showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
+               putStr "Banned phrases: "
+               showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
+               return (rules,(fst nbPCs),(snd nbPCs))
+             else return (rules, nPCs, banPCs)
 
-        putStr "New phrases after pruning: "
-        showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
-        putStr "Banned phrases: "
-        showNPhraCateLn (snd nbPCs)                    -- The banned phrases after updated.
-        return (rules,(fst nbPCs),(snd nbPCs))
-
+{- This function is obsoleted, and has been replaced with ambiResolByStruGene2.
+ -}
 ambiResolByGrammarAmbiResol :: ClauTag -> [PhraCate] -> [OverPairid] -> [(PhraCate, PhraCate)] -> [StruGene2Sample] -> DistWeiRatioList -> [OverPairid]
 ambiResolByGrammarAmbiResol _ _ overPairs [] _ _ = overPairs
 ambiResolByGrammarAmbiResol clauTag nPCs overPairs (pcp:pcps) struGene2Samples distWeiRatioList
@@ -1674,11 +1689,15 @@ parseSentByStruGeneFromConf resolMethod = do
     let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
     let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
     let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
+    let syntax_resol_sample_startsn = getConfProperty "syntax_resol_sample_startsn" confInfo
+    let syntax_resol_sample_endsn = getConfProperty "syntax_resol_sample_endsn" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
     putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
     putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
+    putStrLn $ " syntax_resol_sample_startsn: " ++ syntax_resol_sample_startsn
+    putStrLn $ " syntax_resol_sample_endsn: " ++ syntax_resol_sample_endsn
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -2192,30 +2211,35 @@ evaluateExperimentalTreebank = do
     contOrNot <- getLineUntil (" Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-
-        let query = DS.fromString ("select serial_num, tree, script from " ++ benchmark_treebank)       -- Query is instance of IsString.
-        stmt <- prepareStmt conn query
-        (defs, is) <- queryStmt conn stmt []
-        benchmarkTreebank <- readStreamByInt32TextText [] is
-
         let query = DS.fromString ("select serial_num, tree, script from " ++ experimental_treebank)
         stmt <- prepareStmt conn query
         (defs, is) <- queryStmt conn stmt []
         experimentalTreebank <- readStreamByInt32TextText [] is
         let startSn = fst3 (head experimentalTreebank)
         let endSn = fst3 (last experimentalTreebank)
-        putStrLn $ "startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
+        putStrLn $ "  startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
 
-        finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
-        let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
-        putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
-        putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))                     -- Precision = TP / (TP + FP)
+        let query = DS.fromString ("select serial_num, tree, script from " ++ benchmark_treebank ++ " where serial_num >= ? and serial_num <= ?")
+        stmt <- prepareStmt conn query
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]
+        benchmarkTreebank <- readStreamByInt32TextText [] is
+        let startSnOfBT = fst3 (head benchmarkTreebank)
+        let endSnOfBT = fst3 (last benchmarkTreebank)
+        putStrLn $ "  startSnOfBT = " ++ show startSnOfBT ++ ", endSnOfBT = " ++ show endSnOfBT
 
-        let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
-        putStrLn $ "Recall = " ++ (printf "%.4f" (recall :: Double))                           -- Recall = TP / (TP + FN)
+        if startSn == startSnOfBT && endSn == endSnOfBT
+          then do
+            finalMachAmbiResolRes <- findMachAmbiResolRes startSn endSn benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
+            let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
+            putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
+            putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))            -- Precision = TP / (TP + FP)
 
-        let f1Score = 2.0 * (precision * recall) / (precision + recall)
-        putStrLn $ "F1Score = " ++ (printf "%.4f" (f1Score :: Double))                          -- F1Score
+            let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
+            putStrLn $ "Recall = " ++ (printf "%.4f" (recall :: Double))                  -- Recall = TP / (TP + FN)
+
+            let f1Score = 2.0 * (precision * recall) / (precision + recall)
+            putStrLn $ "F1Score = " ++ (printf "%.4f" (f1Score :: Double))                -- F1Score
+          else putStrLn "Benchmark and experimental treebanks have different serial_num ranges."
       else putStrLn "Operation was canceled."
 
 -- According to a benchmark treebank, there are statistical numbers of a certain machine-building treebank.
@@ -2328,7 +2352,7 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
     putStrLn $ "ambiResolResMark = " ++ show newAmbiResolResMark
     putStrLn ""
  -}
-    if cs /= []
+    if cs /= [] && cs' /= []                                                    -- Lengths of cs and cs' should be equal.
       then findMachAmbiResolResOfASent (clauseNo + 1) cs cs' script script' newAmbiResolResMark
       else return newAmbiResolResMark
 
@@ -2394,7 +2418,7 @@ doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs = do
                let pcpsWithPrior = map (\x->(fst3 x, snd3 x)) overPairsByPrev
                let pcps' = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior]
 
-               overPairsByManual <- ambiResolByManualResol nPCs2 [] pcps'                     -- [OverPair], record overlapping pairs for pruning.
+               overPairsByManual <- syntaxAmbiResolByManualResol nPCs2 [] pcps'                     -- [OverPair], record overlapping pairs for pruning.
                let overPairs = overPairsByPrev ++ overPairsByManual
 
                nbPCs <- transWithPruning onOff nPCs banPCs overPairs                          -- Get transitive result with pruning.
@@ -2408,7 +2432,7 @@ doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs = do
                transOk <- getLineUntil "This trip of transition is ok? [y/n/e]: (RETURN for 'y') " ["y","n","e"] True  -- Get user decision of whether to do next transition
                if transOk == "y" || transOk == ""           -- Press key 'y' or directly press RETURN
                  then do
-                     updateAmbiResol clauTag (fst nbPCs) overPairsByManual                           -- Record new ambiguity resolution fragments.
+                     updateSyntaxAmbiResolSample clauTag (fst nbPCs) overPairsByManual                           -- Record new ambiguity resolution fragments.
                      return (onOff, (fst nbPCs), (snd nbPCs), removeDup4OverPair (prevOverPairs ++ overPairsByManual))
                  else if transOk == "n"
                         then doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs          -- Redo this trip of transition.
@@ -2424,16 +2448,16 @@ doTransWithManualResol clauTag onOff nPCs banPCs prevOverPairs = do
  - 'overPairs': [(PhraCate, PhraCate, Prior)], phrasal pairs whose ambiguity resolution has been done to now.
  - 'pcps': Phrasal pairs waiting to obtain ambiguity resolution policy.
   -}
-ambiResolByManualResol :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
-ambiResolByManualResol _ overPairs [] = return overPairs
-ambiResolByManualResol nPCs overPairs (pcp:pcps) = do
-    op <- ambiResolByManualResol' nPCs pcp
-    ambiResolByManualResol nPCs (op:overPairs) pcps
+syntaxAmbiResolByManualResol :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> IO [OverPair]
+syntaxAmbiResolByManualResol _ overPairs [] = return overPairs
+syntaxAmbiResolByManualResol nPCs overPairs (pcp:pcps) = do
+    op <- syntaxAmbiResolByManualResol' nPCs pcp
+    syntaxAmbiResolByManualResol nPCs (op:overPairs) pcps
 
 {- Mannually resolve a pair of overlapping phrases, and return a OverPair.
  -}
-ambiResolByManualResol' :: [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
-ambiResolByManualResol' nPCs (lp, rp) = do
+syntaxAmbiResolByManualResol' :: [PhraCate] -> (PhraCate, PhraCate) -> IO OverPair
+syntaxAmbiResolByManualResol' nPCs (lp, rp) = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
     let ot = getOverType nPCs lp rp                        -- Get overlapping type
@@ -2452,7 +2476,7 @@ ambiResolByManualResol' nPCs (lp, rp) = do
         let reps = getPhraByStart (enOfCate rp + 1) nPCs      -- Get all right-entend phrases
         putStr "Find structural fragment: "
         showStruFrag leps lp rp reps ot
-      _ -> error "ambiResolByManualResol': syntax_ambi_resol_model is set wrongly."
+      _ -> error "syntaxAmbiResolByManualResol': syntax_ambi_resol_model is set wrongly."
 
     priorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
     case priorFlag of
@@ -2460,22 +2484,22 @@ ambiResolByManualResol' nPCs (lp, rp) = do
       "2" -> return (lp, rp, (read "Rp"::Prior))
       "3" -> return (lp, rp, (read "Noth"::Prior))
 
-{- Insert new or update old ambiguity resolution fragments in ambiguity resolution database.
+{- Insert new or update old syntax ambiguity resolution samples in database.
  - The input phrase set <nPCs> is used to create ambiguity resolution context for every overlapping phrases.
  -}
-updateAmbiResol :: ClauTag -> [PhraCate] -> [OverPair] -> IO ()
-updateAmbiResol _ _ [] = do
-    putStrLn "updateAmbiResol: Update finished."              -- To make output easy to read.
-updateAmbiResol clauTag nPCs (op:ops) = do
-    updateAmbiResol' clauTag nPCs op
-    updateAmbiResol clauTag nPCs ops
+updateSyntaxAmbiResolSample :: ClauTag -> [PhraCate] -> [OverPair] -> IO ()
+updateSyntaxAmbiResolSample _ _ [] = do
+    putStrLn "updateSyntaxAmbiResolSample: Update finished."              -- To make output easy to read.
+updateSyntaxAmbiResolSample clauTag nPCs (op:ops) = do
+    updateSyntaxAmbiResolSample' clauTag nPCs op
+    updateSyntaxAmbiResolSample clauTag nPCs ops
 
 {- Insert or update one ambiguity resolution fragment in MySQL tables storing ambiguity resolution samples.
  - Ambiguity resolution model also is the name of MySQL table storing the samples of that model.
  - To now, models include 'stru_gene' and 'ambi_resol1'.
  -}
-updateAmbiResol' :: ClauTag -> [PhraCate] -> OverPair -> IO ()
-updateAmbiResol' clauTag nPCs overPair = do
+updateSyntaxAmbiResolSample' :: ClauTag -> [PhraCate] -> OverPair -> IO ()
+updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
 
@@ -2519,7 +2543,7 @@ updateAmbiResol' clauTag nPCs overPair = do
               then do
                 closeStmt conn stmt
                 close conn                           -- Close MySQL connection.
-                error "updateAmbiResol': Find duplicate structural genes."
+                error "updateSyntaxAmbiResolSample': Find duplicate structural genes."
               else do
                 let id = fromMySQLInt32U ((rows!!0)!!0)
                 let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
@@ -2527,12 +2551,12 @@ updateAmbiResol' clauTag nPCs overPair = do
                 let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
                 let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
 
-                putStrLn $ "updateAmbiResol': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                putStrLn $ "updateSyntaxAmbiResolSample': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
                 let clauTagPriorList = stringToCTPList clauTagPriorListStr
                 let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
 
                 if elem prior priorList
-                  then putStrLn $ "updateAmbiResol': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
+                  then putStrLn $ "updateSyntaxAmbiResolSample': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
                   else do
                     resetStmt conn stmt
                     let sqlstat = case prior of
@@ -2545,7 +2569,7 @@ updateAmbiResol' clauTag nPCs overPair = do
                       Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount + 1)]    -- Add 'lpHitCount' by 1.
                       Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount + 1)]    -- Add 'rpHitCount' by 1.
                       Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount + 1)]   -- Add 'nothHitCount' by 1.
-                    putStrLn $ "updateAmbiResol': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
+                    putStrLn $ "updateSyntaxAmbiResolSample': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
                 closeStmt conn stmt
                 close conn                       -- Close MySQL connection.
 
@@ -2558,7 +2582,7 @@ updateAmbiResol' clauTag nPCs overPair = do
                             Noth -> read (show ("insert " ++ syntax_ambi_resol_model ++ " (leftExtend,leftOver,rightOver,rightExtend,overType,clauTagPrior,nothHitCount) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
             stmt1 <- prepareStmt conn sqlstat
             oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
-            putStrLn $ "updateAmbiResol': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            putStrLn $ "updateSyntaxAmbiResolSample': Last inserted row with ID " ++ show (getOkLastInsertID oks)
             closeStmt conn stmt1
             close conn                                   -- Close MySQL connection.
 
@@ -2626,7 +2650,7 @@ updateAmbiResol' clauTag nPCs overPair = do
       "ambi_resol1" -> do
         let context =  sortPhraCateBySpan [x | x <- nPCs, x /= leftOver, x /= rightOver]     -- Get context for ambiguity resolution, which is sorted by increasing phrasal spans.
 {-
-        putStr "updateAmbiResol': Inquire ambiguity fragment: leftPhrase = "
+        putStr "updateSyntaxAmbiResolSample': Inquire ambiguity fragment: leftPhrase = "
         showPhraCate leftOver
         putStr ", rightPhrase = "
         showPhraCate rightOver
@@ -2656,11 +2680,11 @@ updateAmbiResol' clauTag nPCs overPair = do
               then do
                 closeStmt conn stmt
                 close conn                               -- Close MySQL connection.
-                error "updateAmbiResol': Find duplicate ambiguity fragments, which is impossible."
+                error "updateSyntaxAmbiResolSample': Find duplicate ambiguity fragments, which is impossible."
               else do
                 let id = fromMySQLInt32U ((rows!!0)!!0)
                 let priorOrig = fromMySQLText ((rows!!0)!!1)
-                putStr $ "updateAmbiResol': (" ++ show id ++ ") original prior: " ++ priorOrig ++ ", new prior: " ++ priorv
+                putStr $ "updateSyntaxAmbiResolSample': (" ++ show id ++ ") original prior: " ++ priorOrig ++ ", new prior: " ++ priorv
                 if priorOrig /= priorv
                   then do
                     resetStmt conn stmt
@@ -2680,7 +2704,7 @@ updateAmbiResol' clauTag nPCs overPair = do
         closeStmt conn stmt
         close conn                                       -- Close MySQL connection.
 
-      _ -> error $ "updateAmbiResol': syntax_ambi_resol_model " ++ syntax_ambi_resol_model ++ " is undefined."
+      _ -> error $ "updateSyntaxAmbiResolSample': syntax_ambi_resol_model " ++ syntax_ambi_resol_model ++ " is undefined."
 
 {- Add the parsing result of a clause into treebank designated by <Configuration>.
  - Now, parameter <clauIdx> has not been used for checking.
@@ -2691,6 +2715,10 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     let tree_target = getConfProperty "tree_target" confInfo
 
     conn <- getConn
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key, tree mediumtext, script mediumtext, accuracy float)"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []
+
     let query = DS.fromString ("select tree, script from " ++ tree_target ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]

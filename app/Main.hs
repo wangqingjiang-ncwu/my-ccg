@@ -1,5 +1,6 @@
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power,
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiWayIf #-}
 
@@ -351,13 +352,13 @@ doParseSentByScript username = do
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
     let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
     let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let syntax_ambi_resol_sample_updata_switch = getConfProperty "syntax_ambi_resol_sample_updata_switch" confInfo
+    let syntax_ambi_resol_sample_update_switch = getConfProperty "syntax_ambi_resol_sample_update_switch" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
-    putStrLn $ " syntax_ambi_resol_sample_updata_switch: " ++ syntax_ambi_resol_sample_updata_switch
+    putStrLn $ " syntax_ambi_resol_sample_update_switch: " ++ syntax_ambi_resol_sample_update_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"

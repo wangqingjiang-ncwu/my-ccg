@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module Corpus (
@@ -513,11 +513,11 @@ readTrees :: String -> [Tree]
 readTrees str = map readTree (stringToList str)
 
 readSLROfTrans :: String -> SLROfATrans
-readSLROfTrans str = (stub, rule)
+readSLROfTrans str = (stub, rules)
     where
       tupleStr = stringToTuple str
       stub = map getPhraCateFromString $ stringToList (fst tupleStr)
-      rule = readRuleSet (snd tupleStr)
+      rules = readRuleSet (snd tupleStr)
 
 readSLROfClause :: String -> SLROfClause
 readSLROfClause str = map readSLROfTrans (stringToList str)
@@ -628,6 +628,7 @@ treeToString tree = "(" ++ show (fst tree) ++ "," ++ nPhraCateToString (snd tree
 nTreeToString :: [Tree] -> String
 nTreeToString trees = listToString (map treeToString trees)
 
+-- Local type declarations to avoid dependency cycle.
 type Stub = [PhraCate]
 type SLROfATrans = (Stub, [Rule])
 type SLROfClause = [SLROfATrans]

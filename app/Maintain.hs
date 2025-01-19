@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
--- Copyright (c) 2019-2024 China University of Water Resources and Electric Power
--- All rights reserved.
 
+-- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- All rights reserved.
 -- This mudule collects various maintainence tools, such as updating corpus, which are not necessary to be executed so much often that they appear in main menu.
 
 module Maintain (

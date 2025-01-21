@@ -18,9 +18,12 @@ module Output (
     getPhraCate_String,  -- PharCate -> string
     showNPhraCateLn,     -- [PhraCate] -> IO ()
     showNPhraCate,       -- [PhraCate] -> IO ()
-    showNPhraCateWithoutNewLine,    -- [PhraCate] -> IO ()
+    showNPhraCateWithoutNewLine,      -- [PhraCate] -> IO ()
     showNPhraSynLn,      -- [PhraSyn] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
+    showNPhraCateList,   -- [[PhraCate]] -> IO ()
+    showNPhraCateListWithoutNewLine,  -- [[PhraCate]] -> IO ()
+    putNPCList,       -- [[PhraCate]] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     showAmbiModel1Frag,    -- PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     getNPhraCate_String,   -- [PhraCate] -> String
@@ -30,8 +33,8 @@ module Output (
     showNOverPair,    -- [OverPair] -> IO ()
     showOverPairid,   -- OverPairid -> IO ()
     showNOverPairid,  -- [OverPairid] -> IO ()
-    showScript,       -- [(ClauIdx, [[Rule]], BanPCs))] -> IO ()
-    showScript',      -- [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
+    showScript,       -- [(ClauIdx, [[Rule]], [BanPCs]))] -> IO ()
+    showScript',      -- [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
     showTree,         -- [[PhraCate]] -> IO ()
     showTrees,        -- [[PhraCate]] -> IO ()
@@ -255,6 +258,36 @@ putNPC (x:xs) = do
     putStr ","
     putNPC xs
 
+showNPhraCateList :: [[PhraCate]] -> IO ()
+showNPhraCateList [] = putStrLn "[]"
+showNPhraCateList [x] = do
+    putStr "["
+    putNPC x
+    putStrLn "]"
+showNPhraCateListWithoutNewLine (x:xs) = do
+    putStr "["
+    putNPCList (x:xs)
+    putStrLn "]"
+
+showNPhraCateListWithoutNewLine :: [[PhraCate]] -> IO ()
+showNPhraCateListWithoutNewLine [] = putStr "[]"
+showNPhraCateListWithoutNewLine [x] = do
+    putStr "["
+    putNPC x
+    putStr "]"
+showNPhraCateListWithoutNewLine (x:xs) = do
+    putStr "["
+    putNPCList (x:xs)
+    putStr "]"
+
+putNPCList :: [[PhraCate]] -> IO ()
+putNPCList [] = putStr ""
+putNPCList [x] = putNPC x
+putNPCList (x:xs) = do
+    putNPC x
+    putStr ","
+    putNPCList xs
+
 showStruFrag :: [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
 showStruFrag leftExtend leftOver rightOver rightExtend overType = do
     putStr "leftExtend = "
@@ -369,14 +402,14 @@ showNOverPairid' (op:ops) = do
     showNOverPairid' ops
 
 -- Comparing with showScript', this function adds external square brackets and a line feed.
-showScript :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
+showScript :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
 showScript [] = putStrLn ""
 showScript (s:ss) = do
     putStr "["
     showScript' (s:ss)
     putStrLn "]"
 
-showScript' :: [(ClauIdx, [[Rule]], BanPCs)] -> IO ()
+showScript' :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
 showScript' [] = putStr ""
 showScript' [s] = do
     putStr "("
@@ -384,7 +417,7 @@ showScript' [s] = do
     putStr ","
     putStr $ show (snd3 s)
     putStr ",["
-    putNPC (thd3 s)
+    putNPCList (thd3 s)
     putStr "])"
 showScript' (s:ss) = do
     showScript' [s]

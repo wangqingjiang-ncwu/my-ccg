@@ -4,8 +4,8 @@
 module Parse (
     cateComb,          -- OnOff -> PhraCate -> PhraCate -> PhraCate
     initPhraCate,      -- [(Category, Seman)] -> [PhraCate]
-    trans,             -- OnOff -> [PhraCate] -> [PhraCate]
-    transWithPruning,  -- OnOff -> [PhraCate] -> [PhraCate]
+    trans,             -- OnOff -> [PhraCate] -> [[PhraCate]] -> [PhraCate]
+    transWithPruning,  -- [Rule] -> [PhraCate] -> [[PhraCate]] -> [OverPair] -> IO ([PhraCate],[[PhraCate]])
 --  parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
     prune,             -- [PhraCate] -> [PhraCate]
 --  prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
@@ -1022,14 +1022,15 @@ initPhraCate (c:cs) = [((0,0),[(fst c,"Desig",snd c, "DE", True)],0)] ++ [(((stO
    Phrases not belonging to the final parsing tree can temperarily stay in parsing tree, provided that they do not incur syntactic ambiguaties.
    The component phrases in such phrases have attribue Act with value 'false', and are banned to join in and compose other new phrases.
    So phrasal attribute Act are NOT checked before trying to combine two phrases.
+   Banned phrases are grouped by transitions.
  -}
-trans :: OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
-trans onOff pcs banPCs = pcs2
+trans :: OnOff -> [PhraCate] -> [[PhraCate]] -> [PhraCate]
+trans onOff pcs banPCsList = pcs2
     where
 --      combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
 --    Allowing two inactive phrases to combine.
       combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
-      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs, notElem4Phrase cb pcs]
+      newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb (concat banPCs), notElem4Phrase cb pcs]
                  -- The banned phrases might be created again, here they are filtered out.
                  -- The non-banned phrases also might be created again, here those reduplicates are removed out.
       pcs2 = pcs ++ newCbs
@@ -1038,20 +1039,20 @@ trans onOff pcs banPCs = pcs2
    new structural genes are added into the list of structural genes.
    Fix: Allow two inactive phrases to combine.
  -}
-transWithPruning :: [Rule] -> [PhraCate] -> [PhraCate] -> [OverPair] -> IO ([PhraCate],[PhraCate])
-transWithPruning onOff pcs banPCs overPairs = do
+transWithPruning :: [Rule] -> [PhraCate] -> [[PhraCate]] -> [OverPair] -> IO ([PhraCate],[[PhraCate]])
+transWithPruning onOff pcs banPCsList overPairs = do
 --    let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]
     let combs = atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- pcs, pc2 <- pcs, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2]
                                                                   -- Not consider phrasal activity
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs, notElem4Phrase cb pcs]
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb (concat banPCs), notElem4Phrase cb pcs]
     if newCbs /= []
       then do
         let pcs1 = pcs ++ newCbs                                      -- Before pruning
         pcs1' <- prune overPairs pcs1 newCbs                          -- After pruning
         let pcs2 = updateAct pcs1'                                    -- Attr. activity is corrected.
-        let banPCs2 = banPCs ++ [cb| cb <- pcs1, notElem4Phrase cb pcs2]    -- Update the list of banned phrasal categories which are all active.
-        return (pcs2, banPCs2)
-      else return (pcs, banPCs)
+        let banPCsList2 = banPCsList ++ [[cb| cb <- pcs1, notElem4Phrase cb pcs2]]    -- Add a banned phrase set
+        return (pcs2, banPCsList2)
+      else return (pcs, banPCsList)
 
 {- Parsing a sequence of categories is actually to generate the category closure from the initial phrase categories.
    Originally designed in every transition, every two phrases are tested whether they can be combined into a new
@@ -1082,16 +1083,16 @@ transWithPruning onOff pcs banPCs overPairs = do
    rules for all trips of transitions, and becomes useless under interactive mode.
  -}
 {-
-parse :: OnOff -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
-parse onOff trans banPCs = do
+parse :: OnOff -> [PhraCate] -> [[PhraCate]] -> IO [PhraCate]
+parse onOff trans banPCsList = do
     let combs = removeDup $ atomizePhraCateList [cateComb onOff pc1 pc2 | pc1 <- trans, pc2 <- trans, stOfCate pc1 + spOfCate pc1 + 1 == stOfCate pc2, (acOfCate pc1)!!0 || (acOfCate pc2)!!0]     -- At least one is active.
-    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb banPCs]
+    let newCbs = [cb| cb <- combs, ctspaOfCate cb /= [], notElem4Phrase cb (concat banPCsList)]
     let trans1 = trans ++ newCbs                                    -- Before pruning
     trans2 <- prune $ updateAct $ trans1                            -- After pruning, Attr. activity is corrected.
-    let banPCs2 = banPCs ++ [cb| cb <-trans1, notElem4Phrase cb trans2]    -- Update the list of banned phrasal categories.
+    let banPCs2 = banPCsList ++ [[cb| cb <-trans1, notElem4Phrase cb trans2]]    -- Update the list of banned phrasal categories.
     if newCbs == []
       then return trans                  -- No new combination
-      else parse onOff trans2 banPCs2
+      else parse onOff trans2 banPCsList2
 -}
 
 {- We adopt pruning method to remove those banned phrases, based on some axioms.

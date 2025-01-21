@@ -189,12 +189,12 @@ sortPhraseInTree4ASent [] = []
 sortPhraseInTree4ASent [(clauIdx, pcs)] = [(clauIdx, sortPhraCateBySpan pcs)]
 sortPhraseInTree4ASent (t:ts) = sortPhraseInTree4ASent [t] ++ sortPhraseInTree4ASent ts
 
-{- For a sentence, parsing script is [Script], namely [(ClauIdx, [[Rule]], BanPCs)].
+{- For a sentence, parsing script is [Script], namely [(ClauIdx, [[Rule]], [BanPCs])].
  - This function is sort phrases such that they are in span ascending order.
  -}
 sortPhraseInScript4ASent :: [Script] -> [Script]
 sortPhraseInScript4ASent [] = []
-sortPhraseInScript4ASent [(clauIdx, ruleSets, banPCs)] = [(clauIdx, ruleSets, sortPhraCateBySpan' banPCs)]
+sortPhraseInScript4ASent [(clauIdx, ruleSets, banPCSets)] = [(clauIdx, ruleSets, map sortPhraCateBySpan' banPCSets)]
 sortPhraseInScript4ASent (s:ss) = sortPhraseInScript4ASent [s] ++ sortPhraseInScript4ASent ss
 
 {- Update Field tree in treebank to change the symbol for phrasal structure Half juXtaposition from 'XX' to 'HX'.
@@ -239,12 +239,12 @@ addHX2Tree4ASent [] = []
 addHX2Tree4ASent [(clauIdx, pcs)] = [(clauIdx, map addHX2Phrase pcs)]
 addHX2Tree4ASent (t:ts) = addHX2Tree4ASent [t] ++ addHX2Tree4ASent ts
 
-{- For a sentence, parsing script is [Script], namely [(ClauIdx, [[Rule]], BanPCs)].
+{- For a sentence, parsing script is [Script], namely [(ClauIdx, [[Rule]], [BanPCs])].
  - This function is add mark symbol 'HX' for structure Half-juXtaposition.
  -}
 addHX2Script4ASent :: [Script] -> [Script]
 addHX2Script4ASent [] = []
-addHX2Script4ASent [(clauIdx, ruleSets, banPCs)] = [(clauIdx, ruleSets, map addHX2Phrase banPCs)]
+addHX2Script4ASent [(clauIdx, ruleSets, banPCSets)] = [(clauIdx, ruleSets, map (map addHX2Phrase) banPCs)]
 addHX2Script4ASent (s:ss) = addHX2Script4ASent [s] ++ addHX2Script4ASent ss
 
 {- For a phrase, it is represented as ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart), here CTSPA has only one member.

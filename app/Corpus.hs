@@ -28,10 +28,10 @@ module Corpus (
     setTreeScriptNull,   -- IO ()
     ClauIdx,             -- Int
     BanPCs,              -- [PhraCate]
-    Script,              -- (ClauIdx,[[Rule]],BanPCs)
+    Script,              -- (ClauIdx,[[Rule]],[BanPCs])
     Tree,                -- (ClauIdx, [PhraCate])
-    quickSort4Tree,    -- [Tree] -> [Tree]
-    quickSort4Script,  -- [Script] -> [Script]
+    quickSort4Tree,      -- [Tree] -> [Tree]
+    quickSort4Script,    -- [Script] -> [Script]
     Closure,             -- [PhraCate]
     Forest,              -- [[PhraCate]]
     readScripts,         -- String -> [Script]
@@ -468,7 +468,7 @@ setTreeScriptNull = do
  -}
 type ClauIdx = Int
 type BanPCs = [PhraCate]
-type Script = (ClauIdx, [[Rule]], BanPCs)
+type Script = (ClauIdx, [[Rule]], [BanPCs])
 
 -- A Tree is a clausal serial number and a list of PhraCate.
 type Tree = (ClauIdx, [PhraCate])
@@ -478,7 +478,7 @@ quickSort4Tree :: [Tree] -> [Tree]
 quickSort4Tree [] = []
 quickSort4Tree (t:ts) = (quickSort4Tree [x|x<-ts, fst x < fst t]) ++ [t] ++ (quickSort4Tree [x|x<-ts, fst x >= fst t])
 
--- Quick sort for [Script] according ClauIdx field, where Script :: (ClauIdx,[[Rule]],BanPCs).
+-- Quick sort for [Script] according ClauIdx field, where Script :: (ClauIdx,[[Rule]],[BanPCs]).
 quickSort4Script :: [Script] -> [Script]
 quickSort4Script [] = []
 quickSort4Script (s:ss) = (quickSort4Script [x|x<-ss, fst3 x < fst3 s]) ++ [s] ++ (quickSort4Script [x|x<-ss, fst3 x >= fst3 s])
@@ -489,12 +489,12 @@ readScripts str = map readScript (stringToList str)
 
 -- Read a Script from a String.
 readScript :: String -> Script
-readScript str = (clauIdx, ruleSets, banPCs)
+readScript str = (clauIdx, ruleSets, banPCSets)
     where
       str' = stringToTriple str
       clauIdx = read (fst3 str') :: Int
       ruleSets = map readRuleSet (stringToList (snd3 str'))
-      banPCs = readPCList (thd3 str')
+      banPCSets = map readPCList (stringToList (thd3 str'))
 
 -- Read [PhraCate] from a String.
 readPCList :: String -> [PhraCate]
@@ -609,12 +609,13 @@ readRule str
     | str == "U3d/u3" = U3du3  -- au1
     | otherwise = error "readRule: Input string is not recognized."
 
+-- Convert a Script value to its String value, where Script :: (ClauIdx, [[Rule]], [[PhraCate]])
 scriptToString :: Script -> String
-scriptToString script = "(" ++ clauIdx ++ "," ++ ruleSets ++ "," ++ banPCs ++ ")"
+scriptToString script = "(" ++ clauIdx ++ "," ++ ruleSets ++ "," ++ banPCSets ++ ")"
     where
       clauIdx = show (fst3 script)
       ruleSets = show (snd3 script)
-      banPCs = nPhraCateToString (thd3 script)
+      banPCSets = listToString $ map nPhraCateToString (thd3 script)
 
 -- Get the String from a [Script] value.
 nScriptToString :: [Script] -> String

@@ -244,7 +244,7 @@ addHX2Tree4ASent (t:ts) = addHX2Tree4ASent [t] ++ addHX2Tree4ASent ts
  -}
 addHX2Script4ASent :: [Script] -> [Script]
 addHX2Script4ASent [] = []
-addHX2Script4ASent [(clauIdx, ruleSets, banPCSets)] = [(clauIdx, ruleSets, map (map addHX2Phrase) banPCs)]
+addHX2Script4ASent [(clauIdx, ruleSets, banPCSets)] = [(clauIdx, ruleSets, map (map addHX2Phrase) banPCSets)]
 addHX2Script4ASent (s:ss) = addHX2Script4ASent [s] ++ addHX2Script4ASent ss
 
 {- For a phrase, it is represented as ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart), here CTSPA has only one member.

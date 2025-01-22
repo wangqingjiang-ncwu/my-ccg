@@ -467,7 +467,6 @@ setTreeScriptNull = do
    category-converted rules for every trip of recursive parsing, and all banned phrasal categories.
  -}
 type ClauIdx = Int
-type BanPCs = [PhraCate]
 type Script = (ClauIdx, [[Rule]], [BanPCs])
 
 -- A Tree is a clausal serial number and a list of PhraCate.

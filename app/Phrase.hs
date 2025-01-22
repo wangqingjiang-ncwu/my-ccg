@@ -13,6 +13,7 @@ module Phrase (
     PhraCate,      -- ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart)
     isPhrase,      -- PhraCate -> Bool
     nilPhra,       -- Phracate
+    BanPCs,        -- [PhraCate]
     getPhraCateFromString,     -- String -> PhraCate
     getPhraCateListFromString,         -- String -> [PhraCate]
     getPhraCateListFromStrList,        -- [String] -> [PhraCate]
@@ -101,6 +102,11 @@ isPhrase pc = length (ctspaOfCate pc) /= 0
 -- The null phrasal category does not correspond to a real phrase, just for technical processing.
 nilPhra :: PhraCate
 nilPhra = ((-1,-1),[],-1)
+
+{- Banned phrases are those created in transitions but not appeared in final parsing trees.
+ - The banned phrases created in one round of transition are placed in a list.
+ -}
+type BanPCs = [PhraCate]
 
 -- Get a phraCate from a string. The string has format "((start,span),[(cate,tag,sem,phraStru,act)],secStart)".
 getPhraCateFromString :: String -> PhraCate

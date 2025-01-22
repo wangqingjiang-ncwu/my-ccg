@@ -321,9 +321,9 @@ storeClauseParsing sn clauIdx rtbPCs = do
        Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned phrase sets).
  -}
 
-parseClause :: ClauTag -> [[Rule]] -> [PhraCate] -> [PhraCate] -> IO ([[Rule]],[PhraCate],[BanPCs])
-parseClause clauTag rules nPCs banPCsList = do
-    rtbPCs <- doTrans clauTag [] nPCs banPCsList           -- Every trip of transition begins with empty rule set.
+parseClause :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> IO ([[Rule]],[PhraCate],[BanPCs])
+parseClause clauTag rules nPCs banPCSets = do
+    rtbPCs <- doTrans clauTag [] nPCs banPCSets           -- Every trip of transition begins with empty rule set.
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned phrasal sets)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
@@ -460,7 +460,7 @@ parseClauseWithAllLexRules transIdx nPCs = do
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
 doTrans :: ClauTag -> [Rule] -> [PhraCate] -> [BanPCs] -> IO ([Rule], Stub, [BanPCs])
-doTrans clauTag onOff nPCs banPCsList = do
+doTrans clauTag onOff nPCs banPCSets = do
     showOnOff onOff
     ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e"] True
     case ruleSwitchOk of
@@ -494,20 +494,20 @@ doTrans clauTag onOff nPCs banPCsList = do
                   "U3d/u3"]]
                    then do
                      let newOnOff = updateOnOff onOff rws
-                     doTrans clauTag newOnOff nPCs banPCsList           -- Redo this trip of transition by modifying rule switches.
+                     doTrans clauTag newOnOff nPCs banPCSets           -- Redo this trip of transition by modifying rule switches.
                    else do
                      putStrLn "Rule switch expression error. Consider again!"
-                     doTrans clauTag onOff nPCs banPCsList
+                     doTrans clauTag onOff nPCs banPCSets
       "y" -> do                                                 -- Press key 'y' or directly press RETURN
-               let nPCs2 = trans onOff nPCs banPCsList          -- Without pruning, get transitive result.
+               let nPCs2 = trans onOff nPCs banPCSets          -- Without pruning, get transitive result.
                putStr "Transitive result before pruning: "
                showNPhraCateLn (sortPhraCateBySpan nPCs2)
                putStr "Banned phrases: "
-               showNPhraCateLn (concat (map sortPhraCateBySpan' banPCsList))    -- Can't use <sortPhraCateBySpan> on <banPCs>.
+               showNPhraCateLn (concat (map sortPhraCateBySpan' banPCSets))    -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
                overPairs <- updateStruGene clauTag nPCs2 [] pcps                -- IO [OverPair], namely IO [(PhraCate, PhraCate, Prior)], record overlapping pairs for pruning.
-               nbPCs <- transWithPruning onOff nPCs banPCsList overPairs        -- Get transitive result with pruning.
+               nbPCs <- transWithPruning onOff nPCs banPCSets overPairs        -- Get transitive result with pruning.
 
                putStr "New phrases after pruning: "
                showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
@@ -523,7 +523,7 @@ doTrans clauTag onOff nPCs banPCsList = do
                  "y" ->  return (onOff,(fst nbPCs),(snd nbPCs))
                  "n" ->  do
                            rollbackStruGene clauTag nPCs2 overPairs             -- Rollback syntax ambiguity resolution samples base.
-                           doTrans clauTag onOff nPCs banPCsList                -- Redo this trip of transition.
+                           doTrans clauTag onOff nPCs banPCSets                -- Redo this trip of transition.
                  "e" ->  return ([],[],[])                                      -- Return from doTrans, and indicate this is terminating exit.
       "e" -> return ([],[],[])                                                  -- Return from doTrans, and indicate this is terminating exit.
 
@@ -1015,8 +1015,8 @@ type SLROfSent = [SLROfClause]
  - 'overPairs' records the overlapping phrases and their ambiguity resolution in previous rounds of transitions. Before the first round, it should be empty.
  -}
 parseClauseWithScript :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> [OverPair] -> Script -> SLROfClause -> IO ([[Rule]], [PhraCate], [BanPCs], SLROfClause)
-parseClauseWithScript clauTag rules nPCs banPCsList overPairs script origSLRSample = do
-    rtboPCs <- doTransWithScript clauTag nPCs banPCsList overPairs script
+parseClauseWithScript clauTag rules nPCs banPCSets overPairs script origSLRSample = do
+    rtboPCs <- doTransWithScript clauTag nPCs banPCSets overPairs script
                                                -- Tree = (ClauIdx, [PhraCate])
                                                -- <rtboPCs> ::= ([Rule], resultant tree PCs, accumulated banned phrase sets, accumulated overlapping phrases)
                                                -- [Rule] is the set of rules used in this trip of transition.
@@ -1024,8 +1024,8 @@ parseClauseWithScript clauTag rules nPCs banPCsList overPairs script origSLRSamp
     putStrLn $ "parseClauseWithScript: fst4 rtboPCs (Rules): " ++ show (fst4 rtboPCs)
     putStr "parseClauseWithScript: snd4 rtboPCs (nPCs): "
     showNPhraCateLn (snd4 rtboPCs)
-    putStr "parseClauseWithScript: thd4 rtboPCs (banPCsList): "
-    showNPhraCateList (thd4 rtboPCs)
+    putStr "parseClauseWithScript: thd4 rtboPCs (banPCSets): "
+    showNPhraCateListLn (thd4 rtboPCs)
     putStrLn $ "parseClauseWithScript: fth4 rtboPCs (OverPairs): " ++ show (fth4 rtboPCs)
 
     let ruleOfATrans = fst4 rtboPCs
@@ -1037,9 +1037,9 @@ parseClauseWithScript clauTag rules nPCs banPCsList overPairs script origSLRSamp
       else if nPCs /= (snd4 rtboPCs)
         then do
           let scriptTail = case script of
-                              (clauIdx, [], bPCsList) -> (clauIdx, [], bPCsList)            -- Null script
-                              (clauIdx, [x], bPCsList) -> (clauIdx, [], tail bPCsList)      -- Remove the head element of OnOff and BanPCs list in parsing script.
-                              (clauIdx, (x:xs), bPCsList) -> (clauIdx, xs, tail bPCsList)
+                              (clauIdx, [], bPCSets) -> (clauIdx, [], bPCSets)            -- Null script
+                              (clauIdx, [x], bPCSets) -> (clauIdx, [], tail bPCSets)      -- Remove the head element of OnOff and BanPCs list in parsing script.
+                              (clauIdx, (x:xs), bPCSets) -> (clauIdx, xs, tail bPCSets)
 
           parseClauseWithScript clauTag (rules ++ [fst4 rtboPCs]) (snd4 rtboPCs) (thd4 rtboPCs) (fth4 rtboPCs) scriptTail newSLRSample        -- Do the next trip of transition
                                                -- with appended rules, resultant PCs, accumulated banned PCs, and accumulate overlapping phrasal pairs.
@@ -1059,7 +1059,7 @@ parseClauseWithScript clauTag rules nPCs banPCsList overPairs script origSLRSamp
  - 'prevOverPairs' is so far known overlapping phrasal pairs and their ambiguity resolution.
  -}
 doTransWithScript :: ClauTag -> [PhraCate] -> [BanPCs] -> [OverPair] -> Script -> IO ([Rule], [PhraCate], [BanPCs], [OverPair])
-doTransWithScript clauTag nPCs banPCsList prevOverPairs script = do
+doTransWithScript clauTag nPCs banPCSets prevOverPairs script = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
                       [] -> [] :: OnOff             -- No script of rule switches to use
@@ -1068,14 +1068,14 @@ doTransWithScript clauTag nPCs banPCsList prevOverPairs script = do
     putStr "Rule switches: "
     showOnOff onOff                                 -- Display rule switches
 
-    let nPCs2 = trans onOff nPCs banPCsList         -- Without pruning, get transitive result.
+    let nPCs2 = trans onOff nPCs banPCSets         -- Without pruning, get transitive result.
 
 --    putStr "Transitive result before pruning: "
 --    showNPhraCateLn (sortPhraCateBySpan nPCs2)
     putStr "New phrases before pruning: "
     showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     putStr "Banned phrases: "
-    showNPhraCateListLn (map sortPhraCateBySpan' banPCsList)                    -- Can't use <sortPhraCateBySpan> on elements of <banPCsList>.
+    showNPhraCateListLn (map sortPhraCateBySpan' banPCSets)                    -- Can't use <sortPhraCateBySpan> on elements of <banPCSets>.
 
     let pcps = getOverlap nPCs2                     -- [(PhraCate, PhraCate)]
 
@@ -1103,11 +1103,11 @@ doTransWithScript clauTag nPCs banPCsList prevOverPairs script = do
     showNOverPair overPairsByManual
 
     let overPairs = overPairsByPrev ++ overPairsByScript ++ overPairsByManual   -- All phrasal pairs with their ambiguity resolution policies in this round of transition.
-    nbPCs' <- transWithPruning onOff nPCs banPCsList overPairs                  -- Get transitive result with pruning.
+    nbPCs' <- transWithPruning onOff nPCs banPCSets overPairs                   -- Get transitive result with pruning. ([PhraCate],[BanPCs])
 
-    let nbPCs = cleanupNbPCs nbPCs' (head (thd3 script))                        -- According to banned phrases in script, move unwanted phrases in 'nbPCs'.
+    let nbPCs = cleanupNbPCs nbPCs' (thd3 script)                  -- According to banned phrases in script, move unwanted phrases in 'nbPCs'. ([PhraCate],[BanPCs])
     let pcs1 = quickSort4Phrase  [x | x <- fst nbPCs', notElem4Phrase x (fst nbPCs)]    -- The phrases moved away from original parsing tree.
-    let pcs2 = quickSort4Phrase  [x | x <- snd nbPCs, notElem4Phrase x (snd nbPCs')]    -- The phrases newly banned in original parsing tree.
+    let pcs2 = quickSort4Phrase  [x | x <- concat (snd nbPCs), notElem4Phrase x (concat (snd nbPCs'))]      -- The phrases newly banned in original parsing tree.
     if pcs1 == pcs2
       then do
         putStr "syntaxAmbiResolByManualResol: cleanupNbPCs: Phrases moved from parsing tree to banned phrasal set in this transition: "
@@ -1131,7 +1131,7 @@ doTransWithScript clauTag nPCs banPCsList prevOverPairs script = do
                  then updateSyntaxAmbiResolSample clauTag (fst nbPCs) (overPairsByScript ++ overPairsByManual)    -- Record new ambiguity resolution fragments.
                  else putStr ""             -- Do nothing
                return (onOff,sortPhraCateBySpan (fst nbPCs), snd nbPCs, removeDup4OverPair (prevOverPairs ++ overPairsByScript ++ overPairsByManual))
-      "n" -> doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
+      "n" -> doTransWithManualResol clauTag onOff nPCs banPCSets prevOverPairs        -- do this trip of transition by manually resolving ambiguities.
       "e" -> return ([],[],[],[])      -- Return from doTrans, and indicate this is terminating exit.
 
 {- Resolve ambiguities by the known ambiguity resolution pairs.
@@ -1175,15 +1175,15 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
  - function should be used to cleanup parsing result such that the residual unwanted phrases are moved into banned phrase set of this transition.
  - The unwanted phrases in parsing tree will create their descendant phrases. If they are banned in manual disambiguation but not in
  - script-supported disambiguation, some new phrases will appear in script parsing.
- - When script was modified to record in which transition every banned phrase was determined, this function would be NOT used.
+ - When script was remedied to record in which transition every banned phrase was determined, this function would become useless.
  -}
-cleanupNbPCs :: ([PhraCate], [[PhraCate]]) -> [PhraCate] -> ([PhraCate], [[PhraCate]])
-cleanupNbPCs nbPCs banPCsFromScript = (nPCs', banPCsList')
+cleanupNbPCs :: ([PhraCate], [BanPCs]) -> [BanPCs] -> ([PhraCate], [BanPCs])
+cleanupNbPCs nbPCs banPCSetsFromScript = (nPCs', banPCSets')
     where
     nPCs = fst nbPCs
-    banPCsList = snd nbPCs
-    nPCs' = [x | x <- nPCs, notElem4Phrase x banPCsFromScript]
-    banPCsList' = init banPCsList ++ (last banPCsList ++ [x | x <- nPCs, notElem4Phrase x nPCs'])
+    banPCSets = snd nbPCs
+    nPCs' = [x | x <- nPCs, notElem4Phrase x (concat banPCSetsFromScript)]
+    banPCSets' = init banPCSets ++ [(last banPCSets ++ [x | x <- nPCs, notElem4Phrase x nPCs'])]
 
 {-
 lexAmbiResol :: [PhraCate] -> IO [Rule]
@@ -1477,9 +1477,9 @@ parseASentByGrammarAmbiResol' sn cs sLR struGene2s = do
                                              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
     storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
 
-parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2] -> IO ([[Rule]],[PhraCate],[[PhraCate]])
-parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCsList sLR lengthOfClause struGene2s = do
-    rtbPCs <- doTransWithGrammarAmbiResol clauTag nPCs banPCsList sLR lengthOfClause struGene2s
+parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2] -> IO ([[Rule]],[PhraCate],[BanPCs])
+parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCSets sLR lengthOfClause struGene2s = do
+    rtbPCs <- doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
@@ -1516,7 +1516,7 @@ getRuleListOfMinDist (x:(y:zs))
  - and syntax ambiguity resolution is done based upon model StruGene2.
  -}
 doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
-doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s = do
+doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s = do
     putStrLn "nPCs="
     showNPhraCateLn nPCs
     let ctpOfnPCs = ctpOfCateList nPCs []                                       -- [(Category, Tag, PhraStru)], namely [PhraStru]
@@ -1533,8 +1533,8 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s = 
     let rules = fst ruleListAndDistRuleList                                     -- [Rule]
 
     putStr "Rule switches: "
-    showOnOff rules                              -- Display rule switches
-    let nPCs2 = trans rules nPCs banPCs          -- Without pruning, get transitive result.
+    showOnOff rules                                  -- Display rule switches
+    let nPCs2 = trans rules nPCs banPCSets           -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
 --    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
@@ -1543,8 +1543,8 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s = 
     let spanList = map spOfCate nPCs                                            -- [Span]
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1                    -- End of transitions
       then if distRuleList' /= []
-             then doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList' lengthOfClause struGene2s
-             else return (rules, nPCs, banPCsList)                              -- No SLR sample is availble.
+             then doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList' lengthOfClause struGene2s
+             else return (rules, nPCs, banPCSets)                              -- No SLR sample is availble.
       else if pcs /= []
              then do
                let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
@@ -1552,19 +1552,19 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCs sLR lengthOfClause struGene2s = 
                putStr "doTransWithGrammarAmbiResol: overPairs: "
                showNOverPair overPairs
 
-               nbPCs <- transWithPruning rules nPCs banPCsList overPairs        -- Get transitive result with pruning.
+               nbPCs <- transWithPruning rules nPCs banPCSets overPairs        -- Get transitive result with pruning.
                putStr "New phrases after pruning: "
                showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
                putStr "Banned phrases: "
                showNPhraCateListLn (snd nbPCs)                                  -- The banned phrases after updated.
                return (rules,(fst nbPCs),(snd nbPCs))
-             else return (rules, nPCs, banPCsList)
+             else return (rules, nPCs, banPCSets)
 
 {- This function is called when one time of transition creates no new phrase before pruning and parsing tree is NOT formed.
  - Recursively use [Rule] with next miminal distance to do category conversions.
  -}
 doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> [(Double,[Rule])] -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
-doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList lengthOfClause struGene2s = do
+doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList lengthOfClause struGene2s = do
     putStrLn $ "doTransWithGrammarAmbiResol' distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
 
     let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double,[Rule])])
@@ -1573,7 +1573,7 @@ doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList lengthOfCl
 
     putStr "Rule switches: "
     showOnOff rules                              -- Display rule switches
-    let nPCs2 = trans rules nPCs banPCsList      -- Without pruning, get transitive result.
+    let nPCs2 = trans rules nPCs banPCSets      -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
     let pcs = [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
@@ -1581,8 +1581,8 @@ doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList lengthOfCl
     let spanList = map (\x -> spOfCate x) nPCs
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1
       then if distRuleList' /= []
-             then doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList' lengthOfClause struGene2s
-             else return (rules, nPCs, banPCsList)                              -- No SLR sample is available.
+             then doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList' lengthOfClause struGene2s
+             else return (rules, nPCs, banPCSets)                              -- No SLR sample is available.
       else if pcs /= []
              then do
                let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
@@ -1590,13 +1590,13 @@ doTransWithGrammarAmbiResol' clauTag nPCs banPCsList sLR distRuleList lengthOfCl
                putStr "doTransWithGrammarAmbiResol: overPairs: "
                showNOverPair overPairs
 
-               nbPCs <- transWithPruning rules nPCs banPCsList overPairs        -- Get transitive result with pruning.
+               nbPCs <- transWithPruning rules nPCs banPCSets overPairs        -- Get transitive result with pruning.
                putStr "New phrases after pruning: "
                showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
                putStr "Banned phrases: "
                showNPhraCateListLn (snd nbPCs)                                  -- The banned phrases after updated.
                return (rules,(fst nbPCs),(snd nbPCs))
-             else return (rules, nPCs, banPCsList)
+             else return (rules, nPCs, banPCSets)
 
 {- This function is obsoleted, and has been replaced with ambiResolByStruGene2.
  -}
@@ -1884,8 +1884,8 @@ parseASentByStruGene2' resolMethod sentIdx cs scripts struGene2s = do
  - Syntax ambiguity resolution is done by machine.
  -}
 parseClauseWithStruGene :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> Script -> [StruGene] -> IO ([[Rule]],[PhraCate],[BanPCs])
-parseClauseWithStruGene resolMethod clauTag rules nPCs banPCsList script struGenes = do
-    rtbPCs <- doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes
+parseClauseWithStruGene resolMethod clauTag rules nPCs banPCSets script struGenes = do
+    rtbPCs <- doTransWithStruGene resolMethod clauTag nPCs banPCSets script struGenes
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, [[PhraCate]])
                                                -- [Rule] is the set of rules used in this trip of transition.
                                                -- [[PhraCate]] is banned phrases in all rounds of transition, and one [PhraCate] per transition.
@@ -1894,9 +1894,9 @@ parseClauseWithStruGene resolMethod clauTag rules nPCs banPCsList script struGen
       else if nPCs /= (snd3 rtbPCs)
         then do
           let scriptTail = case script of
-                              (clauIdx, [], bPCsList) -> (clauIdx, [], bPCsList)        -- Null script
-                              (clauIdx, [x], bPCsList) -> (clauIdx, [], tail bPCsList)  -- Remove the head elements of OnOff and [BanPCs] lists in parsing script.
-                              (clauIdx, (x:xs), bPCsList) -> (clauIdx, xs, tail bPCsList)
+                              (clauIdx, [], bPCSets) -> (clauIdx, [], bPCSets)        -- Null script
+                              (clauIdx, [x], bPCSets) -> (clauIdx, [], tail bPCSets)  -- Remove the head elements of OnOff and [BanPCs] lists in parsing script.
+                              (clauIdx, (x:xs), bPCSets) -> (clauIdx, xs, tail bPCSets)
 
           parseClauseWithStruGene resolMethod clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGenes
                                                -- Do the next trip of transition
@@ -1919,8 +1919,8 @@ parseClauseWithStruGene resolMethod clauTag rules nPCs banPCsList script struGen
  - Syntax ambiguity resolution is done by machine.
  -}
 parseClauseWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2] -> IO ([[Rule]],[PhraCate],[BanPCs])
-parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCsList script struGene2s = do
-    rtbPCs <- doTransWithStruGene2 resolMethod clauTag nPCs banPCsList script struGene2s
+parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCSets script struGene2s = do
+    rtbPCs <- doTransWithStruGene2 resolMethod clauTag nPCs banPCSets script struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs [BanPCs])
                                                -- [Rule] is the set of rules used in this trip of transition.
     if rtbPCs == ([],[],[])
@@ -1928,9 +1928,9 @@ parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCsList script struGe
       else if nPCs /= (snd3 rtbPCs)
         then do
           let scriptTail = case script of
-                              (clauIdx, [], bPCsList) -> (clauIdx, [], bPCsList)          -- Null script
-                              (clauIdx, [x], bPCsList) -> (clauIdx, [], tail bPCsList)    -- Remove the head elements of OnOff and [BanPCs] list in parsing script.
-                              (clauIdx, (x:xs), bPCs) -> (clauIdx, xs, tail bPCsList)
+                              (clauIdx, [], bPCSets) -> (clauIdx, [], bPCSets)          -- Null script
+                              (clauIdx, [x], bPCSets) -> (clauIdx, [], tail bPCSets)    -- Remove the head elements of OnOff and [BanPCs] list in parsing script.
+                              (clauIdx, (x:xs), bPCSets) -> (clauIdx, xs, tail bPCSets)
 
           parseClauseWithStruGene2 resolMethod clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGene2s
                                                -- Do the next trip of transition
@@ -1948,7 +1948,7 @@ parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCsList script struGe
  - resolMethod: One kind of syntactic ambiguity resolution method
  - clauTag: (SentIdx, ClauIdx)
  - nPCs: The current phrase set
- - banPCsList: The list of banned phrase sets
+ - banPCSets: The list of banned phrase sets
  - script: The parsing script of this clause
  - struGenes: The list of modes or StruGene values
  - onOff: The category conversion list for this transition
@@ -1956,7 +1956,7 @@ parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCsList script struGe
  - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
  -}
 doTransWithStruGene :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [BanPCs] -> Script -> [StruGene] -> IO ([Rule], [PhraCate], [BanPCs])
-doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes = do
+doTransWithStruGene resolMethod clauTag nPCs banPCSets script struGenes = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
                       [] -> [] :: OnOff             -- No script of rule switches to use
@@ -1964,7 +1964,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes = do
 
     putStr "Rule switches: "
     showOnOff onOff                              -- Display rule switches
-    let nPCs2 = trans onOff nPCs banPCsList      -- Without pruning, get transitive result.
+    let nPCs2 = trans onOff nPCs banPCSets      -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
     showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
@@ -1974,7 +1974,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes = do
     putStr "doTransWithStruGene: overPairs: "
     showNOverPair overPairs
 
-    nbPCs <- transWithPruning onOff nPCs banPCsList overPairs                        -- Get transitive result with pruning.
+    nbPCs <- transWithPruning onOff nPCs banPCSets overPairs                        -- Get transitive result with pruning.
 
     putStr "New phrases after pruning: "
     showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
@@ -1987,7 +1987,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes = do
  - resolMethod: One kind of syntactic ambiguity resolution method
  - clauTag: (SentIdx, ClauIdx)
  - nPCs: The current phrase set
- - banPCsList: The list of banned phrase sets
+ - banPCSets: The list of banned phrase sets
  - script: The parsing script of this clause
  - struGene2s: The list of modes or StruGene2 values
  - onOff: The category conversion list for this transition
@@ -1995,7 +1995,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCsList script struGenes = do
  - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
  -}
 doTransWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
-doTransWithStruGene2 resolMethod clauTag nPCs [banPCs] script struGene2s = do
+doTransWithStruGene2 resolMethod clauTag nPCs banPCSets script struGene2s = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
                       [] -> [] :: OnOff             -- No script of rule switches to use
@@ -2003,7 +2003,7 @@ doTransWithStruGene2 resolMethod clauTag nPCs [banPCs] script struGene2s = do
 
     putStr "Rule switches: "
     showOnOff onOff                              -- Display rule switches
-    let nPCs2 = trans onOff nPCs banPCsList      -- Without pruning, get transitive result.
+    let nPCs2 = trans onOff nPCs banPCSets      -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
     showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
@@ -2013,7 +2013,7 @@ doTransWithStruGene2 resolMethod clauTag nPCs [banPCs] script struGene2s = do
     putStr "doTransWithStruGene2: overPairs: "
     showNOverPair overPairs
 
-    nbPCs <- transWithPruning onOff nPCs banPCsList overPairs                          -- Get transitive result with pruning.
+    nbPCs <- transWithPruning onOff nPCs banPCSets overPairs                          -- Get transitive result with pruning.
 
     putStr "New phrases after pruning: "
     showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
@@ -2363,7 +2363,7 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
  - If transitive parsing is to terminated, namely selecting 'e' at inquiring rule switches, returnes ([],[],[]) as the terminating flag.
  -}
 doTransWithManualResol :: ClauTag -> [Rule] -> [PhraCate] -> [BanPCs] -> [OverPair] -> IO ([Rule], [PhraCate], [BanPCs], [OverPair])
-doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs = do
+doTransWithManualResol clauTag onOff nPCs banPCSets prevOverPairs = do
     putStr "Rule switches: "
     showOnOff onOff
     ruleSwitchOk <- getLineUntil "Are rule switches ok? [y/n/e]: ('y' or RETURN for yes, 'n' for no, and 'e' for exit) " ["y","n","e"] True
@@ -2398,19 +2398,19 @@ doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs = do
           "U3d/u3"]]
            then do
              let newOnOff = updateOnOff onOff rws
-             doTransWithManualResol clauTag newOnOff nPCs banPCsList prevOverPairs          -- Redo this trip of transition by modifying rule switches.
+             doTransWithManualResol clauTag newOnOff nPCs banPCSets prevOverPairs          -- Redo this trip of transition by modifying rule switches.
            else do
              putStrLn "Rule switch expression error. Consider again!"
-             doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs
+             doTransWithManualResol clauTag onOff nPCs banPCSets prevOverPairs
       else if ruleSwitchOk == "y" || ruleSwitchOk == ""         -- Press key 'y' or directly press RETURN
              then do
-               let nPCs2 = trans onOff nPCs banPCsList          -- Without pruning, get transitive result.
+               let nPCs2 = trans onOff nPCs banPCSets          -- Without pruning, get transitive result.
 --               putStr "Transitive result before pruning: "
 --               showNPhraCateLn (sortPhraCateBySpan nPCs2)
                putStr "New phrases before pruning: "
                showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
 --               putStr "Banned phrases: "
---               showNPhraCateListLn banPCsList                  -- Can't use <sortPhraCateBySpan> on <banPCs>.
+--               showNPhraCateListLn banPCSets                  -- Can't use <sortPhraCateBySpan> on <banPCs>.
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
                let overPairsByPrev = ambiResolByPrevOverPair [] pcps prevOverPairs            -- [OverPair], phrasal pairs appearing in the previous rounds of transitions.
@@ -2423,7 +2423,7 @@ doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs = do
                overPairsByManual <- syntaxAmbiResolByManualResol nPCs2 [] pcps'               -- [OverPair], record overlapping pairs for pruning.
                let overPairs = overPairsByPrev ++ overPairsByManual
 
-               nbPCs <- transWithPruning onOff nPCs banPCsList overPairs                      -- Get transitive result with pruning.
+               nbPCs <- transWithPruning onOff nPCs banPCSets overPairs                      -- Get transitive result with pruning.
 --               putStr "Transitive result after pruning: "
 --               showNPhraCateLn (sortPhraCateBySpan (fst nbPCs))
                putStr "New phrases after pruning: "
@@ -2437,7 +2437,7 @@ doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs = do
                      updateSyntaxAmbiResolSample clauTag (fst nbPCs) overPairsByManual                   -- Record new ambiguity resolution fragments.
                      return (onOff, (fst nbPCs), (snd nbPCs), removeDup4OverPair (prevOverPairs ++ overPairsByManual))
                  else if transOk == "n"
-                        then doTransWithManualResol clauTag onOff nPCs banPCsList prevOverPairs          -- Redo this trip of transition.
+                        then doTransWithManualResol clauTag onOff nPCs banPCSets prevOverPairs          -- Redo this trip of transition.
                         else if transOk == "e"
                                then return ([],[],[],[])                        -- Return from doTrans, and indicate this is terminating exit.
                                else error "doTransWithManualResol: Impossible input error!"
@@ -2711,7 +2711,7 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
 {- Add the parsing result of a clause into treebank designated by <Configuration>.
  - Now, parameter <clauIdx> has not been used for checking.
  -}
-storeClauseParsingToTreebank :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], BanPCs) -> IO ()
+storeClauseParsingToTreebank :: SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], [BanPCs]) -> IO ()
 storeClauseParsingToTreebank sn clauIdx rtbPCs = do
     confInfo <- readFile "Configuration"
     let tree_target = getConfProperty "tree_target" confInfo

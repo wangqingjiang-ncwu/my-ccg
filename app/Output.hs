@@ -21,7 +21,7 @@ module Output (
     showNPhraCateWithoutNewLine,      -- [PhraCate] -> IO ()
     showNPhraSynLn,      -- [PhraSyn] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
-    showNPhraCateList,   -- [[PhraCate]] -> IO ()
+    showNPhraCateListLn,   -- [[PhraCate]] -> IO ()
     showNPhraCateListWithoutNewLine,  -- [[PhraCate]] -> IO ()
     putNPCList,       -- [[PhraCate]] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
@@ -258,13 +258,13 @@ putNPC (x:xs) = do
     putStr ","
     putNPC xs
 
-showNPhraCateList :: [[PhraCate]] -> IO ()
-showNPhraCateList [] = putStrLn "[]"
-showNPhraCateList [x] = do
+showNPhraCateListLn :: [[PhraCate]] -> IO ()
+showNPhraCateListLn [] = putStrLn "[]"
+showNPhraCateListLn [x] = do
     putStr "["
     putNPC x
     putStrLn "]"
-showNPhraCateListWithoutNewLine (x:xs) = do
+showNPhraCateListLn (x:xs) = do
     putStr "["
     putNPCList (x:xs)
     putStrLn "]"

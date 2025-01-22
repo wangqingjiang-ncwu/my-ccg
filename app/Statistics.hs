@@ -973,12 +973,14 @@ showAscenListOfClauLength2FreqRate (cl:cls) = showAscenListOfClauLength2FreqRate
 {- Get the number of not-recognizable phrases in parsing every clause in every sentence.
  - But now, the not-recognizable phrases are removed in function 'cateComb', and not stored into database.
  - So the banned phrases in field 'script' of database table 'corpus' do not contain any 'NR' phrase.
+ - One sentence might have multiple clauses.
+ - Script :: (ClauIdx,[[Rule]],[BanPCs])
  -}
 toSentClauAbanNRPhraNumList :: [[Script]] -> [[Int]]
 toSentClauAbanNRPhraNumList [] = []                                             -- No sentence
 toSentClauAbanNRPhraNumList (sent:sents) = (map length sentAbanNRPhra) : toSentClauAbanNRPhraNumList sents
     where
-    sentAbanPhra = map thd3 sent                                                -- [[PhraCate]], one [PhraCate] for one Script. One sentence might have multiple clauses.
+    sentAbanPhra = map thd3 sent                                                -- [[[PhraCate]]], one [BanPCs] per Script.
     sentAbanNRPhra = map (\clauAbanPhra -> [x | x <- clauAbanPhra, (psOfCate x)!!0 == "NR"]) sentAbanPhra     -- Every phrase has only one 'ctspa'.
 
 {- Count the frequencies of various keys, and store them in Map <String> <Int>.

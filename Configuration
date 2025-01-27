@@ -15,6 +15,7 @@ script_source:corpus
 tree_source:corpus
 
 # The database table where parsing trees go to.
+# Usually it is destination treebank when parsing with script.
 # When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
 # Other values of tree_target:
 #   - corpus
@@ -23,9 +24,11 @@ tree_source:corpus
 #   - treebank_by_strugene2_identity_sim_euclidean_MaxFreq
 #   - treebank_by_strugene2_embedded_sim_euclidean_Hit
 #   - treebank_by_strugene2_embedded_sim_euclidean_MaxFreq
+#   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 #   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400
-tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400_3
+#   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+tree_target:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -35,8 +38,9 @@ tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400_3
 #   - ambi_resol1
 #   - stru_gene_202408
 #   - stru_gene_202412
+#   - stru_gene_202501
 #   - treebank_clust_res_k200_s18000_sg_aa
-syntax_ambi_resol_model:stru_gene_202412
+syntax_ambig_resol_model:stru_gene_202408
 
 # Switch of updating syntax or category ambiguity resolution samples in database.
 # For grammar inconsistancy, parsing by scripts sometimes includes manually ambiguity resolution, using new category conversion rules or syntax rules.
@@ -44,9 +48,9 @@ syntax_ambi_resol_model:stru_gene_202412
 # So, parsing by scripts might change syntax or category ambiguity resolution samples coming from a same sentence.
 # When NOT hope to update syntax or category ambiguity resolution samples in database, set this switch as Off.
 # Now, category ambiguity resolution model SLR samples are stored with treebank created by parsing with scripts.
-# Switch category_ambi_resol_sample_update_switch is NOT used at present.
-syntax_ambi_resol_sample_update_switch:Off
-category_ambi_resol_sample_update_switch:Off
+# Switch category_ambig_resol_sample_update_switch is NOT used at present.
+syntax_ambig_resol_sample_update_switch:Off
+category_ambig_resol_sample_update_switch:Off
 
 # Distance Algo. for phrasal grammar aspects, overlapping types and StruGene contexts.
 # Possible values:
@@ -58,7 +62,7 @@ strugene_context_dist_algo:Euclidean
 
 # Range of serial numbers of sentences from which the used syntax ambiguity resolution model samples are.
 syntax_resol_sample_startsn:1
-syntax_resol_sample_endsn:200
+syntax_resol_sample_endsn:5
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
 # In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.
@@ -68,14 +72,18 @@ cate_ambig_resol_target:treebank_including_SLR
 
 # Range of serial_nums of the used category ambiguity resolution model samples.
 cate_resol_sample_startsn:1
-cate_resol_sample_endsn:400
+cate_resol_sample_endsn:5
 
 # Benchmark treebank
 benchmark_treebank:corpus
 
 # Experimental treebank
-# experimental_treebank:treebank_by_strugene2_embedded_sim_euclidean_Hit_Sn301_400
-experimental_treebank:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400_3
+# experimental_treebank:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+experimental_treebank:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+# experimental_treebank:treebank_including_SLR
+
+# Experimental scripts associated with trees, created by a certain parsing algorithm.
+experimental_script:treebank_including_SLR
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
@@ -125,5 +133,7 @@ wpr:1
 # Default start index and end index in corpus.
 # defaultStartIdx:1
 # defaultEndIdx:200
-defaultStartIdx:301
-defaultEndIdx:400
+# defaultStartIdx:301
+# defaultEndIdx:400
+defaultStartIdx:1
+defaultEndIdx:5

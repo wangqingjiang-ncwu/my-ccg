@@ -4,6 +4,7 @@
 module ClusteringSpec where
 
 import Category
+import Phrase
 import Clustering
 import AmbiResol
 import Test.Hspec
@@ -27,6 +28,13 @@ spec = do
       let q1 = (predCate,"<B","AHn")
       let q2 = (npCate,">B","SP")
       distPhraSynSetByIdentity [p1,p2] [q1,q2] `shouldBe` (0.8333333333333333 :: Double)
+
+    it "The result of distPhraSynSetByIdentity nPCs1 nPCs2 is 0.0" $ do
+      let nPCs1 = getPhraCateListFromString $ "[((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2),((3,0),[(np,Desig,届',DE,False)],3),((4,0),[(np,Desig,学生',DE,True)],4),((0,1),[(s/.np,>T->B,是' 丁伟',OE,True)],1),((2,1),[(np,>,七二' 届',AHn,True)],3)]"
+      let nPCs2 = getPhraCateListFromString $ "[((3,0),[(np,Desig,届',DE,False)],3),((0,1),[(s/.np,>T->B,是' 丁伟',OE,True)],1),((4,0),[(np,Desig,学生',DE,True)],4),((2,1),[(np,>,七二' 届',AHn,True)],3),((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2)]"
+      let ctpOfnPCs1 = ctpOfCateList' nPCs1
+      let ctpOfnPCs2 = ctpOfCateList' nPCs2
+      distPhraSynSetByIdentity ctpOfnPCs1 ctpOfnPCs2 `shouldBe` (0.0 :: Double)
 
     it "The result of distVect4StruGeneByIdentity ([(np, \">\", \"HnC\")], (s, \">B\", \"DHv\"), (np,\"<B\",\"AHn\"), [(np,\">B\",\"SP\")]) ([(s/.np, \"<\", \"AHn\")], (np, \">\", \"AHn\"), (np,\"<B\",\"AHn\"), [(s\\.np,\"<B\",\"AHn\")], 2, Lp) is [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC")], (getCateFromString "s", ">B", "DHv"), (getCateFromString "np","<B","AHn"), [(getCateFromString "np",">B","SP")], 1, Lp)
@@ -73,10 +81,10 @@ spec = do
       findDistMinValOfTwoTupleLists l1 l2 [] `shouldBe` ([(2, 3.0), (3, 4.3), (6, 7.5), (5, 4.2)] :: SIdxDistList)
 
     it "The result of readPhraSynListFromStr \"[(np,Desig,DE),(np\\*np,>,XX),(s,<,SP)]\" is [(np,Desig,DE),(np\\*np,>,XX),(s,<,SP)] " $ do
-      let pSyn1 = readPhraSynFromStr "(np,Desig,DE)"
-      let pSyn2 = readPhraSynFromStr "(np\\*np,>,XX)"
-      let pSyn3 = readPhraSynFromStr "(s,<,SP)"
-      readPhraSynListFromStr "[(np,Desig,DE),(np\\*np,>,XX),(s,<,SP)]" `shouldBe` ([pSyn1, pSyn2, pSyn3] :: [PhraSyn])
+      let pSyn1 = readPhraSynFromStr "(np,\"Desig\",\"DE\")"
+      let pSyn2 = readPhraSynFromStr "(np\\*np,\">\",\"XX\")"
+      let pSyn3 = readPhraSynFromStr "(s,\"<\",\"SP\")"
+      readPhraSynListFromStr "[(np,\"Desig\",\"DE\"),(np\\*np,\">\",\"XX\"),(s,\"<\",\"SP\")]" `shouldBe` ([pSyn1, pSyn2, pSyn3] :: [PhraSyn])
 
 {-    it "The result of minValueList [readStruGeneFromStr \"([(np,Desig,DE)],(np\\*np,>,XX),(s,<,SP),[(((s\\.np)\\x(s\\.np))/*np,Desig,DE),((s\\.np)\\x(s\\.np),>,PO)],2,Lp)\", readStruGeneFromStr \"([(s\\.np,Desig,DE),(s,<,SP)],((s\\.np)\\x(s\\.np),>,PO),(np,<,HnC),[(np,Desig,DE)],2,Rp)\"] [readStruGeneFromStr \"([],(np,A/n->,AHn),(s/#(s\\.np),>T->B,NR),[(((s\\.np)/#(s\\.np))/*np,Desig,DE)],2,Lp)\"] is [11.0, 11.0]" $ do
       let sn = [readStruGeneFromStr "([(np,Desig,DE)],(np\\*np,>,XX),(s,<,SP),[(((s\\.np)\\x(s\\.np))/*np,Desig,DE),((s\\.np)\\x(s\\.np),>,PO)],2,Lp)",

@@ -49,7 +49,7 @@ import AmbiResol (PhraSyn)
 import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
-import Output(showScript, showScript', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList)
+import Output(showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList)
 
 type Clau = [PhraCate]
 type Sent = [Clau]
@@ -410,11 +410,11 @@ countInScript bottomSn topSn funcIndex = do
     let clauseTotalNum = foldl (+) 0 sentClauNumList                -- The total number of clauses.
     let sentClauScriptList = map (map readScript) sentClauScriptStrList         -- [[Script]], here a Script is the representation in memory of parsing script of a clause.
 
-    -- Output the following for test. Using 'showScript' or else using 'show' should be decied again.
+    -- Output the following for test. Using 'showScripts' or else using 'show' should be decied again.
     -- putStr "countInScript: The script list of clauses in first sentence: "
-    -- showScript (sentClauScriptList!!0)
+    -- showScripts (sentClauScriptList!!0)
     -- putStr "countInScript: The script of first clause in first sentence: "
-    -- showScript' [((sentClauScriptList!!0)!!0)]
+    -- showScripts' [((sentClauScriptList!!0)!!0)]
     -- putStrLn
 
     let tree_source = getConfProperty "tree_source" confInfo
@@ -529,14 +529,14 @@ countInStruGene :: Int -> IO ()
 countInStruGene funcIndex = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    putStrLn $ "The syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model           -- Display the ambiguity resolution model
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    putStrLn $ "The syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model           -- Display the ambiguity resolution model
 
     -- 1. Get total number of structural genes.
     if funcIndex == 1
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambi_resol_model
+         let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambig_resol_model
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          row <- S.read is
@@ -544,33 +544,33 @@ countInStruGene funcIndex = do
                           Just x -> x
                           Nothing -> error "countInStruGene: Failed in executing select count(*) from stru_gene."
          S.skipToEof is
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The total number of structural genes: " ++ show (fromMySQLInt64 (totalNum!!0))
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The total number of structural genes: " ++ show (fromMySQLInt64 (totalNum!!0))
        else putStr ""
 
     -- 2. Get frequencies of different overlapping types, namely [(OverType, Freq)].
     if funcIndex == 2
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select overType, count(*) from " ++ syntax_ambi_resol_model ++ " group by overType order by overType"
+         let sqlstat = DS.fromString $ "select overType, count(*) from " ++ syntax_ambig_resol_model ++ " group by overType order by overType"
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          overType2FrequencyList <- readStreamByInt8Int64 [] is                  -- [[Int]], here every row has two integers, overType and its occuring frequency.
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": Frequencies of different overlapping types [(OverType, Freq)]: " ++ show overType2FrequencyList
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": Frequencies of different overlapping types [(OverType, Freq)]: " ++ show overType2FrequencyList
        else putStr ""
 
     -- 3. Get frequencies of most common phrasal overlapping, namely [(LeftOver_RightOver_OverType, Int), here the common proportion is 'prop';
     if funcIndex == 3
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType from " ++ syntax_ambi_resol_model
+         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType from " ++ syntax_ambig_resol_model
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          leftOver_RightOver_OverTypeList <- readStreamByTextTextInt8 [] is           -- [String], here the string is "LeftOver_RightOver_OverType"
          let leftOver_RightOver_OverType2FreqMap = keyToMap leftOver_RightOver_OverTypeList Map.empty           -- Map Sting Int, namely Map <LRO> <LRONum>.
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The total number of different LROs: " ++ show (Map.size leftOver_RightOver_OverType2FreqMap)
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The total number of different LROs: " ++ show (Map.size leftOver_RightOver_OverType2FreqMap)
 
          let descListOfLRO2FreqByValue = toDescListOfMapByValue (Map.toList leftOver_RightOver_OverType2FreqMap)
---       putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The descending list of frequencies of different LROs: " ++ show descListOfLRO2FreqByValue
+--       putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The descending list of frequencies of different LROs: " ++ show descListOfLRO2FreqByValue
 
          putStr "Please input the percent proportion of frequency of most common LROs in frequency of all LROs [0.00-1.00]: "
          prop <- readFloat0to1
@@ -578,23 +578,23 @@ countInStruGene funcIndex = do
          let valueTotal = foldl (+) 0 (map snd descListOfLRO2FreqByValue)
          let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLRO2FreqByProp)
          let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The truncated descending list of frequencies of different LROs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLRO2FreqByProp
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The truncated descending list of frequencies of different LROs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLRO2FreqByProp
        else putStr ""
 
     -- 4. Get frequencies of most common unambiguous phrasal overlapping, namely [(LeftOver_RightOver_OverType_Prior, Int), here the common proportion is 'prop';
     if funcIndex == 4
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType,prior from " ++ syntax_ambi_resol_model
+         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType,prior from " ++ syntax_ambig_resol_model
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          leftOver_RightOver_OverType_PriorList <- readStreamByTextTextInt8Text [] is        -- [String], here the string is "LeftOver_RightOver_OverType_Prior"
          let leftOver_RightOver_OverType_Prior2FreqMap = keyToMap leftOver_RightOver_OverType_PriorList Map.empty
                                                                                             -- Map Sting Int, namely Map <LROP> <LROPNum>.
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The total number of different LROPs: " ++ show (Map.size leftOver_RightOver_OverType_Prior2FreqMap)
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The total number of different LROPs: " ++ show (Map.size leftOver_RightOver_OverType_Prior2FreqMap)
 
          let descListOfLROP2FreqByValue = toDescListOfMapByValue (Map.toList leftOver_RightOver_OverType_Prior2FreqMap)
---       putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The descending list of frequencies of different LROPs: " ++ show descListOfLROP2FreqByValue
+--       putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The descending list of frequencies of different LROPs: " ++ show descListOfLROP2FreqByValue
 
          putStr "Please input the percent proportion of frequency of most common LROPs in frequency of all LROPs [0.00-1.00]: "
          prop <- readFloat0to1
@@ -602,18 +602,18 @@ countInStruGene funcIndex = do
          let valueTotal = foldl (+) 0 (map snd descListOfLROP2FreqByValue)
          let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLROP2FreqByProp)
          let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
        else putStr ""
 
     -- 5. Get hit count of different overlapping types, namely [(OverType, HitCount)], where HitCount = LpHitCount + RpHitCount + NothHitCount.
     if funcIndex == 5
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select overType, sum(lpHitCount + rpHitCount + nothHitCount) as hitCount from " ++ syntax_ambi_resol_model ++ " group by overType order by overType"
+         let sqlstat = DS.fromString $ "select overType, sum(lpHitCount + rpHitCount + nothHitCount) as hitCount from " ++ syntax_ambig_resol_model ++ " group by overType order by overType"
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          overType2HitCountList <- readStreamByInt8Decimal [] is                 -- [(Int,Double)], here every row has overType and its hit count.
-         putStrLn $ "countIn" ++ syntax_ambi_resol_model ++ ": HitCounts of different overlapping types [(OverType, HitCount)]: " ++ show (map (\x->(fst x, floor (snd x))) overType2HitCountList)
+         putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": HitCounts of different overlapping types [(OverType, HitCount)]: " ++ show (map (\x->(fst x, floor (snd x))) overType2HitCountList)
        else putStr ""
 
 {- Get search result in field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and
@@ -975,13 +975,15 @@ showAscenListOfClauLength2FreqRate (cl:cls) = showAscenListOfClauLength2FreqRate
  - So the banned phrases in field 'script' of database table 'corpus' do not contain any 'NR' phrase.
  - One sentence might have multiple clauses.
  - Script :: (ClauIdx,[[Rule]],[BanPCs])
+ - For one sentence, there is [Script]. For multiple sentences, there is [[Script]].
  -}
 toSentClauAbanNRPhraNumList :: [[Script]] -> [[Int]]
 toSentClauAbanNRPhraNumList [] = []                                             -- No sentence
 toSentClauAbanNRPhraNumList (sent:sents) = (map length sentAbanNRPhra) : toSentClauAbanNRPhraNumList sents
     where
-    sentAbanPhra = map thd3 sent                                                -- [[[PhraCate]]], one [BanPCs] per Script.
-    sentAbanNRPhra = map (\clauAbanPhra -> [x | x <- clauAbanPhra, (psOfCate x)!!0 == "NR"]) sentAbanPhra     -- Every phrase has only one 'ctspa'.
+    sentAbanPhra = map thd3 sent                                          -- [[BanPCs]]
+    sentAbanPhra' = map concat sentAbanPhra                               -- [BanPCs], one phrasal list per clause
+    sentAbanNRPhra = map (\clauAbanPhra -> [x | x <- clauAbanPhra, (psOfCate x)!!0 == "NR"]) sentAbanPhra'   -- Every phrase has only one 'ctspa'.
 
 {- Count the frequencies of various keys, and store them in Map <String> <Int>.
  -}

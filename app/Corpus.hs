@@ -39,6 +39,7 @@ module Corpus (
     readPCList,          -- String -> [PhraCate]
     readTree,            -- String -> Tree
     readTrees,           -- String -> [Tree]
+    readClauTag,         -- String -> (SentIdx, ClauIdx)
     readSLROfSent,       -- String -> SLROfSent
     getTreeDepth,        -- [PhraCate] -> Int
     readRuleSet,         -- String -> [Rule]
@@ -57,6 +58,11 @@ module Corpus (
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
     nForestToString,     -- [Forest] -> String
+
+    Stub,                -- [PhraCate]
+    SLROfATrans,         -- (ClauTag, (Stub, [Rule]))
+    SLROfClause,         -- [SLROfATrans]
+    SLROfSent,           -- [SLROfClause]
 
     ) where
 
@@ -511,12 +517,23 @@ readTree str = (clauIdx, phraCateList)
 readTrees :: String -> [Tree]
 readTrees str = map readTree (stringToList str)
 
-readSLROfTrans :: String -> SLROfATrans
-readSLROfTrans str = (stub, rules)
+-- Read (SentIdx, ClauIdx) from a String.
+readClauTag :: String -> (Int, Int)
+readClauTag clauTagStr = (sentIdx, clauIdx)
     where
-      tupleStr = stringToTuple str
-      stub = map getPhraCateFromString $ stringToList (fst tupleStr)
-      rules = readRuleSet (snd tupleStr)
+      tupleStr = stringToTuple clauTagStr
+      sentIdx = read (fst tupleStr) :: Int
+      clauIdx = read (snd tupleStr) :: Int
+
+-- Read a SLROfATrans value from a String "(ClauTag, (Stub, [Rule]))".
+readSLROfTrans :: String -> SLROfATrans
+readSLROfTrans str = (clauTag, (stub, rules))
+    where
+      tupleStr = stringToTuple str                                              -- ("ClauTag","SLR")
+      clauTag = readClauTag (fst tupleStr)
+      stubRulesStr = stringToTuple (snd tupleStr)                               -- ("Stub","[Rules]")
+      stub = getPhraCateListFromString (fst stubRulesStr)
+      rules = readRuleSet (snd stubRulesStr)
 
 readSLROfClause :: String -> SLROfClause
 readSLROfClause str = map readSLROfTrans (stringToList str)
@@ -630,15 +647,14 @@ nTreeToString trees = listToString (map treeToString trees)
 
 -- Local type declarations to avoid dependency cycle.
 type Stub = [PhraCate]
-type SLROfATrans = (Stub, [Rule])
+type ClauTag = (SentIdx, ClauIdx)
+type SLROfATrans = (ClauTag, (Stub, [Rule]))
 type SLROfClause = [SLROfATrans]
 type SLROfSent = [SLROfClause]
 
 aSLRToString :: SLROfATrans -> String
-aSLRToString slr = "(" ++ stub ++ "," ++ ruleSets ++ ")"
-    where
-      stub = nPhraCateToString (fst slr)
-      ruleSets = show (snd slr)
+aSLRToString (clauTag, (stub, rules))
+    = "(" ++ show clauTag ++ "," ++ "(" ++ nPhraCateToString stub ++ "," ++ show rules ++ "))"
 
 clauseSLRToString :: SLROfClause -> String
 clauseSLRToString clauSLR = listToString (map aSLRToString clauSLR)

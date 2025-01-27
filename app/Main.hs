@@ -18,6 +18,7 @@ import Data.Time.Clock
 import qualified Data.String as DS
 import Database.MySQL.Base
 import Category
+import Phrase (sortPhraCateBySpan')
 import Corpus
 import SentParse
 import Database
@@ -26,6 +27,7 @@ import Utils
 import AmbiResol
 import Clustering
 import Maintain
+import Output (showSnScript2List)
 import Text.Printf
 
 {- This program create syntactic and semantic parsing results for Chinese sentences. Please run MySQL Workbench or other similiar tools, connecting MySQL database 'ccg4c', and querying table 'corpus' for revising parts of speech as well as CCG syntactic types, and the MySQL server is running on a certain compute in Hua-shui campus. The program includes commands for parsing sentences and storing results in database 'ccg4c', as following.
@@ -311,36 +313,46 @@ doParseSentByHumanMind :: String -> IO ()
 doParseSentByHumanMind username = do
     confInfo <- readFile "Configuration"
     let tree_target = getConfProperty "tree_target" confInfo
-    contOrNot <- getLineUntil (" tree_target: " ++ tree_target ++ ". Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
-    if contOrNot == "c"
-      then do
-        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
-        if contOrNot2 == "c"
-          then do
-            putStr "Please input value of 'serial_num': "
-            line <- getLine
-            let sn = read line :: Int
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
 
-            ok <- checkIpc sn username
-            if ok
-              then do                          -- Pass authentication!
-                conn <- getConn
-                stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
-                (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
-                cate_tree_check <- S.read is
-                let cate_tree_check' = case cate_tree_check of
-                                         Just x -> x
-                                         Nothing -> error "doParseSent: No cate_tree_check was read."
-                skipToEof is                                                   -- Go to the end of the stream.
-                let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
-                let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
-                if (cate_check == 1 && tree_check == 0)
-                  then getSentFromDB sn >>= getSent >>= parseSent sn
-                  else putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
-              else do
-                putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
+    putStrLn $ " tree_target: " ++ tree_target
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ " syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
+
+    if syntax_ambig_resol_sample_update_switch == "Off"
+      then putStrLn "syntax_ambig_resol_sample_update_switch is Off."
+      else do
+        contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+        if contOrNot == "c"
+          then do
+            contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+            if contOrNot2 == "c"
+              then do
+                putStr "Please input value of 'serial_num': "
+                line <- getLine
+                let sn = read line :: Int
+
+                ok <- checkIpc sn username
+                if ok
+                  then do                          -- Pass authentication!
+                    conn <- getConn
+                    stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
+                    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
+                    cate_tree_check <- S.read is
+                    let cate_tree_check' = case cate_tree_check of
+                                             Just x -> x
+                                             Nothing -> error "doParseSent: No cate_tree_check was read."
+                    skipToEof is                                                   -- Go to the end of the stream.
+                    let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
+                    let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
+                    if (cate_check == 1 && tree_check == 0)
+                      then getSentFromDB sn >>= getSent >>= parseSent sn
+                      else putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
+                  else do
+                    putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
+              else putStrLn "Operation was canceled."
           else putStrLn "Operation was canceled."
-      else putStrLn "Operation was canceled."
 
 {- 8_2. According to the previously created script, parse the sentence indicated by serial_num.
  - The parsing result will be compared with the result created manually, and then dropped away.
@@ -351,19 +363,23 @@ doParseSentByScript username = do
     let script_source = getConfProperty "script_source" confInfo                     -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
     let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let syntax_ambi_resol_sample_update_switch = getConfProperty "syntax_ambi_resol_sample_update_switch" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
+    let cate_ambig_resol_target = getConfProperty "cate_ambig_resol_target" confInfo
+    let category_ambig_resol_sample_update_switch = getConfProperty "category_ambig_resol_sample_update_switch" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " tree_target: " ++ tree_target
-    putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
-    putStrLn $ " syntax_ambi_resol_sample_update_switch: " ++ syntax_ambi_resol_sample_update_switch
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ " syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
+    putStrLn $ " cate_ambig_resol_target: " ++ cate_ambig_resol_target
+    putStrLn $ " category_ambig_resol_sample_update_switch: " ++ category_ambig_resol_sample_update_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
-        contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
+        contOrNot2 <- getLineUntil ("Targets will be updated. Continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
         if contOrNot2 == "c"
           then do
             putStr "Please input serial_num of start sentence: "
@@ -441,7 +457,7 @@ doDisplayTreesForASent username = do
     let tree_source = getConfProperty "tree_source" confInfo
     putStrLn $ " tree_source: " ++ tree_source
 
-    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'c') ") ["c","n"] True
     if contOrNot == "c"
       then do
         putStr "Please input value of 'serial_num': "
@@ -699,9 +715,10 @@ doExperiments username = do
     putStrLn " 1 -> Parse sentence using all lexcial rules"
     putStrLn " 2 -> Test context similarity degree 1.0 only happens between one StruGene sample and itself"
     putStrLn " 3 -> Test identity between two parsing scripts"
+    putStrLn " 4 -> Test the ratio of StruGene2 samples which include duplicate clauTags"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -710,6 +727,7 @@ doExperiments username = do
                "1" -> doParseSentWithAllLexRules username
                "2" -> doTestSim1HappenBetweenOneStruGeneSampleAndItself username
                "3" -> doTestScriptIdentity username
+               "4" -> doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags username
              doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
@@ -754,29 +772,77 @@ doTestSim1HappenBetweenOneStruGeneSampleAndItself username = do
 doTestScriptIdentity :: String -> IO ()
 doTestScriptIdentity username = do
     confInfo <- readFile "Configuration"
-    let script_source = getConfProperty "script_source" confInfo
-    let treebank_source = getConfProperty "cate_ambig_resol_source" confInfo
+    let benchmark_script = getConfProperty "script_source" confInfo
+    let experimental_script = getConfProperty "experimental_script" confInfo
+    let defaultStartIdx = getConfProperty "defaultStartIdx" confInfo
+    let defaultEndIdx = getConfProperty "defaultEndIdx" confInfo
 
-    putStrLn $ " script_source: " ++ script_source
-    putStrLn $ " treebank_source: " ++ treebank_source
+    putStrLn $ " benchmark_script: " ++ benchmark_script
+    putStrLn $ " experimental_script: " ++ experimental_script
+    putStrLn $ " defaultStartIdx = " ++ defaultStartIdx
+    putStrLn $ " defaultEndIdx = " ++ defaultEndIdx
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
       then do
         conn <- getConn
-        let query = DS.fromString ("select " ++ script_source ++ ".serial_num as serial_num, "
-                    ++ script_source ++ ".script as script1, " ++ treebank_source ++ ".script as script2 from "
-                    ++ script_source ++ " inner join " ++ treebank_source ++ " where "
-                    ++ script_source ++ ".serial_num = " ++ treebank_source ++ ".serial_num")
+        let query = DS.fromString ("select " ++ benchmark_script ++ ".serial_num as serial_num, "
+                    ++ benchmark_script ++ ".script as script1, " ++ experimental_script ++ ".script as script2 from "
+                    ++ benchmark_script ++ " inner join " ++ experimental_script ++ " where "
+                    ++ benchmark_script ++ ".serial_num = " ++ experimental_script ++ ".serial_num && "
+                    ++ experimental_script ++ ".serial_num >= ? && "
+                    ++ experimental_script ++ ".serial_num <= ?")
         stmt <- prepareStmt conn query
-        (defs, is) <- queryStmt conn stmt []
+        (defs, is) <- queryStmt conn stmt [toMySQLInt32 (read defaultStartIdx :: Int), toMySQLInt32 (read defaultEndIdx :: Int)]
         issList <- readStreamByInt32TextText [] is   -- [(Int, String, String)]
-        let snScript2List = map (\x -> (fst3 x, readScripts (snd3 x), readScripts (thd3 x))) issList   -- [(SentIdx, [Script], [Script])]
-        let checkList = map (\x -> (fst3 x, sort (snd3 x) == sort (thd3 x))) snScript2List   -- [(Int, Bool)]
+        let snScript2List = map (\x -> (fst3 x, map (\x -> (fst3 x, snd3 x, map sortPhraCateBySpan' (thd3 x))) (readScripts (snd3 x))
+                                              , map (\x -> (fst3 x, snd3 x, map sortPhraCateBySpan' (thd3 x))) (readScripts (thd3 x)))
+                                ) issList
+                                                                                -- [(SentIdx, [Script], [Script])]
+        let checkList = map (\x -> (fst3 x, snd3 x == thd3 x)) snScript2List    -- [(Int, Bool)]
         let oks = filter (\x -> snd x == True) checkList
         putStrLn $ "doTestScriptIdentity: Identical scripts = " ++ show oks
+        let bads = filter (\x -> snd3 x /= thd3 x) snScript2List
+        putStrLn $ "doTestScriptIdentity: Non-identical scripts = "
+        showSnScript2List bads
         close conn
       else putStrLn "doTestScriptIdentity: Test is cancelled."
+
+{- B.4 Test the ratio of StruGene2 samples which include duplicate ClauTag values.
+ -}
+doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags :: String -> IO ()
+doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags username = do
+    confInfo <- readFile "Configuration"
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let defaultStartIdx = getConfProperty "defaultStartIdx" confInfo
+    let defaultEndIdx = getConfProperty "defaultEndIdx" confInfo
+
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ " defaultStartIdx = " ++ defaultStartIdx
+    putStrLn $ " defaultEndIdx = " ++ defaultEndIdx
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        case syntax_ambig_resol_model of
+          x | elem x ["stru_gene_202501", "stru_gene_202412","stru_gene_202408"] -> do
+            conn <- getConn
+            let query = DS.fromString ("select id, clauTagPrior from " ++ syntax_ambig_resol_model)
+            stmt <- prepareStmt conn query
+            (defs, is) <- queryStmt conn stmt []                                --([ColumnDef], InputStream [MySQLValue])
+
+            idCTPsStrList <- readStreamByInt32UText [] is                       -- [(Int, String)]
+            let idCTPsList = map (\x -> (fst x, stringToCTPList (snd x))) idCTPsStrList    -- [(SIdx, [ClauTagPrior])]
+            let idCTPsDupClauTagDecisionList = map (\x -> (fst x, snd x, hasDupClauTagInCTPList (snd x))) idCTPsList   -- [(SIdx, [ClauTagPrior], Bool)]
+            let listOfCTPsHaveDupClauTag = filter (\x -> thd3 x == True) idCTPsDupClauTagDecisionList
+            let numOfSamplesHaveDupClauTag = length listOfCTPsHaveDupClauTag
+            let ratio = fromIntegral numOfSamplesHaveDupClauTag / fromIntegral (length idCTPsDupClauTagDecisionList)
+            putStrLn $ "Ratio = " ++ (printf "%.4f" (ratio :: Double))
+            putStrLn $ "(SIdx, [ClauTagPrior], True): " ++ show listOfCTPsHaveDupClauTag
+            close conn
+
+          _ -> putStrLn $ "syntax_ambig_resol_model: " ++ syntax_ambig_resol_model ++ "has no ratio definition."
+      else putStrLn "doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags: Test is cancelled."
 
 -- C. Various maintenance tools.
 doMaintenance :: String -> IO ()
@@ -967,7 +1033,7 @@ doOnceClustering :: IO ()
 doOnceClustering = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let kVal = read (getConfProperty "kVal" confInfo) :: Int
     let sNum = read (getConfProperty "sNum" confInfo) :: Int
@@ -980,11 +1046,11 @@ doOnceClustering = do
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
     let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
-    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
+    putStrLn $ "The current syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model
                ++ ", distDef = " ++ distDef ++ ", kVal = " ++ show kVal ++ ", sNum = " ++ show sNum
                ++ ", distWeiRatioList = " ++ show distWeiRatioList'
-    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
-                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambig_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambig_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"
@@ -1001,7 +1067,7 @@ doClustering4DiffKValSNum :: IO ()
 doClustering4DiffKValSNum = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
     let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
@@ -1018,14 +1084,14 @@ doClustering4DiffKValSNum = do
     let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
     let distWeiRatioList' = init distWeiRatioList ++ [maxValOfInt]
 
-    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
+    putStrLn $ "The current syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model
                ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
                ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
                ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
                ++ ", distWeiRatioList = " ++ show distWeiRatioList'
 
-    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
-                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambig_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambig_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"
@@ -1041,7 +1107,7 @@ storeAmbiResolAccuracy4AllClustRes :: IO ()
 storeAmbiResolAccuracy4AllClustRes = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let distDef = getConfProperty "distDef" confInfo
     let bottomKVal = read (getConfProperty "bottomKVal" confInfo) :: Int
     let deltaKVal = read (getConfProperty "deltaKVal" confInfo) :: Int
@@ -1050,13 +1116,13 @@ storeAmbiResolAccuracy4AllClustRes = do
     let deltaSNum = read (getConfProperty "deltaSNum" confInfo) :: Int
     let topSNum = read (getConfProperty "topSNum" confInfo) :: Int
 
-    putStrLn $ "The current syntax_ambi_resol_model is set as: " ++ syntax_ambi_resol_model
+    putStrLn $ "The current syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model
                ++ ", distDef = " ++ distDef ++ ", bottomKVal = " ++ show bottomKVal ++ ", bottomSNum = " ++ show bottomSNum
                ++ ", deltaKVal = " ++ show deltaKVal ++ ", deltaSNum = " ++ show deltaSNum
                ++ ", topKVal = " ++ show topKVal ++ ", topSNum = " ++ show topSNum
 
-    let arm = if | syntax_ambi_resol_model == "stru_gene" -> "SG"
-                 | syntax_ambi_resol_model == "ambi_resol1" -> "AR1"
+    let arm = if | syntax_ambig_resol_model == "stru_gene" -> "SG"
+                 | syntax_ambig_resol_model == "ambi_resol1" -> "AR1"
                  | otherwise -> "Nothing"
     let df = if | distDef == "arithAdd" -> "AA"
                 | distDef == "normArithMean" -> "NAM"

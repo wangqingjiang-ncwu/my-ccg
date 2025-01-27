@@ -22,6 +22,7 @@ module AmbiResol (
     removeFromCTPListByClauTag,        -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     removeFromCTPListBySentIdxRange,   -- [ClauTagPrior] -> SentIdx -> SentIdx -> [ClauTagPrior]
     hasClauTagInCTPList,        -- ClauTag -> [ClauTagPrior] -> Bool
+    hasDupClauTagInCTPList,     -- [ClauTagPrior] -> Bool
     filterInCTPListByClauTag,   -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     hasSentIdxInCTPList,        -- SentIdx -> [ClauTagPrior] -> Bool
     getSentRangeByStruGeneSamples,  -- [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
@@ -65,6 +66,7 @@ module AmbiResol (
     hasDup4OverPair,     -- [OverPair] -> [OverPair]
     equal4OverPair,      -- OverPair -> OverPair -> Bool
     elem4OverPair,       -- OverPair -> [OverPair] -> Bool
+    getBanPCsByOverPairs,         -- [OverPair] -> BanPCs
     readStreamByContext2OverType,      -- [Context2OverType] -> S.InputStream [MySQLValue] -> IO [Context2OverType]
     StruGene2,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
     StruGene2Sample,     -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
@@ -72,17 +74,20 @@ module AmbiResol (
     fromStruGene2ByHighestFreqPrior,   -- StruGene2 -> StruGene
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
+    readStreamByInt32UText
     readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     SynAmbiResolMethod,  -- String
+
     ) where
 
 import Category
 import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
+import Rule (Rule)
 import Utils
 import Data.List (nub)
 import Data.Tuple.Utils
 import Text.Printf
-import Corpus (SentIdx, ClauIdx)
+import Corpus
 import Database
 import Database.MySQL.Base
 import qualified Data.String as DS
@@ -199,10 +204,10 @@ fromMaybePrior Nothing = Noth                 -- Default value of Prior
 hasClauTagInSynAmbiResol :: ClauTag -> IO Bool
 hasClauTagInSynAmbiResol clauTag = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
 
     conn <- getConn
-    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambig_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%'"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
@@ -224,10 +229,10 @@ removeClauTagPriorFromSynAmbiResol sn clauIdxOfStart clauIdxOfEnd = do
 removeClauTagPriorFromSynAmbiResol' :: ClauTag -> IO ()
 removeClauTagPriorFromSynAmbiResol' clauTag = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo          -- Syntax Ambiguity Resolution Model
 
     conn <- getConn
-    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%';"
+    let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambig_resol_model ++ " where clauTagPrior like '%" ++ show clauTag ++ "%'"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
@@ -244,7 +249,7 @@ removeClauTagPriorFromSynAmbiResol' clauTag = do
     let ids = map toMySQLInt32U $ map fst idAndCTPStrList                       -- [MySQLInt32U]
     let rows = compFiveLists cTPList2' lpHitCounts rpHitCounts nothHitCounts ids               -- [[MySQLText, MySqlInt32U]]
 --    putStrLn $ "removeClauTagPriorFromSynAmbiResol': rows: " ++ show rows
-    let sqlstat' = DS.fromString $ "update " ++ syntax_ambi_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
+    let sqlstat' = DS.fromString $ "update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
     oks <- executeMany conn sqlstat' rows
     putStrLn $ "removeClauTagPriorFromSynAmbiResol': " ++ show (length oks) ++ " rows have been updated."
     close conn
@@ -266,6 +271,14 @@ hasClauTagInCTPList _ [] = False
 hasClauTagInCTPList clauTag (x:xs)
     | clauTag == fst x = True
     | otherwise = hasClauTagInCTPList clauTag xs
+
+-- Decide whether there is any dulicate ClauTag value in a [ClauTagPrior] list.
+hasDupClauTagInCTPList :: [ClauTagPrior] -> Bool
+hasDupClauTagInCTPList [] = False
+hasDupClauTagInCTPList [ctp] = False
+hasDupClauTagInCTPList ctps = length clauTags /= length (nub clauTags)
+    where
+    clauTags = map fst (nub ctps)                                               -- [(SentIdx, ClauIdx)]
 
 {- Filter ClauTagPrior values with given ClauTag value in a [ClauTagPrior] list.
  - This function is unnecessary and actually can be replaced with Data.List.filter.
@@ -471,6 +484,19 @@ elem4OverPair _ [] = False
 elem4OverPair op (op1:ops) = case (equal4OverPair op op1) of
                                True -> True
                                False -> elem4OverPair op ops
+
+-- Get banned phrases by [OverPair].
+getBanPCsByOverPairs :: [OverPair] -> BanPCs
+getBanPCsByOverPairs ops = nub $ getBanPCsByOverPairs' ops                      -- Remove duplicates
+
+-- Get banned phrases by [OverPair], in which there might be same phrases.
+getBanPCsByOverPairs' :: [OverPair] -> BanPCs
+getBanPCsByOverPairs' [] = []
+getBanPCsByOverPairs' (op:ops)
+    | thd3 op == Lp = snd3 op : getBanPCsByOverPairs' ops                       -- Drop the right
+    | thd3 op == Rp = fst3 op : getBanPCsByOverPairs' ops                       -- Drop the left
+    | thd3 op == Noth = fst3 op : ((snd3 op) : getBanPCsByOverPairs' ops)       -- Drop both sides
+
 
 {- Read a value from input stream [MySQLValue], change it into a Context2OverType value, append it
  - to existed Context2OverType list, then read the next until read Nothing.

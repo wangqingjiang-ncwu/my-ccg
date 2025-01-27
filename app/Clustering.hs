@@ -714,14 +714,14 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
     putStrLn $ "The clustering of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " begins."
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
 
-    if | arm == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'syntax_ambi_resol_model' is not correct."
+    if | arm == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'syntax_ambig_resol_model' is not correct."
        | df == "Nothing" -> putStrLn "autoRunClustByChangeKValSNum: 'distDef' is not correct."
        | otherwise -> do
 --           t1 <- getCurrentTime
 {-初始聚类随机选点
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
            struGeneSampleList <- readStreamByInt324TextInt8Text [] is
@@ -739,7 +739,7 @@ autoRunClustByChangeKValSNum arm df kVal kValRange sNumRange distWeiRatioList = 
            stmt <- prepareStmt conn sqlstat
            executeStmt conn stmt []                          -- Create a new MySQL table for storing clustering result.
 
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 1, toMySQLInt32 sNum]
 
@@ -823,18 +823,18 @@ autoRunGetAmbiResolAccuracyOfAllClustRes arm df kVal bottomKVal deltaKVal topKVa
 --    putStrLn $ "The ambiguity resolution accuracy of kVal = " ++ show kVal ++ ", sNum = " ++ show sNum ++ " is counting."
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
 
     let ambiResolAccuracyTbl = "ambi_Resol_Accuracy_for_randomModes"
     let sqlstat = DS.fromString $ "create table if not exists " ++ ambiResolAccuracyTbl ++ " (kVal int, sNum int, samplesCount int, accuracyForRandomModes1 float, accuracyForRandomModes2 float, primary key (kVal, sNum, samplesCount))"
     stmt <- prepareStmt conn sqlstat
     executeStmt conn stmt []                          -- Create a new MySQL table for storing all ambiguity resolution accuracy.
 
-    if | arm == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'syntax_ambi_resol_model' is not correct."
+    if | arm == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'syntax_ambig_resol_model' is not correct."
        | df == "Nothing" -> putStrLn "autoRunGetAmbiResolAccuracyOfAllClustRes: 'distDef' is not correct."
        | otherwise -> do
 
-           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id <= ? "
+           let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model ++ " where id <= ? "
            stmt <- prepareStmt conn sqlstat
            (defs, is) <- queryStmt conn stmt [toMySQLInt32 sNum]
            struGeneSampleList <- readStreamByInt324TextInt8Text [] is
@@ -906,8 +906,8 @@ queryStruGenebySIdsList idsList struGeneList = do
     length idsList
     conn <- getConn
     confInfo <- readFile "Configuration"
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id = ? "
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model ++ " where id = ? "
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 x]
 
@@ -965,8 +965,8 @@ getAmbiResolAccuracyOfAClustRes = do
 --    let finalModesListStr = last (init modesListOfAllIterations)
     let finalModesList = readStruGeneListFromStr finalModesListStr
 
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ? "
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ? "
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
 
@@ -1034,29 +1034,29 @@ distVect4StruGeneWithoutPri s1 s2 = [d1, d2, d3, d4, d5]
             False -> 1.0
 
 {- Read original StruGene samples or their clustering result,
- - the source of which is indicated by attribute 'syntax_ambi_resol_model' in configuration.
+ - the source of which is indicated by attribute 'syntax_ambig_resol_model' in configuration.
  - This function is obsoleted.
  -}
 getStruGeneSamples :: IO [StruGeneSample]
 getStruGeneSamples = do
     confInfo <- readFile "Configuration"
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     conn <- getConn
 
-    putStrLn $ "Get samples from " ++ syntax_ambi_resol_model
+    putStrLn $ "Get samples from " ++ syntax_ambig_resol_model
 
-    if syntax_ambi_resol_model == "stru_gene"
+    if syntax_ambig_resol_model == "stru_gene"
       then do
-        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambi_resol_model
+        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from " ++ syntax_ambig_resol_model
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGeneSampleList <- readStreamByInt324TextInt8Text [] is              -- [StruGeneSample]
         return struGeneSampleList
       else
-        if (length (splitAtDeli '_' syntax_ambi_resol_model) > 4 && (splitAtDeli '_' syntax_ambi_resol_model)!!4 == "sg")
+        if (length (splitAtDeli '_' syntax_ambig_resol_model) > 4 && (splitAtDeli '_' syntax_ambig_resol_model)!!4 == "sg")
           then do
-            let sqlstat = DS.fromString $ "select modes from " ++ syntax_ambi_resol_model ++ " where iNo = (select max(iNo) from " ++ syntax_ambi_resol_model ++ ") - 1"
-                                    -- MySQL table 'syntax_ambi_resol_model' have at least two records.
+            let sqlstat = DS.fromString $ "select modes from " ++ syntax_ambig_resol_model ++ " where iNo = (select max(iNo) from " ++ syntax_ambig_resol_model ++ ") - 1"
+                                    -- MySQL table 'syntax_ambig_resol_model' have at least two records.
             stmt <- prepareStmt conn sqlstat
             (defs, is) <- queryStmt conn stmt []
             modeListStrList <- readStreamByText [] is
@@ -1066,24 +1066,24 @@ getStruGeneSamples = do
             let sgs = zip [1..len] modeList
             return (map (\x -> (fst x, fst6 (snd x), snd6 (snd x), thd6 (snd x), fth6 (snd x), fif6 (snd x), sth6 (snd x))) sgs)
           else do
-            putStrLn "getStruGeneSamples: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+            putStrLn "getStruGeneSamples: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
             return []
 
-{- Read stru_gene_202408 samples, the source of which is indicated by attribute 'syntax_ambi_resol_model' in configuration.
+{- Read stru_gene_202408 samples, the source of which is indicated by attribute 'syntax_ambig_resol_model' in configuration.
  - Sample type StruGene2Sample :: (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
  -}
 getStruGene2Samples :: IO [StruGene2Sample]
 getStruGene2Samples = do
     confInfo <- readFile "Configuration"
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let startSn = read (getConfProperty "syntax_resol_sample_startsn" confInfo) :: Int
     let endSn = read (getConfProperty "syntax_resol_sample_endsn" confInfo) :: Int
 
     conn <- getConn
-    putStrLn $ "Get samples from " ++ syntax_ambi_resol_model
-    case syntax_ambi_resol_model of
-      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
-        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambi_resol_model
+    putStrLn $ "Get samples from " ++ syntax_ambig_resol_model
+    case syntax_ambig_resol_model of
+      x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do
+        let sqlstat = DS.fromString $ "select id, leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambig_resol_model
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
         struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
@@ -1093,7 +1093,7 @@ getStruGene2Samples = do
         putStrLn $ "  startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
         return struGene2SampleList''
       _ -> do
-        putStrLn "getStruGene2Samples: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+        putStrLn "getStruGene2Samples: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
         return []
 
 -- Implementation of menu 'D. Clustering analysis'.
@@ -1118,6 +1118,7 @@ clusteringAnalysis funcIndex = do
              let ps2 = (npCate, "A/n->", "AHn")
              let ps3 = (sCate, "<", "SP")
              let ps4 = (verbCate, ">B", "DHv")
+
              putStrLn "ps1 = (np, \">\", \"AHn\"), ps2 = (np, \"A/n->\", \"AHn\"), ps3 = (s, \"<\", \"SP\"), ps4 = ((s\\.np)/.np, \">B\", \"DHv\")"
              putStrLn $ "The result of getPhraSynSetSim [] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [ps1] phraSynPair2SimMap)
@@ -1140,10 +1141,10 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 7
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
 
@@ -1200,10 +1201,10 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 8
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
 
@@ -1244,10 +1245,10 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 9
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
 
@@ -1268,12 +1269,12 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 10
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
          let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
          putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
@@ -1337,12 +1338,12 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 11
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
          let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
          putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
@@ -1387,12 +1388,12 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 12
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
          let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
          putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
@@ -1442,12 +1443,12 @@ clusteringAnalysis funcIndex = do
     if funcIndex == 13
        then do
          confInfo <- readFile "Configuration"
-         let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
+         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
          let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
          let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
 
-         putStrLn $ " syntax_ambi_resol_model: " ++ syntax_ambi_resol_model
+         putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
          putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
          putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
          putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
@@ -1903,7 +1904,7 @@ type NumOfRightOverPair = Int
 type NumOfRightExtendPair = Int
 type ContextOfOTPair2Sim = ((ContextOfOT, ContextOfOT), SimDeg)
 
-{- Reading overtype and its context from the sample database of a certain syntax_ambi_resol_model, such as 'stru_gene_202408'.
+{- Reading overtype and its context from the sample database of a certain syntax_ambig_resol_model, such as 'stru_gene_202408'.
  - If start index and end index are both 0, then all records in sample database will be read.
  - Context2OverTypeBase :: [Context2OverType]
  - Context2OverType :: (ContextOfOT, OverType)
@@ -1913,13 +1914,13 @@ getContext2OverTypeBase :: SIdx -> SIdx -> IO Context2OverTypeBase
 getContext2OverTypeBase startIdx endIdx = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    case syntax_ambi_resol_model of
-      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    case syntax_ambig_resol_model of
+      x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
-          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambi_resol_model
+          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambig_resol_model
           (defs, is) <- query_ conn sqlstat
           rows <- readStreamByInt64 [] is
           let endIdx' = case endIdx of
@@ -1928,8 +1929,8 @@ getContext2OverTypeBase startIdx endIdx = do
 
           putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
 
-          putStrLn $ "The source of overtypes and their contexts is set as: " ++ syntax_ambi_resol_model     -- Display the source of overtypes and their contexts
-          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ?"
+          putStrLn $ "The source of overtypes and their contexts is set as: " ++ syntax_ambig_resol_model     -- Display the source of overtypes and their contexts
+          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
           stmt <- prepareStmt conn sqlstat
           (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
 
@@ -1938,7 +1939,7 @@ getContext2OverTypeBase startIdx endIdx = do
           putStrLn $ "getContext2OverTypeBase: context2OverTypeNum = " ++ show context2OverTypeNum
           return context2OverTypeBase
       _ -> do
-        putStrLn "getContext2OverTypeBase: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+        putStrLn "getContext2OverTypeBase: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
         return []
 
 {- Get similarity degree between two overtype contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend).
@@ -2116,7 +2117,7 @@ type NumOfContextOfSG = Int       -- ContextOfSG :: (LeftExtend, LeftOver, Right
 type NumOfContextOfSGPair = Int
 type ContextOfSGPair2Sim = ((ContextOfSG, ContextOfSG), SimDeg)
 
-{- Reading Prior and its context from the sample database of a certain syntax_ambi_resol_model, such as 'stru_gene_202408'.
+{- Reading Prior and its context from the sample database of a certain syntax_ambig_resol_model, such as 'stru_gene_202408'.
  - If start index and end index are both 0, then all records in sample database will be read.
  - Context2ClauTagPrior :: (ContextOfSG, Prior)
  - Context2ClauTagPriorBase :: [Context2ClauTagPrior]
@@ -2126,13 +2127,13 @@ getContext2ClauTagPriorBase :: SIdx -> SIdx -> IO [Context2ClauTagPrior]
 getContext2ClauTagPriorBase startIdx endIdx = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambi_resol_model = getConfProperty "syntax_ambi_resol_model" confInfo
-    case syntax_ambi_resol_model of
-      x | elem x ["stru_gene_202408", "stru_gene_202412"] -> do
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    case syntax_ambig_resol_model of
+      x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do
           let startIdx' = case startIdx of
                             0 -> 1
                             _ -> startIdx
-          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambi_resol_model
+          let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambig_resol_model
           (defs, is) <- query_ conn sqlstat
           rows <- readStreamByInt64 [] is
           let endIdx' = case endIdx of
@@ -2141,8 +2142,8 @@ getContext2ClauTagPriorBase startIdx endIdx = do
 
           putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
 
-          putStrLn $ "The source of priors and their contexts is set as: " ++ syntax_ambi_resol_model     -- Display the source of priors and their contexts
-          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambi_resol_model ++ " where id >= ? and id <= ?"
+          putStrLn $ "The source of priors and their contexts is set as: " ++ syntax_ambig_resol_model     -- Display the source of priors and their contexts
+          let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend, overType, clauTagPrior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
           stmt <- prepareStmt conn sqlstat
           (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
 
@@ -2151,7 +2152,7 @@ getContext2ClauTagPriorBase startIdx endIdx = do
           putStrLn $ "getContext2ClauTagPriorBase: context2ClauTagPriorNum = " ++ show context2ClauTagPriorNum
           return context2ClauTagPriorBase
       _ -> do
-        putStrLn "getContext2ClauTagPriorBase: Value of property 'syntax_ambi_resol_model' does not match any MySQL table."
+        putStrLn "getContext2ClauTagPriorBase: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
         return []
 
 {- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).

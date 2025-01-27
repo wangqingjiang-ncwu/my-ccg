@@ -28,6 +28,7 @@ module Phrase (
     ctpaOfCate,    -- PhraCate -> [(Category, Tag, PhraStru, Act)]
     ctpOfCate,     -- PhraCate -> [(Category, Tag, PhraStru)]
     ctpOfCateList, -- [PhraCate] -> [(Category, Tag, PhraStru)]
+    ctpOfCateList',            -- [PhraCate] -> [(Category, Tag, PhraStru)]
     tpaOfCate,     -- PhraCate -> [(Tag, PhraStru, Act)]
     ctspOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
     ctspOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
@@ -62,14 +63,14 @@ module Phrase (
     deactOnePC,    -- PhraCate -> PhraCate
     actOnePC,      -- PhraCate -> PhraCate
     pclt,          -- PhraCate -> PhraCate -> Bool
-    quickSort4Phrase ,           -- [PhraCate] -> [PhraCate]
-    divPhraCateBySpan,            -- [PhraCate] -> [[PhraCate]]
-    sortPhraCateBySpan,           -- [PhraCate] -> [PhraCate]
-    divPhraCateBySpan',           -- [PhraCate] -> [[PhraCate]]
-    sortPhraCateBySpan',          -- [PhraCate] -> [PhraCate]
-    notElem4Phrase,             -- PhraCate -> [PhraCate] -> Bool
-    elem4Phrase,                -- PhraCate -> [PhraCate] -> Bool
-    equalSortedPhraList,          -- [PhraCate] -> [PhraCate] -> Bool
+    quickSort4Phrase ,         -- [PhraCate] -> [PhraCate]
+    divPhraCateBySpan,         -- [PhraCate] -> [[PhraCate]]
+    sortPhraCateBySpan,        -- [PhraCate] -> [PhraCate]
+    divPhraCateBySpan',        -- [PhraCate] -> [[PhraCate]]
+    sortPhraCateBySpan',       -- [PhraCate] -> [PhraCate]
+    notElem4Phrase,            -- PhraCate -> [PhraCate] -> Bool
+    elem4Phrase,               -- PhraCate -> [PhraCate] -> Bool
+    equalSortedPhraList,       -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
 import Data.Tuple
@@ -186,6 +187,9 @@ ctpOfCateList (x:xs) origCtpList = ctpOfCateList xs newCtpList
     where
       ctp = ctpOfCate x
       newCtpList = origCtpList ++ ctp
+
+ctpOfCateList' :: [PhraCate] -> [(Category, Tag, PhraStru)]
+ctpOfCateList' nPCs = ctpOfCateList nPCs []
 
 tpaOfCate :: PhraCate -> [(Tag, PhraStru, Act)]                   -- Get syntactic information of a phrase
 tpaOfCate (_, ctspa, _) = map (\x -> (snd5 x, fth5 x, fif5 x)) ctspa

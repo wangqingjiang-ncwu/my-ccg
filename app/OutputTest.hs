@@ -35,6 +35,10 @@ outputTest = do
     showNPhraCate [((0,0),[(c1, "Desig", "Frank'", "DE", True)],0), ((1,1),[(c2, ">", "makes' a_joke'", "VO", True)],2)]
     putStrLn ""
 
+    putStrLn "The result of showNPhraCateListLn [[]] is"
+    showNPhraCateListLn [[]]
+    putStrLn ""
+
     putStrLn "The result of showNPhraCatePair [(((0,0),[(np, \"Desig\", \"Frank'\",\"DE\", True)],0),((1,0),[(s\\.np, \"Desig\", \"loves'\", \"DE\", True)],1)), (((2,0),[(np/.np, \"Desig\", \"beautiful'\", \"DE\", True)],2),((3,0),[(np, \"Desig\", \"Mary'\", \"DE\", True)],3))] is"
     let c1 = getCateFromString "np"
     let c2 = getCateFromString "s\\.np"

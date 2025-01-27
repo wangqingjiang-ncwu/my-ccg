@@ -18,11 +18,9 @@ module Output (
     getPhraCate_String,  -- PharCate -> string
     showNPhraCateLn,     -- [PhraCate] -> IO ()
     showNPhraCate,       -- [PhraCate] -> IO ()
-    showNPhraCateWithoutNewLine,      -- [PhraCate] -> IO ()
     showNPhraSynLn,      -- [PhraSyn] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
     showNPhraCateListLn,   -- [[PhraCate]] -> IO ()
-    showNPhraCateListWithoutNewLine,  -- [[PhraCate]] -> IO ()
     putNPCList,       -- [[PhraCate]] -> IO ()
     showStruFrag,     -- [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
     showAmbiModel1Frag,    -- PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
@@ -30,11 +28,12 @@ module Output (
     showNPhraCatePair,     -- [(PhraCate, PhraCate)] -> IO ()
     showNPhraCatePairList, -- [[(PhraCate, PhraCate)]] -> IO ()
     showOverPair,     -- OverPair -> IO ()
-    showNOverPair,    -- [OverPair] -> IO ()
+    showNOverPairLn,  -- [OverPair] -> IO ()
     showOverPairid,   -- OverPairid -> IO ()
     showNOverPairid,  -- [OverPairid] -> IO ()
-    showScript,       -- [(ClauIdx, [[Rule]], [BanPCs]))] -> IO ()
-    showScript',      -- [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
+    showScripts,      -- [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
+    showScripts',     -- [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
+    showSnScript2List,           -- [(SentIdx, [Script], [Script])] -> IO ()
     showForest,       -- [[PhraCate]] -> IO ()
     showTree,         -- [[PhraCate]] -> IO ()
     showTrees,        -- [[PhraCate]] -> IO ()
@@ -72,11 +71,6 @@ import Utils
 import Data.Char
 import Data.List
 import Data.Tuple.Utils
-
-type Stub = [PhraCate]
-type SLROfATrans = (Stub, [Rule])
-type SLROfClause = [SLROfATrans]
-type SLROfSent = [SLROfClause]
 
 getSemStr :: String -> String
 getSemStr [] = []
@@ -198,6 +192,7 @@ getNCtsca_String' (x:xs) = getNCtsca_String' [x] ++ ", " ++ getNCtsca_String xs
 getPhraCate_String :: PhraCate -> String
 getPhraCate_String ((st, sp), nCtsca, ss) = "((" ++ show st ++ ", " ++ show sp ++ "), " ++ getNCtsca_String nCtsca ++ ", " ++ show ss ++ ")"
 
+-- Show a list of phrasal categories inlcuding the outest square brackets, and print a new line at the end.
 showNPhraCateLn :: [PhraCate] -> IO ()
 showNPhraCateLn [] = putStrLn "[]"
 showNPhraCateLn [x] = do
@@ -209,6 +204,7 @@ showNPhraCateLn (x:xs) = do
     putNPC (x:xs)
     putStrLn "]"
 
+-- Show a list of phrasal categories inlcuding the outest square brackets.
 showNPhraCate :: [PhraCate] -> IO ()
 showNPhraCate [] = putStr "[]"
 showNPhraCate [x] = do
@@ -220,6 +216,7 @@ showNPhraCate (x:xs) = do
     putNPC (x:xs)
     putStr "]"
 
+-- Show a list of PhraSyn values without the outest square brackets, and print a new line at the end.
 showNPhraSynLn :: [PhraSyn] -> IO ()
 showNPhraSynLn [] = putStrLn "[]"
 showNPhraSynLn [x] = do
@@ -231,6 +228,7 @@ showNPhraSynLn (x:xs) = do
     putNPS (x:xs)
     putStrLn "]"
 
+-- Show a list of PhraSyn values without the outest square brackets.
 putNPS :: [PhraSyn] -> IO ()
 putNPS [] = putStr ""
 putNPS [x] = showPhraSyn x
@@ -239,17 +237,7 @@ putNPS (x:xs) = do
     putStr ","
     putNPS xs
 
-showNPhraCateWithoutNewLine :: [PhraCate] -> IO ()
-showNPhraCateWithoutNewLine [] = putStr "[]"
-showNPhraCateWithoutNewLine [x] = do
-    putStr "["
-    showPhraCate x
-    putStr "]"
-showNPhraCateWithoutNewLine (x:xs) = do
-    putStr "["
-    putNPC (x:xs)
-    putStr "]"
-
+-- Show phrasal categories without the outest brackets.
 putNPC :: [PhraCate] -> IO ()
 putNPC [] = putStr ""
 putNPC [x] = showPhraCate x
@@ -258,46 +246,49 @@ putNPC (x:xs) = do
     putStr ","
     putNPC xs
 
+-- Show a list of list of phrasal categories with the outest square brackets, and print a new line at the end.
 showNPhraCateListLn :: [[PhraCate]] -> IO ()
 showNPhraCateListLn [] = putStrLn "[]"
 showNPhraCateListLn [x] = do
     putStr "["
-    putNPC x
+    showNPhraCate x
     putStrLn "]"
 showNPhraCateListLn (x:xs) = do
     putStr "["
     putNPCList (x:xs)
     putStrLn "]"
 
-showNPhraCateListWithoutNewLine :: [[PhraCate]] -> IO ()
-showNPhraCateListWithoutNewLine [] = putStr "[]"
-showNPhraCateListWithoutNewLine [x] = do
+-- Show a list of list of phrasal categories with the outest square brackets.
+showNPhraCateList :: [[PhraCate]] -> IO ()
+showNPhraCateList [] = putStr "[]"
+showNPhraCateList [x] = do
     putStr "["
-    putNPC x
+    showNPhraCate x
     putStr "]"
-showNPhraCateListWithoutNewLine (x:xs) = do
+showNPhraCateList (x:xs) = do
     putStr "["
     putNPCList (x:xs)
     putStr "]"
 
+-- Show a list of list of phrasal categories without the outest square brackets.
 putNPCList :: [[PhraCate]] -> IO ()
 putNPCList [] = putStr ""
-putNPCList [x] = putNPC x
+putNPCList [x] = showNPhraCate x
 putNPCList (x:xs) = do
-    putNPC x
+    showNPhraCate x
     putStr ","
     putNPCList xs
 
 showStruFrag :: [PhraCate] -> PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
 showStruFrag leftExtend leftOver rightOver rightExtend overType = do
     putStr "leftExtend = "
-    showNPhraCateWithoutNewLine leftExtend
+    showNPhraCate leftExtend
     putStr ", leftOver = "
     showPhraCate leftOver
     putStr ", rightOver = "
     showPhraCate rightOver
     putStr ", rightExtend = "
-    showNPhraCateWithoutNewLine rightExtend
+    showNPhraCate rightExtend
     putStrLn $ ", overType = " ++ show overType
 
 showAmbiModel1Frag :: PhraCate -> PhraCate -> [PhraCate] -> OverType -> IO ()
@@ -307,7 +298,7 @@ showAmbiModel1Frag leftPhrase rightPhrase context overType = do
     putStr ", rightPhrase = "
     showPhraCate rightPhrase
     putStr ", context = "
-    showNPhraCateWithoutNewLine context
+    showNPhraCate context
     putStrLn $ ", overType = " ++ show overType
 
 getNPhraCate_String :: [PhraCate] -> String
@@ -361,12 +352,14 @@ showOverPair (lp, rp, prior) = do
     putStr $ show prior
     putStr ")"
 
-showNOverPair :: [OverPair] -> IO ()
-showNOverPair ops = do
+-- Show a list of OverPair values including the outest square brackets.
+showNOverPairLn :: [OverPair] -> IO ()
+showNOverPairLn ops = do
     putStr "["
     showNOverPair' ops
     putStrLn "]"
 
+-- Show a list of OverPair values without the outest square brackets.
 showNOverPair' :: [OverPair] -> IO ()
 showNOverPair' [] = putStr ""
 showNOverPair' [op] = showOverPair op
@@ -401,28 +394,52 @@ showNOverPairid' (op:ops) = do
     putStr ", "
     showNOverPairid' ops
 
--- Comparing with showScript', this function adds external square brackets and a line feed.
-showScript :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
-showScript [] = putStrLn ""
-showScript (s:ss) = do
+-- Show a list of scripts including the outest square brackets.
+showScripts :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
+showScripts [] = putStrLn "[]"
+showScripts ss = do
     putStr "["
-    showScript' (s:ss)
+    showScripts' ss
     putStrLn "]"
 
-showScript' :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
-showScript' [] = putStr ""
-showScript' [s] = do
+-- Show a list of scripts without the outest square brackets.
+showScripts' :: [(ClauIdx, [[Rule]], [BanPCs])] -> IO ()
+showScripts' [] = putStr ""
+showScripts' [s] = do
     putStr "("
     putStr $ show (fst3 s)
     putStr ","
     putStr $ show (snd3 s)
-    putStr ",["
-    putNPCList (thd3 s)
-    putStr "])"
-showScript' (s:ss) = do
-    showScript' [s]
     putStr ","
-    showScript' ss
+    showNPhraCateList (thd3 s)
+    putStr ")"
+showScripts' (s:ss) = do
+    showScripts' [s]
+    putStrLn ","
+    showScripts' ss
+
+-- Show [(SentIdx, [Script], [Script])] including the outest square brackets.
+showSnScript2List :: [(SentIdx, [Script], [Script])] -> IO ()
+showSnScript2List [] = putStrLn "[]"
+showSnScript2List xs = do
+    putStr "["
+    showSnScript2List' xs
+    putStrLn "]"
+
+-- Show [(SentIdx, [Script], [Script])] without the outest square brackets.
+showSnScript2List' [] = putStr ""
+showSnScript2List' [x] = do
+    putStr "("
+    putStr $ show (fst3 x)
+    putStr ","
+    showScripts (snd3 x)
+    putStr ","
+    showScripts (thd3 x)
+    putStr ")"
+showSnScript2List' (x:xs) = do
+    showSnScript2List' [x]
+    putStr ","
+    showSnScript2List' xs
 
 showForest :: [[PhraCate]] -> IO ()
 showForest [] = putStrLn ""
@@ -617,12 +634,12 @@ showNCateLine curPos (x:xs) ospls = do
     newPos = catPos + catWid + 1
 
 showSLR :: SLROfATrans -> IO ()
-showSLR slr = do
-    putStr "("
-    showNPhraCateLn (fst slr)
+showSLR (clauTag, (stub, rules)) = do
+    putStr $ "(" ++ show clauTag ++ ", ("
+    showNPhraCate stub
     putStr ","
-    putStr $ show (snd slr)
-    putStr ")"
+    putStr $ show rules
+    putStrLn "))"
 
 showSLROfClause :: SLROfClause -> IO ()
 showSLROfClause [] = putStrLn "[]"
@@ -634,11 +651,11 @@ showSLROfClause s = do
 showSLROfClause' :: SLROfClause -> IO ()
 showSLROfClause' [] = putStr ""
 showSLROfClause' [s] = do
-    putStr "("
-    showNPhraCate (fst s)
+    putStr $ "(" ++ show (fst s) ++ ", ("
+    showNPhraCate ((fst . snd) s)
     putStr ","
-    putStr $ show (snd s)
-    putStr ")"
+    putStr $ show ((snd . snd) s)
+    putStr "))"
 showSLROfClause' (s:ss) = do
     showSLROfClause' [s]
 --    putStrLn ","

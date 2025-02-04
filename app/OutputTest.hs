@@ -331,12 +331,14 @@ outputTest = do
     showForestCateStartPos [[pc11,pc12,pc13,pc21,pc32], [pc11,pc12,pc13,pc22,pc31]]
     putStrLn ""
 
-    putStrLn "The result of distPhraSynByIdentity (getCateFromString \"np\", \">\", \"AHn\")) (getCateFromString \"(s\\.np)/.np\", \"<B\", \"AHn\") is"
+    putStrLn "The result of distPhraSynByIdentity (getCateFromString \"np\", \">\", \"AHn\", 1)) (getCateFromString \"(s\\.np)/.np\", \"<B\", \"AHn\", 2) is"
     let c1 = getCateFromString "np"
     let c2 = getCateFromString "(s\\.np)/.np"
     let t1 = ">"
     let t2 = "<B"
     let p1 = "AHn"
     let p2 = "AHn"
-    putStrLn $ show $ distPhraSynByIdentity (c1,t1,p1) (c2,t2,p2)
+    let s1 = 1
+    let s2 = 2
+    putStrLn $ show $ distPhraSynByIdentity (c1,t1,p1,s1) (c2,t2,p2,s2)
     putStrLn ""

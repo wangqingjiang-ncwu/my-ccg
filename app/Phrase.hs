@@ -29,6 +29,9 @@ module Phrase (
     ctpOfCate,     -- PhraCate -> [(Category, Tag, PhraStru)]
     ctpOfCateList, -- [PhraCate] -> [(Category, Tag, PhraStru)]
     ctpOfCateList',            -- [PhraCate] -> [(Category, Tag, PhraStru)]
+    ctpsOfCate,    -- PhraCate -> [(Category, Tag, PhraStru, Span)]
+    ctpsOfCateList,            -- [PhraCate] -> [(Category, Tag, PhraStru, Span)]
+    ctpsOfCateList',           -- [PhraCate] -> [(Category, Tag, PhraStru, Span)]
     tpaOfCate,     -- PhraCate -> [(Tag, PhraStru, Act)]
     ctspOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
     ctspOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
@@ -190,6 +193,19 @@ ctpOfCateList (x:xs) origCtpList = ctpOfCateList xs newCtpList
 
 ctpOfCateList' :: [PhraCate] -> [(Category, Tag, PhraStru)]
 ctpOfCateList' nPCs = ctpOfCateList nPCs []
+
+ctpsOfCate :: PhraCate -> [(Category, Tag, PhraStru, Span)]       -- Get syntactic information of a phrase
+ctpsOfCate ((_, span), ctspa, _) = map (\x -> (fst5 x, snd5 x, fth5 x, span)) ctspa
+
+ctpsOfCateList :: [PhraCate] -> [(Category, Tag, PhraStru, Span)] -> [(Category, Tag, PhraStru, Span)]
+ctpsOfCateList [] origCtpsList = origCtpsList
+ctpsOfCateList (x:xs) origCtpsList = ctpsOfCateList xs newCtpsList
+    where
+      ctps = ctpsOfCate x
+      newCtpsList = origCtpsList ++ ctps
+
+ctpsOfCateList' :: [PhraCate] -> [(Category, Tag, PhraStru, Span)]
+ctpsOfCateList' nPCs = ctpsOfCateList nPCs []
 
 tpaOfCate :: PhraCate -> [(Tag, PhraStru, Act)]                   -- Get syntactic information of a phrase
 tpaOfCate (_, ctspa, _) = map (\x -> (snd5 x, fth5 x, fif5 x)) ctspa

@@ -795,8 +795,8 @@ doTestScriptIdentity username = do
         stmt <- prepareStmt conn query
         (defs, is) <- queryStmt conn stmt [toMySQLInt32 (read defaultStartIdx :: Int), toMySQLInt32 (read defaultEndIdx :: Int)]
         issList <- readStreamByInt32TextText [] is   -- [(Int, String, String)]
-        let snScript2List = map (\x -> (fst3 x, map (\x -> (fst3 x, snd3 x, map sortPhraCateBySpan' (thd3 x))) (readScripts (snd3 x))
-                                              , map (\x -> (fst3 x, snd3 x, map sortPhraCateBySpan' (thd3 x))) (readScripts (thd3 x)))
+        let snScript2List = map (\x -> (fst3 x, map (\y -> (fst3 y, snd3 y, map sortPhraCateBySpan' (thd3 y))) (readScripts (snd3 x))
+                                              , map (\y -> (fst3 y, snd3 y, map sortPhraCateBySpan' (thd3 y))) (readScripts (thd3 x)))
                                 ) issList
                                                                                 -- [(SentIdx, [Script], [Script])]
         let checkList = map (\x -> (fst3 x, snd3 x == thd3 x)) snScript2List    -- [(Int, Bool)]
@@ -851,9 +851,11 @@ doMaintenance username = do
     putStrLn " 1 -> Rearrange auto-increment values of 'id' in a certain database table"
     putStrLn " 2 -> Sort phrases in corpus field 'tree' and 'script' according to span ascending"
     putStrLn " 3 -> Add phrasal structure Half-juXtaposition to corpus field 'tree' and 'script'"
+    putStrLn " 4 -> Remove StruGene2 samples using PhraSyn0 definition"
+    putStrLn " 5 -> Count clausal ambiguity at StruGene2 samples"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -862,6 +864,8 @@ doMaintenance username = do
                "1" -> doRearrangeIdinCertainTable username
                "2" -> doSortPhraseInTreeAndScript username
                "3" -> doAddHX2TreeAndScript username
+               "4" -> doRemoveStruGene2SamplesUsingPhraSyn0 username
+               "5" -> doCountClausalAmbigAtSGSamples username
              doMaintenance username                            -- Rear recursion
 
 -- C_1. Rearrange index column in a certain table.
@@ -870,36 +874,34 @@ doRearrangeIdinCertainTable username =
     if username /= "wqj"
       then putStrLn "doRearrangeIdinCertainTable: Only user 'wqj' can do this operation."
       else do
-        putStrLn "There are following tables including an index column:"
-        putStrLn " 1. stru_gene_202408"
-        putStrLn " 2. ..."
+        putStr "Please input the name of a table: "
+        tblName <- getLine
+        conn <- getConn
+        let sqlstat = DS.fromString $ "create table " ++ tblName ++ "_bak like " ++ tblName      -- Copy table structure to new table.
+        stmt' <- prepareStmt conn sqlstat
+        executeStmt conn stmt' []
+        putStrLn $ "Table " ++ tblName ++ "_bak was created."
 
-        tblNumStr <- getLineUntil "Please input the number correspongding a table (Return for '1'): " ["1","2"] True
-        case tblNumStr of
-          "1" -> do                         -- Table 'stru_gene_202408'
-            conn <- getConn
-            let sqlstat = DS.fromString $ "create table stru_gene_202408_bak like stru_gene_202408"            -- Copy table structure to new table.
-            stmt' <- prepareStmt conn sqlstat
-            executeStmt conn stmt' []
-            putStrLn "Table stru_gene_202408_bak was created."
-            let sqlstat = DS.fromString $ "insert into stru_gene_202408_bak (leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from stru_gene_202408"       -- Copy table data to new table.
+        case tblName of
+          x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftExtend, leftOver, rightOver, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from " ++ tblName     -- Copy table data to new table.
             stmt' <- prepareStmt conn sqlstat
             ok <- executeStmt conn stmt' []
-            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into stru_gene_202408_bak."
-            let sqlstat = DS.fromString $ "truncate table stru_gene_202408"     -- Remove data from old table.
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
             stmt' <- prepareStmt conn sqlstat
             executeStmt conn stmt' []
-            putStrLn "Table stru_gene_202408 truncated."
-            let sqlstat = DS.fromString $ "insert into stru_gene_202408 select * from stru_gene_202408_bak"    -- Copy table data to old table.
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
             stmt' <- prepareStmt conn sqlstat
             ok <- executeStmt conn stmt' []
-            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into stru_gene_202408."
-            let sqlstat = DS.fromString $ "drop table stru_gene_202408_bak"     -- Drop new table.
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
             stmt' <- prepareStmt conn sqlstat
             executeStmt conn stmt' []
-            putStrLn "Table stru_gene_202408_bak was dropped."
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
             close conn
-          "2" -> putStrLn "Function 2 has not been implemented."
+          _ -> putStrLn $ "Table name was not recognized."
 
 -- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.
 doSortPhraseInTreeAndScript :: String -> IO ()
@@ -932,6 +934,14 @@ doAddHX2TreeAndScript username = do
       else checkIpc4MultiSent startSn endSn username >>= \ok -> if ok
                then addHX2TreeAndScript startSn endSn
                else putStrLn "You are not the complete owner of intellectual property of these sentences."
+
+-- C_4. Remove StruGene2 samples using PhraSyn0 definition.
+doRemoveStruGene2SamplesUsingPhraSyn0 :: String -> IO ()
+doRemoveStruGene2SamplesUsingPhraSyn0 username = removeStruGene2SamplesUsingPhraSyn0
+
+-- C_5. Count clausal ambiguity at StruGene2 samples.
+doCountClausalAmbigAtSGSamples :: String -> IO ()
+doCountClausalAmbigAtSGSamples username = countClausalAmbigAtSGSamples
 
 -- D. 测试聚类模块的相关函数.
 doClustering :: String -> IO ()

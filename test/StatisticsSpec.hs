@@ -40,12 +40,12 @@ spec = do
       let sts1' = [(1,[(1,[pc1])])]
       filterTagInSentTrees "D/n->T->B" sts1 `shouldBe` sts1'
 
--- insertPhraList2TtsFreqMap' :: [PhraCate] -> Map (Category, Tag, PhraStru) Int -> Map (Category, Tag, PhraStru) Int
-    it "The result of insertPhraList2TtsFreqMap' [((1,1),[(s/#(s\\.np),D/n->T->B,教学计划' 学校',PE,True)],2), ((2,1),[(s/#(s\\.np),D/n->T->B,规定' 教学计划',PE,True)],3)] Map.empty is [((s/#(s\\.np),D/n->T->B,PE),2)]." $ do
+-- insertPhraList2CtpFreqMap' :: [PhraCate] -> Map (Category, Tag, PhraStru) Int -> Map (Category, Tag, PhraStru) Int
+    it "The result of insertPhraList2CtpFreqMap' [((1,1),[(s/#(s\\.np),D/n->T->B,教学计划' 学校',PE,True)],2), ((2,1),[(s/#(s\\.np),D/n->T->B,规定' 教学计划',PE,True)],3)] Map.empty is [((s/#(s\\.np),D/n->T->B,PE),2)]." $ do
       let c1 = getCateFromString "s/#(s\\.np)"
       let pc1 = createPhraCate 1 1 [(c1,"D/n->T->B","教学计划' 学校'","PE",True)] 2
       let pc2 = createPhraCate 2 1 [(c1,"D/n->T->B","规定' 教学计划'","PE",True)] 3
-      let ttsNumList = Map.toList $ insertPhraList2TtsFreqMap' [pc1,pc2] Map.empty
+      let ttsNumList = Map.toList $ insertPhraList2CtpFreqMap' [pc1,pc2] Map.empty
       ttsNumList `shouldBe` [((c1,"D/n->T->B","PE"),2)]
 
 
@@ -88,8 +88,9 @@ spec = do
       let map12 = Map.insert (predCate,">","VO") 3 map11
       Map.unionWith (+) map11 map2 `shouldBe` map12
 
-    it "The result of quickSort4PhraSyn  [(s\\.np,>,VO), (np,>,VO), (np/.np,>,VO)] is [(np,>,VO), (np/.np,>,VO), (s\\.np,>,VO)]." $ do
-      let gt1 = (predCate,">","VO")
-      let gt2 = (npCate,">","VO")
-      let gt3 = (adjCate,">","VO")
-      quickSort4PhraSyn  [gt1,gt2,gt3] `shouldBe` [gt2,gt3,gt1]
+    it "The result of quickSort4PhraSyn  [(s\\.np,>,VO,2), (np,>,VO,2), (np/.np,>,VO,3),(np/.np,>,VO,1)] is [(np,>,VO,2), (np/.np,>,VO,1), (np/.np,>,VO,3), (s\\.np,>,VO),2]." $ do
+      let gt1 = (predCate,">","VO",2)
+      let gt2 = (npCate,">","VO",2)
+      let gt3 = (adjCate,">","VO",3)
+      let gt4 = (adjCate,">","VO",1)
+      quickSort4PhraSyn  [gt1,gt2,gt3,gt4] `shouldBe` [gt2,gt4,gt3,gt1]

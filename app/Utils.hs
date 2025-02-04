@@ -67,6 +67,7 @@ module Utils (
     stringToTuple,     -- String -> (String,String)
     stringToIntTuple,  -- String -> (Int, Int)
     stringToTriple,    -- String -> (String,String,String)
+    stringToQuadruple, -- String -> (String,String,String,String)
     stringToFiveTuple,  -- String -> (String,String,String,String,String)
     stringToSixTuple,  -- String -> (String,String,String,String,String,String)
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
@@ -497,6 +498,16 @@ stringToTriple str = (first, second, third)
       first = listHead str'
       second = listHead (listDrop 1 str')
       third = listLast str'
+
+-- Get (String, String, String, String) from the String of a quadruple.
+stringToQuadruple :: String -> (String, String, String, String)
+stringToQuadruple str = (first, second, third, fourth)
+    where
+      str' = "[" ++ init (tail (throwHTSpace str)) ++ "]"
+      first = listHead str'
+      second = listHead (listDrop 1 str')
+      third = listHead (listDrop 2 str')
+      fourth = listLast str'
 
 -- Get (String, String, String, String, String) from the String of a five-tuple.
 stringToFiveTuple :: String -> (String, String, String, String, String)

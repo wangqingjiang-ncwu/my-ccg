@@ -2,11 +2,14 @@
 -- All rights reserved.
 
 module AmbiResol (
+    PhraSyn0,            -- (Category, Tag, PhraStru)
+    PhraSyn,             -- (Category, Tag, PhraStru, Span)
+    nullPhraSyn,         -- (Nil, "", "")
     SIdx,                -- Int
-    LeftExtend,          -- [(Category,Tag,PhraStru)]
-    LeftOver,            -- (Category,Tag,PhraStru)
-    RightOver,           -- (Category,Tag,PhraStru)
-    RightExtend,         -- [(Category,Tag,PhraStru)]
+    LeftExtend,          -- [(Category, Tag, PhraStru, Span)]
+    LeftOver,            -- (Category, Tag, PhraStru, Span)
+    RightOver,           -- (Category, Tag, PhraStru, Span)
+    RightExtend,         -- [(Category, Tag, PhraStru, Span)]
     ContextOfOT,         -- (LeftExtend, LeftOver, RightOver, RightExtend)
     Context2OverType,    -- (ContextOfOT, OverType)
     Context2OverTypeBase, -- [Context2OverType]
@@ -34,8 +37,6 @@ module AmbiResol (
     removeClauTagPriorFromSynAmbiResol,     -- SentIdx -> ClauIdx -> ClauIdx -> IO ()
     Context2ClauTagPrior,       -- (ContextOfSG, [ClauTagPrior])
     Context2ClauTagPriorBase,   -- [Context2ClauTagPrior]
-    PhraSyn,             -- (Category, Tag, PhraStru)
-    nullPhraSyn,         -- (Nil, "", "")
     StruGene,            -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
     getContextFromStruGene,     -- StruGene -> ContextOfSG
     StruGeneSample,      -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
@@ -71,17 +72,18 @@ module AmbiResol (
     StruGene2,           -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
     StruGene2Sample,     -- (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, OverType, [ClauTagPrior])
     getContextFromStruGene2,           -- StruGene2 -> ContextOfSG
+    getContextFromStruGene2Sample,     -- StruGene2Sample -> ContextOfSG
     fromStruGene2ByHighestFreqPrior,   -- StruGene2 -> StruGene
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
-    readStreamByInt32UText
     readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     SynAmbiResolMethod,  -- String
+    rmNullCTPRecordsFromDB,       -- IO ()
 
     ) where
 
 import Category
-import Phrase (Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
+import Phrase (Span, Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Rule (Rule)
 import Utils
 import Data.List (nub)
@@ -93,13 +95,16 @@ import Database.MySQL.Base
 import qualified Data.String as DS
 import qualified System.IO.Streams as S
 
--- Syntactic attribues of a phrase, including its syntactic category, tag of rule by which the phrase is obtained, and structural type of the phrase.
--- In Chinese, sentential parsing includes morphological parsing, so rule 'A/n->' contains the two aspects.
-type PhraSyn = (Category, Tag, PhraStru)
+{- Syntactic attribues of a phrase, including its syntactic category, tag of grammar rule by which the phrase is obtained,
+ - structural type of the phrase, and phrasal span.
+ - In Chinese, sentential parsing includes morphological parsing, so rule 'A/n->' contains the two aspects.
+ -}
+type PhraSyn0 = (Category, Tag, PhraStru)
+type PhraSyn = (Category, Tag, PhraStru, Span)
 
--- Null phrasal syntax.
+-- Null phrasal syntax, in which grammar tag, phrasal structure and phrasal span use their not existing values.
 nullPhraSyn :: PhraSyn
-nullPhraSyn = (Nil, "", "")
+nullPhraSyn = (Nil, "", "", -1)
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, the left-adjacent phrases and the right-
    adjacent phrases should be considered. As basic fragments, such quadruples would exist in many
@@ -219,7 +224,9 @@ removeClauTagPriorFromSynAmbiResol :: SentIdx -> ClauIdx -> ClauIdx -> IO ()
 removeClauTagPriorFromSynAmbiResol sn clauIdxOfStart clauIdxOfEnd = do
     let clauIdxRange = [clauIdxOfStart .. clauIdxOfEnd]
     if clauIdxRange == []
-      then putStrLn "removeClauTagPriorFromSynAmbiResol: Finished."
+      then do
+        rmNullCTPRecordsFromDB                                                  -- Remove records whose clauTagPrior is '[]'.
+        putStrLn "removeClauTagPriorFromSynAmbiResol: Finished."
       else do
         putStrLn $ "removeClauTagPriorFromSynAmbiResol: Removing sample tags of clause " ++ show clauIdxOfStart ++ " begins ..."
         removeClauTagPriorFromSynAmbiResol' (sn, clauIdxOfStart)
@@ -282,6 +289,7 @@ hasDupClauTagInCTPList ctps = length clauTags /= length (nub clauTags)
 
 {- Filter ClauTagPrior values with given ClauTag value in a [ClauTagPrior] list.
  - This function is unnecessary and actually can be replaced with Data.List.filter.
+ - Also, it is unnecessary when every clauTagPrior field has only one ClauTagPrior tuple.
  -}
 filterInCTPListByClauTag :: ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
 filterInCTPListByClauTag _ [] = []
@@ -368,12 +376,13 @@ readAmbiResol1FromStr str = (lp, rp, ct, ot, pr)
     pr = readPriorFromStr (fif5 fiveTupleStr)
 
 readPhraSynFromStr :: String -> PhraSyn
-readPhraSynFromStr str = (ca, ta, ps)
+readPhraSynFromStr str = (ca, ta, ps, sp)
     where
-    (caStr, taStr, psStr)  = stringToTriple str
+    (caStr, taStr, psStr, spStr)  = stringToQuadruple str
     ca = getCateFromString caStr
     ta = read taStr :: Tag                        -- Sometime, It is necessary of changing from String to Tag.
     ps = read psStr :: PhraStru
+    sp = read spStr :: Span
 
 readPhraSynListFromStr :: String -> [PhraSyn]
 readPhraSynListFromStr "[]" = []
@@ -433,11 +442,12 @@ nScdToString scds = listToString (map scdToString scds)
 
 -- Get the string of a PhraSyn
 phraSynToString :: PhraSyn -> String
-phraSynToString phs = "(" ++ ca ++ "," ++ ta ++ "," ++ ps ++")"
+phraSynToString phs = "(" ++ ca ++ "," ++ ta ++ "," ++ ps ++ "," ++ sp ++ ")"
     where
-      ca = show (fst3 phs)
-      ta = snd3 phs
-      ps = thd3 phs
+      ca = show (fst4 phs)
+      ta = snd4 phs
+      ps = thd4 phs
+      sp = show (fth4 phs)
 
 -- Get the string of [PhraSyn]
 nPhraSynToString :: [PhraSyn] -> String
@@ -524,6 +534,10 @@ type StruGene2Sample = (SIdx, LeftExtend, LeftOver, RightOver, RightExtend, Over
 getContextFromStruGene2 :: StruGene2 -> ContextOfSG
 getContextFromStruGene2 struGene2 = (\x -> (fst6 x, snd6 x, thd6 x, fth6 x, fif6 x)) struGene2
 
+-- Get ContextOfSG value from StruGene2Sample value.
+getContextFromStruGene2Sample :: StruGene2Sample -> ContextOfSG
+getContextFromStruGene2Sample struGene2Sample = (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x)) struGene2Sample
+
 -- Convert a StruGene2 value to a StruGene value by doing priorWithHighestFreq opertion.
 fromStruGene2ByHighestFreqPrior :: StruGene2 -> StruGene
 fromStruGene2ByHighestFreqPrior (a,b,c,d,e,clauTagPrior) = (a,b,c,d,e, (fromMaybePrior . priorWithHighestFreq) clauTagPrior)
@@ -583,3 +597,18 @@ readStreamByInt32U3TextInt8Text es is = do
  - For model StruGene, methods include "StruGeneSimple" and "StruGeneEmbedded".
  -}
 type SynAmbiResolMethod = String
+
+{- Remove StruGene2 records which have null clauTagPrior value from sample database.
+ -}
+rmNullCTPRecordsFromDB :: IO ()
+rmNullCTPRecordsFromDB = do
+    confInfo <- readFile "Configuration"
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+
+    conn <- getConn
+    let sqlstat = DS.fromString $ "delete from " ++ syntax_ambig_resol_model ++ " where clauTagPrior = '[]'"
+    stmt <- prepareStmt conn sqlstat
+    ok <- executeStmt conn stmt []
+    let rn = getOkAffectedRows ok
+    putStrLn $ "rmNullCTPRecordsFromDB: " ++ show rn ++ " row(s) were deleted from " ++ syntax_ambig_resol_model ++ "."
+    close conn

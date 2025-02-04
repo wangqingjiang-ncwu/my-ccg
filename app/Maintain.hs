@@ -16,6 +16,8 @@ module Maintain (
     addHX2Tree4ASent,    -- [Tree] -> [Tree]
     addHX2Script4ASent,  -- [Script] -> [Script]
     addHX2Phrase,        -- PhraCate -> PhraCate
+    removeStruGene2SamplesUsingPhraSyn0,      -- IO ()
+    countClausalAmbigAtSGSamples,             -- IO ()
     ) where
 
 import Control.Monad
@@ -24,8 +26,10 @@ import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List.Utils
 import Data.Tuple.Utils
+import Text.Printf
 import Data.List
 import Database
+import AmbiResol
 import Output
 import Corpus
 import Phrase
@@ -256,3 +260,59 @@ addHX2Phrase ((start, span), [(cate, tag, seman, phraStru, act)], secStart)
 --    | elem True (map (\x -> isPrefixOf x seman) ["、","，","和","与","并","或","及","以及","也","而","还是","即使","则","却"，"而且","如果","无论"]) && phraStru == "XX" = ((start, span), [(cate, tag, seman, "HX", act)], secStart)
     | (seman!!0) /= '(' && phraStru == "XX" = ((start, span), [(cate, tag, seman, "HX", act)], secStart)
     | otherwise = ((start, span), [(cate, tag, seman, phraStru, act)], secStart)
+
+{- Remove samles of StruGene2 using original PhraSyn definition, namely (Category, Tag, PhraStru).
+ -}
+removeStruGene2SamplesUsingPhraSyn0 :: IO ()
+removeStruGene2SamplesUsingPhraSyn0 = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        conn <- getConn
+        let sqlstat = DS.fromString $ "select id, leftOver from " ++ syntax_ambig_resol_model
+        stmt <- prepareStmt conn sqlstat
+        (_, is) <- queryStmt conn stmt []
+        rows <- readStreamByInt32UText [] is                                    -- [(SIdx, PhraSynStr)] or [(SIdx, PhraSyn0Str)]
+        let idsOfRowsUsingPhraSyn0 = map fst $ filter (\x -> length (elemIndices ',' (snd x)) == 2) rows    -- [SIdx]
+        let rows' = map ((\x -> [x]) . toMySQLInt32) idsOfRowsUsingPhraSyn0     -- [[MySQLInt32U]]
+        putStrLn $ show (length rows') ++ " rows will be deleted."
+
+        let sqlstat1 = DS.fromString $ "delete from " ++ syntax_ambig_resol_model ++ " where id = ?"
+        oks <- executeMany conn sqlstat1 rows'
+        putStrLn $ show (length oks) ++ " rows have been deleted."             -- Only rows with their values changed are affected rows.
+        close conn
+
+      else putStrLn "removeStruGene2SamplesUsingPhraSyn0: Operation was canceled."
+
+{- Count clausal ambiguity at StruGene2 samples, namely count samples whose field 'clauTagPrior' has duplicate hits on a same clause.
+ -}
+countClausalAmbigAtSGSamples :: IO ()
+countClausalAmbigAtSGSamples = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        conn <- getConn
+        let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambig_resol_model
+        stmt <- prepareStmt conn sqlstat
+        (_, is) <- queryStmt conn stmt []
+        rows <- readStreamByInt32UText [] is                                    -- [(SIdx, CTPListStr)]
+        let rowsHavingDupClauTag = filter (hasDupClauTagInCTPList . snd)  (map (\x -> (fst x, (stringToCTPList . snd) x))  rows)    -- [(SIdx, CTPList)]
+        let numOfRowsHavingDupClauTag = length rowsHavingDupClauTag             -- Int
+        putStr $ show (length rowsHavingDupClauTag) ++ " samples clausal ambiguity, and they are: "
+        putStrLn $ show rowsHavingDupClauTag
+
+        let ratio = fromIntegral numOfRowsHavingDupClauTag / fromIntegral (length rows)
+        putStrLn $ " Ratio of samples having clausal ambiguity on all samples is " ++ (printf "%.4f" (ratio :: Double))
+        close conn
+
+      else putStrLn "countClausalAmbigAtSGSamples: Operation was canceled."

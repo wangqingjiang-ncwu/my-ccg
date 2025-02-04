@@ -9,8 +9,8 @@ module Statistics (
     countInStruGene,                -- Int -> IO ()
     searchInTree,                   -- Int -> Int -> Int -> IO ()
     searchInScript,                 -- Int -> Int -> Int -> IO ()
-    toTypeTagStru2FreqMap',         -- [[[PhraCate]]] -> Map PhraSyn Int -> Map PhraSyn Int
-    insertPhraList2TtsFreqMap',     -- [PhraCate] -> Map PhraSyn Int -> Map PhraSyn Int
+    toTypeTagStru2FreqMap',         -- [[[PhraCate]]] -> Map PhraSyn0 Int -> Map PhraSyn0 Int
+    insertPhraList2CtpFreqMap',     -- [PhraCate] -> Map PhraSyn0 Int -> Map PhraSyn0 Int
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
     truncDescListByProportion,      -- Float -> [(String, Int)] -> [(String, Int)]
     filterByString,                 -- String -> [(Int, String)] -> [(Int, String)]
@@ -45,7 +45,7 @@ import Utils
 import Database
 import Corpus
 import SentParse (sentToClauses, dispTreeOfSent)
-import AmbiResol (PhraSyn)
+import AmbiResol (PhraSyn0, PhraSyn)
 import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
@@ -271,14 +271,14 @@ countInTree bottomSn topSn funcIndex = do
 
     if funcIndex == 11                                          -- To get the frequency of every triple (Syntactic type, CCG rule tag, Phrasal structure) in all sentences.
        then do
-         let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty            -- Map String Int, namely Map <type_tag_stru> <ttsNum>.
+         let typeTagStru2FreqMap = toTypeTagStru2FreqMap sentClauPhraList Map.empty            -- Map String Int, namely Map <type_tag_stru> <ctpNum>.
          let typeTagStru2FreqMapList = Map.toList typeTagStru2FreqMap                          -- [(String, Int)]
          let typeTagStruFreqTotal = foldl (+) 0 (map snd typeTagStru2FreqMapList)
-         let descListOfTTSByValue = toDescListOfMapByValue typeTagStru2FreqMapList
-         let typeTagStruNormFreqDescList = map (\x -> (fst x, ((/(fromIntegral typeTagStruFreqTotal)). fromIntegral) (snd x))) descListOfTTSByValue                                   -- Normalized frequencies of different CCG tags.
+         let descListOfCTPByValue = toDescListOfMapByValue typeTagStru2FreqMapList
+         let typeTagStruNormFreqDescList = map (\x -> (fst x, ((/(fromIntegral typeTagStruFreqTotal)). fromIntegral) (snd x))) descListOfCTPByValue                                   -- Normalized frequencies of different CCG tags.
          putStrLn $ "countInTree: The number of different type-tag-stru structures: " ++ show (Map.size typeTagStru2FreqMap)
          putStrLn $ "countInTree: The frequency total of different type-tag-stru(s): " ++ show typeTagStruFreqTotal
-         putStrLn $ "countInTree: The frequencies of different type-tag-stru(s): " ++ show descListOfTTSByValue
+         putStrLn $ "countInTree: The frequencies of different type-tag-stru(s): " ++ show descListOfCTPByValue
 --       putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show typeTagStruNormFreqDescList
          putStrLn $ "countInTree: The normalized frequencies of different type-tag-stru(s): " ++ show (formatMapListWithFloatValue typeTagStruNormFreqDescList 4)
        else putStr ""
@@ -340,7 +340,7 @@ countInTree bottomSn topSn funcIndex = do
              showStruPair2SimList (formatMapListWithDoubleValue sparseStruPair2SimList 4)
        else putStr ""
 
--- By Singular Value Decomposition (SVD), calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru).
+-- By Singular Value Decomposition (SVD), calculate similarities between every pair of phrases in their grammatic feature (Category, Tag, PhraStru, Span).
     if funcIndex == 15
        then do
          confInfo <- readFile "Configuration"
@@ -353,15 +353,15 @@ countInTree bottomSn topSn funcIndex = do
          let origSimMatrix = snd5 phraSynPairSimTuple
          let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]
          let origSimByRMS = case distAlgo of
-                              "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
-                              "Manhattan" -> map ((/ 3.0) . sumElements) (toRows origSimMatrix)
+                              "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                              "Manhattan" -> map ((/ 4.0) . sumElements) (toRows origSimMatrix)
          let origSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip origSimMatrixToRows origSimByRMS     -- hmatrix
 
          let orthSimMatrix = fth5 phraSynPairSimTuple
          let orthSimMatrixToRows = map toList $ toRows orthSimMatrix                         -- [[SimDeg]]
          let orthSimByRMS = case distAlgo of
-                              "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
-                              "Manhattan" -> map ((/ 3.0) . sumElements) (toRows orthSimMatrix)
+                              "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                              "Manhattan" -> map ((/ 4.0) . sumElements) (toRows orthSimMatrix)
          let orthSim2RMSMatrix = fromLists $ map (\x -> fst x ++ [snd x]) $ zip orthSimMatrixToRows orthSimByRMS     -- hmatrix
 
          if (numOfPhraSynPair > 10)
@@ -848,36 +848,36 @@ insertPhraList2PhraStruFreqMap (x:xs) ps2FreqMap = insertPhraList2PhraStruFreqMa
  - The various triples and their frequencies are stored in Map PhraSyn Int.
  - The input is the list of sentential categories.
  -}
-toTypeTagStru2FreqMap' :: Sents -> Map PhraSyn Int -> Map PhraSyn Int
-toTypeTagStru2FreqMap' sents tts2FreqMap
-   | sents == []  = tts2FreqMap                                                 -- No sentence
-   | length sents == 1 && fstSent == [] = tts2FreqMap                        -- One sentence without clause to deal with.
-   | length sents == 1 && fstSent /= [] = toTypeTagStru2FreqMap' [tail fstSent] (insertPhraList2TtsFreqMap' (head fstSent) tts2FreqMap)
-   | otherwise = toTypeTagStru2FreqMap' (tail sents) (toTypeTagStru2FreqMap' [fstSent] tts2FreqMap)
+toTypeTagStru2FreqMap' :: Sents -> Map PhraSyn0 Int -> Map PhraSyn0 Int
+toTypeTagStru2FreqMap' sents ctp2FreqMap
+   | sents == []  = ctp2FreqMap                                              -- No sentence
+   | length sents == 1 && fstSent == [] = ctp2FreqMap                        -- One sentence without clause to deal with.
+   | length sents == 1 && fstSent /= [] = toTypeTagStru2FreqMap' [tail fstSent] (insertPhraList2CtpFreqMap' (head fstSent) ctp2FreqMap)
+   | otherwise = toTypeTagStru2FreqMap' (tail sents) (toTypeTagStru2FreqMap' [fstSent] ctp2FreqMap)
    where
      fstSent = head sents
 
 {- Get the frequencies of various triple (syntactic type, CCG rule tag, Phrasal structure), actually the triple is represented by string <type_tag_stru>,
  - because the frequencies of various triples are stored in a Data.Map, where these triples need change as keys, and frequencies are thought as corrresponding values.
- - The input is the list of sentential categories, and the output is Map <type_tag_stru> <ttsNum>.
+ - The input is the list of sentential categories, and the output is Map <type_tag_stru> <ctpNum>.
  -}
 toTypeTagStru2FreqMap :: [[[PhraCate]]] -> Map String Int -> Map String Int
-toTypeTagStru2FreqMap [] tts2FreqMap = tts2FreqMap                              -- No sentence
-toTypeTagStru2FreqMap [[]] tts2FreqMap = tts2FreqMap                            -- One sentence has no clause to deal with.
-toTypeTagStru2FreqMap [(c:cs)] tts2FreqMap = toTypeTagStru2FreqMap [cs] (insertPhraList2TtsFreqMap c tts2FreqMap)
+toTypeTagStru2FreqMap [] ctp2FreqMap = ctp2FreqMap                              -- No sentence
+toTypeTagStru2FreqMap [[]] ctp2FreqMap = ctp2FreqMap                            -- One sentence has no clause to deal with.
+toTypeTagStru2FreqMap [(c:cs)] ctp2FreqMap = toTypeTagStru2FreqMap [cs] (insertPhraList2CtpsFreqMap c ctp2FreqMap)
                                                                       -- 'c' is a clause, a list of phrasal categories.
-toTypeTagStru2FreqMap (sent:sents) tts2FreqMap = Map.unionWith (+) mapHead mapTail      -- "sent" means a sentence.
+toTypeTagStru2FreqMap (sent:sents) ctp2FreqMap = Map.unionWith (+) mapHead mapTail      -- "sent" means a sentence.
     where
-    mapHead = toTypeTagStru2FreqMap [sent] tts2FreqMap
-    mapTail = toTypeTagStru2FreqMap sents tts2FreqMap
+    mapHead = toTypeTagStru2FreqMap [sent] ctp2FreqMap
+    mapTail = toTypeTagStru2FreqMap sents ctp2FreqMap
 
 {- Insert a series of 'type_tag_stru' into a Map to count the frequency of every 'type_tag_stru'.
  -}
-insertPhraList2TtsFreqMap :: [PhraCate] -> Map String Int -> Map String Int
-insertPhraList2TtsFreqMap [] tts2FreqMap = tts2FreqMap
-insertPhraList2TtsFreqMap [x] tts2FreqMap
-    | ruleTag == "Desig" = tts2FreqMap
-    | otherwise = Map.insert type_tag_stru ttsNum tts2FreqMap
+insertPhraList2CtpsFreqMap :: [PhraCate] -> Map String Int -> Map String Int
+insertPhraList2CtpsFreqMap [] ctp2FreqMap = ctp2FreqMap
+insertPhraList2CtpsFreqMap [x] ctp2FreqMap
+    | ruleTag == "Desig" = ctp2FreqMap
+    | otherwise = Map.insert type_tag_stru ctpNum ctp2FreqMap
     where
     syntaxType = show $ ((!!0) . caOfCate) x
                           -- Apply 'caOfCate' to every phrasal category, and take the first element from the above result.
@@ -886,24 +886,25 @@ insertPhraList2TtsFreqMap [x] tts2FreqMap
     phraStru = ((!!0) . psOfCate) x
                           -- Apply 'psOfCate' to every phrasal category, and take the first element from the above result.
     type_tag_stru = syntaxType ++ "_" ++ ruleTag ++ "_" ++ phraStru
-    ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
-insertPhraList2TtsFreqMap (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap xs (insertPhraList2TtsFreqMap [x] tts2FreqMap)
+    ctpNum = maybe 1 (1+) (Map.lookup type_tag_stru ctp2FreqMap)
+insertPhraList2CtpsFreqMap (x:xs) ctp2FreqMap = insertPhraList2CtpsFreqMap xs (insertPhraList2CtpsFreqMap [x] ctp2FreqMap)
 
 {- Insert a series of '(type, tag, stru)' into a Map to count the frequency of every '(type, tag, stru)'.
  - Map.insert might have a bug when deciding whether there has been a given PhraSyn value (key) in a certain map.
  -}
-insertPhraList2TtsFreqMap' :: Clau -> Map PhraSyn Int -> Map PhraSyn Int
-insertPhraList2TtsFreqMap' [] tts2FreqMap = tts2FreqMap
-insertPhraList2TtsFreqMap' [x] tts2FreqMap
-    | tag == "Desig" = tts2FreqMap
-    | otherwise = Map.insert type_tag_stru ttsNum tts2FreqMap
+insertPhraList2CtpFreqMap' :: Clau -> Map PhraSyn0 Int -> Map PhraSyn0 Int
+insertPhraList2CtpFreqMap' [] ctp2FreqMap = ctp2FreqMap
+insertPhraList2CtpFreqMap' [x] ctp2FreqMap
+    | x == nilPhra = ctp2FreqMap
+    | ((!!0) . taOfCate) x == "Desig" = ctp2FreqMap                             -- 'tag' is unavailable.
+    | otherwise = Map.insert cate_tag_phraStru ctpNum ctp2FreqMap
     where
     cate = ((!!0) . caOfCate) x
     tag = ((!!0) . taOfCate) x
     phraStru = ((!!0) . psOfCate) x
-    type_tag_stru = (cate, tag, phraStru)
-    ttsNum = maybe 1 (1+) (Map.lookup type_tag_stru tts2FreqMap)
-insertPhraList2TtsFreqMap' (x:xs) tts2FreqMap = insertPhraList2TtsFreqMap' xs (insertPhraList2TtsFreqMap' [x] tts2FreqMap)
+    cate_tag_phraStru = (cate, tag, phraStru)
+    ctpNum = maybe 1 (1+) (Map.lookup cate_tag_phraStru ctp2FreqMap)
+insertPhraList2CtpFreqMap' (x:xs) ctp2FreqMap = insertPhraList2CtpFreqMap' xs (insertPhraList2CtpFreqMap' [x] ctp2FreqMap)
 
 {- Get the frequencies of various transtive times, which is Data.Map.
  - The input is the list of sentential parsing scripts, and the output is Map <transTimes> <ttNum>.
@@ -1131,10 +1132,11 @@ quickSort4PhraSyn  (x:xs) = (quickSort4PhraSyn  [y|y<-xs, phraSynLt y x]) ++ [x]
 {- Define relation 'less than' between two values of PhraSyn, so any set of PhraSyns can be linearly ordered.
  -}
 phraSynLt :: PhraSyn -> PhraSyn -> Bool
-phraSynLt (ca1, ta1, ps1) (ca2, ta2, ps2) =
+phraSynLt (ca1, ta1, ps1, sp1) (ca2, ta2, ps2, sp2) =
       (ca1 < ca2)
       || (ca1 == ca2) && (ta1 < ta2)
       || (ca1 == ca2) && (ta1 == ta2) && (ps1 < ps2)
+      || (ca1 == ca2) && (ta1 == ta2) && (ps1 == ps2) && sp1 < sp2
 
 {- From depth List of clauses of every sentence, get indices of clauses whose depth is -1, namely no root node was found.
  -}

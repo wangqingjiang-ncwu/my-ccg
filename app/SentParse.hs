@@ -536,7 +536,7 @@ updateStruGene _ _ overPairs [] = do
     putStrLn ""                        -- To make output easy to read.
     return overPairs                   -- Return the collected resolution results.
 updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
-    newOverPairs <- updateStruGene' clauTag struGene overPairs       -- Update structural gene in Table stru_gene
+    newOverPairs <- updateStruGene' clauTag contextOfSG overPairs       -- Update structural gene in Table stru_gene
     updateStruGene clauTag nPCs newOverPairs pcps
     where
       lop = fst pcp
@@ -544,7 +544,7 @@ updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
       ot = getOverType nPCs lop rop                      -- Get overlapping type
       leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
       reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
-      struGene = (leps,lop,rop,reps,ot)
+      contextOfSG = (leps,lop,rop,reps,ot)
 
 {- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input
  - list of OverPair(s), then return the new OverPair list.
@@ -552,41 +552,41 @@ updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
  - Model stru_gene_202408 :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
  -}
 updateStruGene' :: ClauTag -> ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
-updateStruGene' clauTag gene overPairs = do
+updateStruGene' clauTag contextOfSG overPairs = do
     confInfo <- readFile "Configuration"
     let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo          -- Find ambiguity resolution model, namely table name in MySQL.
 
-    let leftExtend = fst5 gene
-    let leftOver = snd5 gene
-    let rightOver = thd5 gene
-    let rightExtend = fth5 gene
-    let overType = fif5 gene
+    let leftExtend = fst5 contextOfSG
+    let leftOver = snd5 contextOfSG
+    let rightOver = thd5 contextOfSG
+    let rightExtend = fth5 contextOfSG
+    let overType = fif5 contextOfSG
 
     putStr "Find structural fragment: "
     showStruFrag leftExtend leftOver rightOver rightExtend overType
 
-    let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
-    let ot = overType                                   -- Overlap type
-
-    let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
-    let lov = doubleBackSlash (show lo)
-    let rov = doubleBackSlash (show ro)
-    let rev = doubleBackSlash (show re)
-    let otv = show ot
-{-
-    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
-                                          "leftOver = '" ++ show lo ++ "' && " ++
-                                         "rightOver = '" ++ show ro ++ "' && " ++
-                                       "rightExtend = '" ++ show re ++ "' && " ++
-                                          "overType = "  ++ show ot
- -}
     conn <- getConn
-
     case syntax_ambig_resol_model of
       "stru_gene" -> do
+        let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
+        let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
+        let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
+        let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
+        let ot = overType                                   -- Overlap type
+
+        let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
+        let lov = doubleBackSlash (show lo)
+        let rov = doubleBackSlash (show ro)
+        let rev = doubleBackSlash (show re)
+        let otv = show ot
+{-
+        putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
+                                            "leftOver = '" ++ show lo ++ "' && " ++
+                                            "rightOver = '" ++ show ro ++ "' && " ++
+                                            "rightExtend = '" ++ show re ++ "' && " ++
+                                            "overType = "  ++ show ot
+ -}
+
         let sqlstat = read (show ("select id, prior, hitCount, priorExCount from stru_gene where leftExtend = '" ++ lev ++ "' && " ++ "leftOver = '" ++ lov ++ "' && " ++ "rightOver = '" ++ rov ++ "' && " ++ "rightExtend = '" ++ rev ++ "' && " ++ "overType = " ++ otv)) :: Query
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
@@ -613,7 +613,7 @@ updateStruGene' clauTag gene overPairs = do
                     stmt <- prepareStmt conn sqlstat
                     executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]            -- Add column 'hitCount' by 1 of structural gene.
                     close conn                       -- Close MySQL connection.
-                    return ((snd5 gene, thd5 gene, read prior::Prior):overPairs)
+                    return ((leftOver, rightOver, read prior::Prior):overPairs)
                   else do
                     newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
                     let newPrior = case newPriorFlag of
@@ -628,14 +628,14 @@ updateStruGene' clauTag gene overPairs = do
                         executeStmt conn stmt [toMySQLText newPrior, toMySQLInt32U 0, toMySQLInt16U (priorExCount + 1)]
                                                                                 -- Update columns 'prior', 'hitCount', and 'priorExCount' of structural gene.
                         close conn                                                  -- Close MySQL connection.
-                        return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+                        return ((leftOver, rightOver, read newPrior::Prior):overPairs)
                       else do                              -- Actually, the priority is not asked to change.
                         resetStmt conn stmt
                         let sqlstat = read (show ("update stru_gene set hitCount = ? where id = '" ++ show id ++ "'")) :: Query
                         stmt <- prepareStmt conn sqlstat
                         executeStmt conn stmt [toMySQLInt32U (hitCount + 1)]       -- Add column 'hitCount' by 1 of structural gene.
                         close conn                                                 -- Close MySQL connection.
-                        return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+                        return ((leftOver, rightOver, read newPrior::Prior):overPairs)
           else do
             putStrLn "Inquire failed."
             newPriorFlag <- getLineUntil "please input new priority [Lp/Rp/Noth]: ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth') " ["1", "2", "3"] True
@@ -648,9 +648,21 @@ updateStruGene' clauTag gene overPairs = do
             oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
             putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
             close conn                                   -- Close MySQL connection.
-            return ((snd5 gene, thd5 gene, read newPrior::Prior):overPairs)
+            return ((leftOver, rightOver, read newPrior::Prior):overPairs)
 
       x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do       -- Multimodel
+        let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+        let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+        let ro = (ctpsOfCate rightOver)!!0                   -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+        let re = map ((!!0) . ctpsOfCate) rightExtend        -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
+        let ot = overType                                    -- Overlap type
+
+        let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
+        let lov = doubleBackSlash (show lo)
+        let rov = doubleBackSlash (show ro)
+        let rev = doubleBackSlash (show re)
+        let otv = show ot
+
         let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "
                                    ++ syntax_ambig_resol_model
                                    ++ " where leftExtend = '" ++ lev ++ "' && "
@@ -741,11 +753,11 @@ rollbackStruGene clauTag nPCs (op:ops) = do
     let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs                  -- Get all left-extend phrases
     let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs              -- Get all right-entend phrases
 
-    let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
-    let ot = overType                                   -- Overlap type
+    let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+    let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+    let ro = (ctpsOfCate rightOver)!!0                   -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+    let re = map ((!!0) . ctpsOfCate) rightExtend        -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
+    let ot = overType                                    -- Overlap type
 
     let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
     let lov = doubleBackSlash (show lo)
@@ -753,11 +765,11 @@ rollbackStruGene clauTag nPCs (op:ops) = do
     let rev = doubleBackSlash (show re)
     let otv = show ot
 
-    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
-                                          "leftOver = '" ++ show lo ++ "' && " ++
-                                         "rightOver = '" ++ show ro ++ "' && " ++
-                                       "rightExtend = '" ++ show re ++ "' && " ++
-                                          "overType = "  ++ show ot
+--    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
+--                                          "leftOver = '" ++ show lo ++ "' && " ++
+--                                         "rightOver = '" ++ show ro ++ "' && " ++
+--                                       "rightExtend = '" ++ show re ++ "' && " ++
+--                                          "overType = "  ++ show ot
 
     case syntax_ambig_resol_model of
       "stru_gene" -> putStrLn "rollbackStruGene: Model StruGene does not need rollbacking."
@@ -1230,8 +1242,8 @@ getPhraStruCSFromStruGene2' currentId endId = do
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 currentId]
     rows <- S.toList is
 
-    let phraStruOflo = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
-    let phraStruOfro = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
+    let phraStruOflo = thd4 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
+    let phraStruOfro = thd4 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
     let ot = fromMySQLInt8 ((rows!!0)!!2)
     let prior = readPriorFromStr (fromMySQLText ((rows!!0)!!3))
     let prior' = show prior
@@ -1306,8 +1318,8 @@ verifyEffectOfPhraStruCS proportion currentId endId numOfCorrPred ambiguNum tota
         (defs, is) <- queryStmt conn stmt [toMySQLInt32 currentId]
         rows <- S.toList is
 
-        let phraStruOflo = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
-        let phraStruOfro = thd3 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
+        let phraStruOflo = thd4 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!0))
+        let phraStruOfro = thd4 $ readPhraSynFromStr (fromMySQLText ((rows!!0)!!1))
         let ot = fromMySQLInt8 ((rows!!0)!!2)
         let prior = readPriorFromStr (fromMySQLText ((rows!!0)!!3))
         let prior' = show prior
@@ -1368,16 +1380,20 @@ parseSentByGrammarAmbiResol startSn endSn = do
     let cate_ambig_resol_source = getConfProperty "cate_ambig_resol_source" confInfo
     let cate_resol_sample_startsn = getConfProperty "cate_resol_sample_startsn" confInfo
     let cate_resol_sample_endsn = getConfProperty "cate_resol_sample_endsn" confInfo
+    let category_ambig_resol_sample_update_switch = getConfProperty "category_ambig_resol_sample_update_switch" confInfo
     let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let syntax_resol_sample_startsn = getConfProperty "syntax_resol_sample_startsn" confInfo
     let syntax_resol_sample_endsn = getConfProperty "syntax_resol_sample_endsn" confInfo
+    let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
 
     putStrLn $ " sent_source: " ++ sent_source
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " cate_ambig_resol_source: " ++ cate_ambig_resol_source
     putStrLn $ "   startSn = " ++ cate_resol_sample_startsn ++ ", endSn = " ++ cate_resol_sample_endsn
+    putStrLn $ "   category_ambig_resol_sample_update_switch: " ++ category_ambig_resol_sample_update_switch
     putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
     putStrLn $ "   startSn = " ++ syntax_resol_sample_startsn ++ ", endSn = " ++ syntax_resol_sample_endsn
+    putStrLn $ "   syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -1455,12 +1471,13 @@ parseASentByGrammarAmbiResol sn cs sLR tree_target = do
     if struGene2Samples /= []
       then do
         putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
-        let struGene2s = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples       -- [StruGene2]
+--        let struGene2s = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples       -- [StruGene2]
+        let struGene2s = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples -- [StruGene2Sample]
         parseASentByGrammarAmbiResol' sn cs sLR struGene2s
         putStrLn "parseASentByGrammarAmbiResol: Finished parsing."
       else error "parseASentByGrammarAmbiResol: struGene2Samples is Null."
 
-parseASentByGrammarAmbiResol' :: SentIdx -> [String] -> SLROfClause -> [StruGene2] -> IO ()
+parseASentByGrammarAmbiResol' :: SentIdx -> [String] -> SLROfClause -> [StruGene2Sample] -> IO ()
 parseASentByGrammarAmbiResol' _ [] _ _ = return ()
 parseASentByGrammarAmbiResol' sn cs sLR struGene2s = do
     parseASentByGrammarAmbiResol' sn (take (length cs - 1) cs) sLR struGene2s
@@ -1477,7 +1494,7 @@ parseASentByGrammarAmbiResol' sn cs sLR struGene2s = do
                                              -- Parse begins with empty '[[Rule]]' and empty 'banPCs'
     storeClauseParsingToTreebank sn clauIdx rtbPCs                      -- Add the parsing result of this clause into database.
 
-parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2] -> IO ([[Rule]],[PhraCate],[BanPCs])
+parseClauseWithGrammarAmbiResol :: ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2Sample] -> IO ([[Rule]],[PhraCate],[BanPCs])
 parseClauseWithGrammarAmbiResol clauTag rules nPCs banPCSets sLR lengthOfClause struGene2s = do
     rtbPCs <- doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs)
@@ -1523,14 +1540,14 @@ setMinDist4ZeroDistAndClauTagHit clauTag (x:xs)
 {- One transition of category combinations, in which category ambiguity resolution is done based upon model SLR,
  - and syntax ambiguity resolution is done based upon model StruGene2.
  -}
-doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
+doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
 doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s = do
     putStrLn "nPCs="
     showNPhraCateLn nPCs
-    let sStub = ctpOfCateList' nPCs                                             -- [PhraSyn] of stub tree
+    let sStub = ctpsOfCateList' nPCs                                            -- [PhraSyn] of stub tree
     putStrLn "sStub="
     showNPhraSynLn sStub
-    let sSLRBase = map (\x -> (fst x, (ctpOfCateList' ((fst . snd) x), (snd . snd) x))) sLR    -- [(ClauTag, ([PhraSyn],[Rule]))]
+    let sSLRBase = map (\x -> (fst x, (ctpsOfCateList' ((fst . snd) x), (snd . snd) x))) sLR    -- [(ClauTag, ([PhraSyn],[Rule]))]
     let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity sStub ((fst . snd) x), (fst x, (snd . snd) x))) sSLRBase  -- [(Dist, (ClauTag, [Rule]))]
     putStrLn $ "distRuleListWithoutSort = " ++ show (formatDoubleAList (take 30 distRuleListWithoutSort) 4)
 
@@ -1575,7 +1592,7 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s
 {- This function is called when one time of transition creates no new phrase before pruning and parsing tree is NOT formed.
  - Recursively use [Rule] with next miminal distance to do category conversions.
  -}
-doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> [(Double,(ClauTag, [Rule]))] -> Int -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
+doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> [(Double,(ClauTag, [Rule]))] -> Int -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
 doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList lengthOfClause struGene2s = do
     putStrLn $ "doTransWithGrammarAmbiResol' distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
 
@@ -1623,10 +1640,10 @@ ambiResolByGrammarAmbiResol clauTag nPCs overPairs (pcp:pcps) struGene2Samples d
     leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
     reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
 
-    le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
-    lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
-    re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+    le = map ((!!0) . ctpsOfCate) leps         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+    lo = (ctpsOfCate lop)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+    ro = (ctpsOfCate rop)!!0                    -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+    re = map ((!!0) . ctpsOfCate) reps          -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
                                                  -- The value is not used, just acted as place holder.
     contextOfSG = (le,lo,ro,re,ot)
     distList = map (\x -> (dist4ContextOfSGByWeightSum contextOfSG (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x) distWeiRatioList, x)) struGene2Samples
@@ -1672,7 +1689,7 @@ collectPhraSynFromTreebank1 sn = do
     let origTrees' = foldl (++) [] (map (\t -> snd t) origTrees)
     let phraseOfSpan0 = getPhraBySpan 0 origTrees'
     let phraseWithoutSpan0 = [x| x <- origTrees', notElem x phraseOfSpan0]
-    let phraSynsOfASent = ctpOfCateList phraseWithoutSpan0 []
+    let phraSynsOfASent = ctpsOfCateList phraseWithoutSpan0 []
     storeAPhraSynToDS phraSynsOfASent sn
     close conn
 
@@ -1704,6 +1721,8 @@ parseSentByStruGeneFromConf resolMethod = do
     let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
     let syntax_resol_sample_startsn = getConfProperty "syntax_resol_sample_startsn" confInfo
     let syntax_resol_sample_endsn = getConfProperty "syntax_resol_sample_endsn" confInfo
+    let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
+    let category_ambig_resol_sample_update_switch = getConfProperty "category_ambig_resol_sample_update_switch" confInfo
 
     putStrLn $ " tree_target: " ++ tree_target
     putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
@@ -1711,6 +1730,8 @@ parseSentByStruGeneFromConf resolMethod = do
     putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
     putStrLn $ " syntax_resol_sample_startsn: " ++ syntax_resol_sample_startsn
     putStrLn $ " syntax_resol_sample_endsn: " ++ syntax_resol_sample_endsn
+    putStrLn $ " syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
+    putStrLn $ " category_ambig_resol_sample_update_switch: " ++ category_ambig_resol_sample_update_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -1815,7 +1836,8 @@ parseASentByStruGene resolMethod sn cs script_source tree_target = do
         struGene2Samples <- getStruGene2Samples                                 -- [StruGene2Sample]
         if struGene2Samples /= []
           then do
-            let struGene2s = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples    -- [StruGene2]
+--            let struGene2s = map (\x -> (snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples    -- [StruGene2]
+            let struGene2s = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, svt7 x)) struGene2Samples    -- [StruGene2]
             putStrLn $ " There are " ++ show (length cs) ++ " clauses in total."
             parseASentByStruGene2' resolMethod sn cs script' struGene2s
             putStrLn "parseASentByStruGene2: Finished parsing."
@@ -1864,7 +1886,7 @@ parseASentByStruGene' resolMethod sentIdx cs scripts struGenes = do
  - 'struGene2s' is a list of modes or StruGene2 samples.
  - If a certain clause is not finished in parsing, return False to skip the remaining clauses.
  -}
-parseASentByStruGene2' :: SynAmbiResolMethod -> SentIdx -> [String] -> [Script] -> [StruGene2] -> IO ()
+parseASentByStruGene2' :: SynAmbiResolMethod -> SentIdx -> [String] -> [Script] -> [StruGene2Sample] -> IO ()
 parseASentByStruGene2' _ _ [] _ _ = return ()
 parseASentByStruGene2' resolMethod sentIdx cs scripts struGene2s = do
     let clauIdx = length cs
@@ -1930,7 +1952,7 @@ parseClauseWithStruGene resolMethod clauTag rules nPCs banPCSets script struGene
  -     phrases as input, go (1); Otherwise, return the triple ([[Rule]], resultant tree PCs, accumulated banned PCs).
  - Syntax ambiguity resolution is done by machine.
  -}
-parseClauseWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2] -> IO ([[Rule]],[PhraCate],[BanPCs])
+parseClauseWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [[Rule]] -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2Sample] -> IO ([[Rule]],[PhraCate],[BanPCs])
 parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCSets script struGene2s = do
     rtbPCs <- doTransWithStruGene2 resolMethod clauTag nPCs banPCSets script struGene2s
                                                -- <rtbPCs> ::= ([Rule], resultant tree PCs, accumulated banned PCs [BanPCs])
@@ -2006,7 +2028,7 @@ doTransWithStruGene resolMethod clauTag nPCs banPCSets script struGenes = do
  - nbPCs: The tuple (phrase set, banned phrase set list) after this transition
  - (onOff,(fst nbPCs),(snd nbPCs)): The returned overlap phrase pair set
  -}
-doTransWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2] -> IO ([Rule], [PhraCate], [BanPCs])
+doTransWithStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [BanPCs] -> Script -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
 doTransWithStruGene2 resolMethod clauTag nPCs banPCSets script struGene2s = do
     let onOffs = snd3 script
     let onOff = case onOffs of                      -- Get rule switches of this trip of transition
@@ -2068,12 +2090,12 @@ ambiResolByStruGene resolMethod clauTag nPCs overPairs (pcp:pcps) struGenes = do
     let reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
     let pri = Noth                                         -- Default value which is not used, just acted as place holder.
 
-    let le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+    let le = map ((!!0) . ctpsOfCate) leps          -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+    let lo = (ctpsOfCate lop)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+    let ro = (ctpsOfCate rop)!!0                    -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+    let re = map ((!!0) . ctpsOfCate) reps          -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
 
-    let struGene = (le,lo,ro,re,ot,pri)
+    let contextOfSG = (le,lo,ro,re,ot)
 
     if resolMethod == "StruGeneIdentity"
       then do
@@ -2083,10 +2105,9 @@ ambiResolByStruGene resolMethod clauTag nPCs overPairs (pcp:pcps) struGenes = do
         let wro = read (getConfProperty "wro" confInfo) :: Int
         let wre = read (getConfProperty "wre" confInfo) :: Int
         let wot = read (getConfProperty "wot" confInfo) :: Int
-        let wpr = read (getConfProperty "wpr" confInfo) :: Int
-        let distWeiRatioList = [wle, wlo, wro, wre, wot, wpr]
-        let distWeiRatioList' = init distWeiRatioList ++ [0]
-        let distList = map (\x -> dist4StruGeneByWeightSum struGene x distWeiRatioList') struGenes
+        let distWeiRatioList = [wle, wlo, wro, wre, wot]
+        let contextOfSGs = map (\x -> (fst6 x, snd6 x, thd6 x, fth6 x, fif6 x)) struGenes
+        let distList = map (\x -> dist4ContextOfSGByWeightSum contextOfSG x distWeiRatioList) contextOfSGs
         let minDist = minimum distList
         let idx = elemIndex minDist distList
         let idx' = case idx of
@@ -2112,7 +2133,7 @@ ambiResolByStruGene resolMethod clauTag nPCs overPairs (pcp:pcps) struGenes = do
  -   (3) if there remain overlap phrase pairs, go (1); otherwise, return phrase pairs with their resolution policies.
  - Note: StruGene sample with context being highest similar to the ambiguous context will be selected.
  -}
-ambiResolByStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> [StruGene2] -> IO [OverPair]
+ambiResolByStruGene2 :: SynAmbiResolMethod -> ClauTag -> [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> [StruGene2Sample] -> IO [OverPair]
 ambiResolByStruGene2 _ _ _ overPairs [] _ = return overPairs
 ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = do
     let lop = fst pcp
@@ -2121,15 +2142,19 @@ ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = 
     let leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
     let reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
 
-    let le = map ((!!0) . ctpOfCate) leps          -- [(Category,Tag,PhraStru)] of left-extended phrases
-    let lo = (ctpOfCate lop)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-    let ro = (ctpOfCate rop)!!0                    -- (Category,Tag,PhraStru) of right-overlapping phrase
-    let re = map ((!!0) . ctpOfCate) reps          -- [(Category,Tag,PhraStru)] of right-extended phrases
+    let le = map ((!!0) . ctpsOfCate) leps          -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+    let lo = (ctpsOfCate lop)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+    let ro = (ctpsOfCate rop)!!0                    -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+    let re = map ((!!0) . ctpsOfCate) reps          -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
 
     let contextOfSG = (le,lo,ro,re,ot)
 
-    let contextOfSGList = map getContextFromStruGene2 struGene2s                   -- [ContextOfSG]
-    let clauTagPriorListList = map sth6 struGene2s                                 -- [[ClauTagPrior]]
+    let idContextOfSGPairList = zip (map fst7 struGene2s) (map getContextFromStruGene2Sample struGene2s)  -- [(SIdx, ContextOfSG)]
+    let idClauTagPriorPairList = zip (map fst7 struGene2s) (map svt7 struGene2s)          -- [(SIdx,[ClauTagPrior])]
+
+    let idClauTagPriorHitList = filter (hasClauTagInCTPList clauTag . snd) idClauTagPriorPairList  -- [(SIdx, [ClauTagPrior])]
+--  putStrLn $ "ambiResolByStruGene2: idClauTagPriorPairList: " ++ show idClauTagPriorPairList
+--  putStrLn $ "ambiResolByStruGene2: idClauTagPriorPairs hitting: " ++ show clauTag ++ ": " ++ show idClauTagPriorHitList
 
     case resolMethod of
       "StruGeneIdentity" -> do
@@ -2139,24 +2164,34 @@ ambiResolByStruGene2 resolMethod clauTag nPCs overPairs (pcp:pcps) struGene2s = 
         let wro = read (getConfProperty "wro" confInfo) :: Int
         let wre = read (getConfProperty "wre" confInfo) :: Int
         let wot = read (getConfProperty "wot" confInfo) :: Int
-        let wpr = read (getConfProperty "wpr" confInfo) :: Int
+
         let distWeiRatioList = [wle, wlo, wro, wre, wot]
-        let distList = map (\x -> dist4ContextOfSGByWeightSum contextOfSG x distWeiRatioList) contextOfSGList
+        let distList = map (\x -> dist4ContextOfSGByWeightSum contextOfSG x distWeiRatioList) (map snd idContextOfSGPairList)
+
         let minDist = minimum distList
         let idx = case (elemIndex minDist distList) of
                     Just x -> x
                     Nothing -> -1                     -- Impossible position
-        let clauTagPriorList = sth6 (struGene2s!!idx)                                    -- [ClauTagPrior]
-        let hitClauTagPriorList = filterInCTPListByClauTag clauTag clauTagPriorList      -- [ClauTagPrior]
+        let idClauTagPriors = (fst7 (struGene2s!!idx), svt7 (struGene2s!!idx))              -- (SIdx, [ClauTagPrior])
+
+        putStrLn $ "(minDist, (id, clauTagPrior)) " ++ show (minDist, idClauTagPriors)
+        let idCTPOfSamplesWithDist0 = map snd $ filter (\x -> fst x < 1e-6) $ zip distList idClauTagPriorPairList  -- [(SIdx, [ClauTagPrior])]
+        putStrLn $ "ambiResolByStruGene2: [(id, clauTagPrior)] of samples with ContextOfSG distance 0.0: " ++ show idCTPOfSamplesWithDist0
+
+        let hitClauTagPriorList = filterInCTPListByClauTag clauTag (snd idClauTagPriors)    -- [ClauTagPrior]
         let prior = case hitClauTagPriorList of
-                      [] -> (fromMaybePrior . priorWithHighestFreq) clauTagPriorList     -- Prior
-                      _  -> snd (hitClauTagPriorList!!0)                                 -- Prior
+                      [] -> (fromMaybePrior . priorWithHighestFreq) (snd idClauTagPriors)   -- Prior
+                      _  -> snd (hitClauTagPriorList!!0)                                    -- Prior
+
+        if hitClauTagPriorList /= []
+          then putStrLn $ "ambiResolByStruGene2: Hit (id, clauTagPrior) = " ++ show (fst idClauTagPriors, hitClauTagPriorList!!0)
+          else putStrLn $ "ambiResolByStruGene2: Miss"
 
         let overPairs' = (lop, rop, prior):overPairs
         ambiResolByStruGene2 resolMethod clauTag nPCs overPairs' pcps struGene2s
 
       "StruGeneEmbedded" -> do
-        let context2ClauTagPriorBase = zip contextOfSGList clauTagPriorListList    -- [(ContextOfSG, [ClauTagPrior])]
+        let context2ClauTagPriorBase = map (\x -> ((snd7 x, thd7 x, fth7 x, fif7 x, sth7 x), svt7 x)) struGene2s   -- [(ContextOfSG, [ClauTagPrior])]
         context2ClauTagPriorTuple <- findStruGeneSampleByMaxContextSim contextOfSG context2ClauTagPriorBase
                                                                                    -- (SIdx, SimDeg, Context2ClauTagPrior)
         let clauTagPriorList = (snd . thd3) context2ClauTagPriorTuple           -- [ClauTagPrior]
@@ -2202,10 +2237,10 @@ getStruGene1FromAmbiResol1' id = do
         let leps = getPhraByEnd (stOfCate leftPhrase - 1) context        -- Get all left-extend phrases
         let reps = getPhraByStart (enOfCate rightPhrase + 1) context
         let id = fst6 ambiResol1
-        let le = map ((!!0) . ctpOfCate) leps
-        let lo = (ctpOfCate leftPhrase)!!0
-        let ro = (ctpOfCate rightPhrase)!!0
-        let re = map ((!!0) . ctpOfCate) reps
+        let le = map ((!!0) . ctpsOfCate) leps
+        let lo = (ctpsOfCate leftPhrase)!!0
+        let ro = (ctpsOfCate rightPhrase)!!0
+        let re = map ((!!0) . ctpsOfCate) reps
 --        let ot = getOverType nPCs leftPhrase rightPhrase
         let ot = fif6 ambiResol1
 
@@ -2541,10 +2576,10 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
         let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs          -- Get all left-extend phrases
         let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs      -- Get all right-entend phrases
 
-        let le = map ((!!0) . ctpOfCate) leftExtend         -- [(Category,Tag,PhraStru)] of left-extended phrases
-        let lo = (ctpOfCate leftOver)!!0                    -- (Category,Tag,PhraStru) of left-overlapping phrase
-        let ro = (ctpOfCate rightOver)!!0                   -- (Category,Tag,PhraStru) of right-overlapping phrase
-        let re = map ((!!0) . ctpOfCate) rightExtend        -- [(Category,Tag,PhraStru)] of right-extended phrases
+        let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+        let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+        let ro = (ctpsOfCate rightOver)!!0                   -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+        let re = map ((!!0) . ctpsOfCate) rightExtend        -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
         let ot = overType                                   -- Overlap type
 
         let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table

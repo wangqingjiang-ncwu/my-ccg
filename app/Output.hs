@@ -135,9 +135,9 @@ showPhraCate pc = do
     putNCtsca (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
+-- Convert a PhraSyn value to its String value. PhraSyn :: (Category, Tag, PhraStru, Span)
 showPhraSyn :: PhraSyn -> IO ()
-showPhraSyn ps = putStr $ "(" ++ show (fst3 ps) ++ "," ++ (snd3 ps) ++ "," ++ (thd3 ps) ++ ")"
-
+showPhraSyn ps = putStr $ "(" ++ show (fst4 ps) ++ "," ++ (snd4 ps) ++ "," ++ (thd4 ps) ++ show (thd4 ps) ++ ")"
 
 showNPhraSyn :: [PhraSyn] -> IO ()
 showNPhraSyn [] = putStr "[]"

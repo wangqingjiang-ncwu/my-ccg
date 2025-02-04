@@ -36,15 +36,15 @@ module Clustering (
     SIdx,                                -- Int
     ClusterMap,                          -- Map CIdx [StruGene]
     findFinalCluster4AllSamplesByArithAdd,    -- TableName -> ClusterMap -> CentreList -> KVal -> INo -> DistTotal -> DistWeiRatioList -> IO (INo, Dist)
-    readStreamByInt324TextInt8Text,           -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
-    storeOneIterationResult,                  -- TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
-    storeClusterTime,                         -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Double -> IO ()
-    autoRunClustByChangeKValSNum,             -- String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
+    readStreamByInt324TextInt8Text,      -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
+    storeOneIterationResult,             -- TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
+    storeClusterTime,                    -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Double -> IO ()
+    autoRunClustByChangeKValSNum,        -- String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
     autoRunGetAmbiResolAccuracyOfAllClustRes, -- String -> String -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> IO ()
-    getRandomsList,                           -- Int -> Int -> Int -> [Int] -> IO [Int]
-    getAmbiResolAccuracyOfAClustRes,          -- IO Double
-    getStruGeneSamples,                       -- IO [StruGeneSample]
-    getStruGene2Samples,                      -- IO [StruGene2Sample]
+    getRandomsList,                      -- Int -> Int -> Int -> [Int] -> IO [Int]
+    getAmbiResolAccuracyOfAClustRes,     -- IO Double
+    getStruGeneSamples,                  -- IO [StruGeneSample]
+    getStruGene2Samples,                 -- IO [StruGene2Sample]
 
     clusteringAnalysis,      -- Int -> IO ()
     SentClauPhraList,        -- [[[PhraCate]]]
@@ -111,19 +111,21 @@ import Numeric.LinearAlgebra as LA hiding (find)
  - structures such as 'AHn' and 'HnC' have same grammatical nature, which means there may exist correlations bewteen
  - the different values of a same factor. Meanwhile, phrasal structure 'AHn' must have category 'np', so there exist
  - correlations between some different factors.
- - Principal Components Analysis (PCA) and Factor Analysis (FA) are promising methods for solving this problem.
  - The distance is normalized to [0, 1].
  -}
 distPhraSynByIdentity :: PhraSyn -> PhraSyn -> Double
-distPhraSynByIdentity (ca1, ta1, ps1) (ca2, ta2, ps2) = sum [v1, v2, v3] / 3.0
+distPhraSynByIdentity (ca1, ta1, ps1, sp1) (ca2, ta2, ps2, sp2) = sum [v1, v2, v3, v4] / 4.0
     where
-    v1 = case ca1==ca2 of
+    v1 = case ca1 == ca2 of
            True -> 0
            False -> 1
-    v2 = case ta1==ta2 of
+    v2 = case ta1 == ta2 of
            True -> 0
            False -> 1
-    v3 = case ps1==ps2 of
+    v3 = case ps1 == ps2 of
+           True -> 0
+           False -> 1
+    v4 = case sp1 == sp2 of
            True -> 0
            False -> 1
 
@@ -178,6 +180,7 @@ type DistWeiRatioList = [Int]     -- [wle, wlo, wro, wre, wot, wpr]
 {- Calculate distance between two StruGenes.
  - (1) Weightedly sum distances on all StruGene components;
  - (2) Normalize to range [0, 1].
+ - This function is obsoleted.
  -}
 dist4StruGeneByWeightSum :: StruGene -> StruGene -> DistWeiRatioList -> Double
 dist4StruGeneByWeightSum s1 s2 distWeiRatioList = sum distList / fromIntegral ratioTotal
@@ -1030,8 +1033,8 @@ distVect4StruGeneWithoutPri s1 s2 = [d1, d2, d3, d4, d5]
     d3 = distPhraSynByIdentity (thd6 s1) (thd6 s2)
     d4 = distPhraSynSetByIdentity (fth6 s1) (fth6 s2)
     d5 = case fif6 s1 == fif6 s2 of
-            True -> 0.0
-            False -> 1.0
+           True -> 0.0
+           False -> 1.0
 
 {- Read original StruGene samples or their clustering result,
  - the source of which is indicated by attribute 'syntax_ambig_resol_model' in configuration.
@@ -1088,7 +1091,7 @@ getStruGene2Samples = do
         (defs, is) <- queryStmt conn stmt []
         struGene2SampleList <- readStreamByStruGene2Sample [] is      -- [(SIdx,LeftExtend,LeftOver,RightOVer,RightExtend,OverType,[ClauTagPrior])]
         let struGene2SampleList' = map (\x -> (fst7 x, snd7 x, thd7 x, fth7 x, fif7 x, sth7 x, removeFromCTPListBySentIdxRange (svt7 x) startSn endSn)) struGene2SampleList
-        let struGene2SampleList'' = filter (\x -> svt7 x /= []) struGene2SampleList'
+        let struGene2SampleList'' = filter (\x -> svt7 x /= []) struGene2SampleList'                 -- Might be unnecessary.
         let sentSnRange = getSentRangeByStruGeneSamples struGene2SampleList'' (maxBound :: Int, minBound :: Int)
         putStrLn $ "  startSn = " ++ show startSn ++ ", endSn = " ++ show endSn
         return struGene2SampleList''
@@ -1114,12 +1117,12 @@ clusteringAnalysis funcIndex = do
              putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg: " ++ show phraSynPair2SimMap
 
              putStrLn "(2) Calculate similarity between PhraSyn value sets."
-             let ps1 = (npCate, ">", "AHn")
-             let ps2 = (npCate, "A/n->", "AHn")
-             let ps3 = (sCate, "<", "SP")
-             let ps4 = (verbCate, ">B", "DHv")
+             let ps1 = (npCate, "A/n->", "AHn", 2)
+             let ps2 = (npCate, ">", "AHn", 5)
+             let ps3 = (predCate, ">", "VO", 3)
+             let ps4 = (npCate, "Cn/a-<", "HnC", 3)
 
-             putStrLn "ps1 = (np, \">\", \"AHn\"), ps2 = (np, \"A/n->\", \"AHn\"), ps3 = (s, \"<\", \"SP\"), ps4 = ((s\\.np)/.np, \">B\", \"DHv\")"
+             putStrLn "ps1 = (np, \"A/n->\", \"AHn\", 2), ps2 = (np, \">\", \"AHn\", 5), ps3 = (s\\.np, \">\", \"VO\", 3), ps4 = (np, \"Cn/a-<\", \"HnC\", 3)"
              putStrLn $ "The result of getPhraSynSetSim [] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [] [ps1] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps1] [] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [] phraSynPair2SimMap)
@@ -1498,13 +1501,15 @@ clusteringAnalysis funcIndex = do
 
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
 type SimDeg = Double          -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
-type NumOfPhraSyn = Int       -- PhraSyn :: (Category, Tag, PhraStru)
+type NumOfPhraSyn = Int       -- PhraSyn :: (Category, Tag, PhraStru, Span)
 type NumOfCate = Int
 type NumOfCatePair = Int
 type NumOfTag = Int
 type NumOfTagPair = Int
 type NumOfPhraStru = Int
 type NumOfStruPair = Int
+type NumOfSpan = Int
+type NumOfSpanPair = Int
 type PhraSynPair2Sim = ((PhraSyn, PhraSyn), SimDeg)
 
 {- From SentClauPhraList, get similarity degree bewteen any two syntatic types (namely categories).
@@ -1524,51 +1529,53 @@ getTypePair2SimFromSCPL sentClauPhraList = getTypePair2SimFromPSL phraSynList
 getTypePair2SimFromPSL :: [PhraSyn] -> (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
 getTypePair2SimFromPSL phraSynList = (numOfPhraSyn, numOfCate, numOfCatePair, typePair2SimList)
     where
-    type2TagStruMap = toType2TagStruMap phraSynList Map.empty                   -- Map Category [(Tag, PhraStru)]
-    type2TagStruMapList = Map.toList type2TagStruMap                            -- [(Category, [(Tag, PhraStru)])]
-    type2TagStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) type2TagStruMapList       -- [(Category, Set (Tag, PhraStru))]
+    type2TagStruSpanMap = toType2TagStruSpanMap phraSynList Map.empty           -- Map Category [(Tag, PhraStru, Span)]
+    type2TagStruSpanMapList = Map.toList type2TagStruSpanMap                    -- [(Category, [(Tag, PhraStru, Span)])]
+    type2TagStruSpanSetList = map (\x -> (fst x, (Set.fromList . snd) x)) type2TagStruSpanMapList      -- [(Category, Set (Tag, PhraStru, Span))]
     typePair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y))
                                        / (fromIntegral . Set.size) (Set.union (snd x) (snd y)))
-                                       | x <- type2TagStruSetList, y <- type2TagStruSetList, fst x <= fst y]
+                                       | x <- type2TagStruSpanSetList, y <- type2TagStruSpanSetList, fst x <= fst y]
     numOfPhraSyn = length phraSynList
-    numOfCate = Map.size type2TagStruMap
+    numOfCate = Map.size type2TagStruSpanMap
     numOfCatePair = length typePair2SimList
 
-{- Get all different triple (syntactic type, CCG rule tag, Phrasal structure), namely PhraSyn values.
+{- Get all different triple (syntactic type, CCG rule tag, Phrasal structure, phrasal span), namely PhraSyn values.
  - The input is the list of sentential categories.
  -}
 getPhraSynFromSents :: [[[PhraCate]]] -> [PhraSyn] -> [PhraSyn]
-getPhraSynFromSents [] tts = tts                              -- No sentence
-getPhraSynFromSents [[]] tts = tts                            -- One sentence has no clause to deal with.
-getPhraSynFromSents [(c:cs)] tts = getPhraSynFromSents [cs] (insertPhraList2Tts c tts)      -- 'c' is a clause, a list of phrasal categories.
-getPhraSynFromSents (sent:sents) tts = union sentTts sentsTts      -- "sent" means a sentence. Union result does not include repetitive element.
+getPhraSynFromSents [] ctps = ctps                                -- No sentence
+getPhraSynFromSents [[]] ctps = ctps                              -- One sentence has no clause to deal with.
+getPhraSynFromSents [(c:cs)] ctps = getPhraSynFromSents [cs] (insertPhraList2Ctps c ctps)      -- 'c' is a clause, a list of phrasal categories.
+getPhraSynFromSents (sent:sents) ctps = union sentCtps sentsCtps  -- "sent" means a sentence. Union result does not include repetitive element.
     where
-    sentTts = getPhraSynFromSents [sent] tts
-    sentsTts = getPhraSynFromSents sents tts
+    sentCtps = getPhraSynFromSents [sent] ctps
+    sentsCtps = getPhraSynFromSents sents ctps
 
 {- Insert a series of PhraSyn values into a List.
  -}
-insertPhraList2Tts :: [PhraCate] -> [PhraSyn] -> [PhraSyn]
-insertPhraList2Tts [] tts = tts
-insertPhraList2Tts [x] tts
-    | ruleTag == "Desig" = tts        -- Neglecting words
-    | elem (syntaxType, ruleTag, phraStru) tts = tts     -- Same triples are omited.
-    | otherwise = (syntaxType, ruleTag, phraStru) : tts
+insertPhraList2Ctps :: [PhraCate] -> [PhraSyn] -> [PhraSyn]
+insertPhraList2Ctps [] ctps = ctps
+insertPhraList2Ctps [x] ctps
+    | ruleTag == "Desig" = ctps                                                 -- Neglecting words
+    | elem (cate, ruleTag, phraStru, span) ctps = ctps                          -- Duplicate quadruples are omited.
+    | otherwise = (cate, ruleTag, phraStru, span) : ctps
     where
-    syntaxType = ((!!0) . caOfCate) x
+    cate = ((!!0) . caOfCate) x
                           -- Apply 'caOfCate' to every phrasal category, and take the first element from the above result.
     ruleTag = ((!!0) . taOfCate) x
                           -- Apply 'taOfCate' to every phrasal category, and take the first element from the above result.
     phraStru = ((!!0) . psOfCate) x
                           -- Apply 'psOfCate' to every phrasal category, and take the first element from the above result.
-insertPhraList2Tts (x:xs) tts = insertPhraList2Tts xs (insertPhraList2Tts [x] tts)
+    span = spOfCate x     -- Apply 'spOfCate' to every phrasal category.
 
-{- The string format is "type_tag_stru", type is category, tag is grammatic rule tag, and stru is phrasal structure.
+insertPhraList2Ctps (x:xs) ctps = insertPhraList2Ctps xs (insertPhraList2Ctps [x] ctps)
+
+{- The string format is "type_tag_stru_span", type is category, tag is grammatic rule tag, stru is phrasal structure, and span is phrasal span.
  -}
 stringToPhraSyn :: String -> PhraSyn
-stringToPhraSyn tts = (getCateFromString (tts'!!0), tts'!!1, tts'!!2)
+stringToPhraSyn ttps = (getCateFromString (ttps'!!0), ttps'!!1, ttps'!!2, read (ttps'!!3) :: Span)
     where
-    tts' = splitAtDeli '_' tts
+    ttps' = splitAtDeli '_' ttps
 
 {- From SentClauPhraList, get similarity degree bewteen any two grammtic rules (namely tags).
  -}
@@ -1580,53 +1587,82 @@ getTagPair2SimFromSCPL sentClauPhraList = getTagPair2SimFromPSL phraSynList
 {- From [PhraSyn], get similarity degree bewteen any two grammtic rules (namely tags).
  - Similarity degree between two grammatic rules satisfies commutative law, sim (tag1, tag2) == sim (tag2, tag1),
  - so only sim (tag1, tag2) where tag1 <= tag2 is calculated.
- - numOfPhraSyn: Number of different PhraSyns, namely (Category, Tag, PhraStru).
+ - numOfPhraSyn: Number of different PhraSyns, namely (Category, Tag, PhraStru, Span).
  - numOfTag: Number of different grammatic rules.
  - numOfTagPair: Number of different rule pairs.
  -}
 getTagPair2SimFromPSL :: [PhraSyn] -> (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
 getTagPair2SimFromPSL phraSynList = (numOfPhraSyn, numOfTag, numOfTagPair, tagPair2SimList)
     where
-    tag2TypeStruMap = toTag2TypeStruMap phraSynList Map.empty                   -- Map Tag [(Category, PhraStru)]
-    tag2TypeStruMapList = Map.toList tag2TypeStruMap                            -- [(Tag, [(Category, PhraStru)])]
-    tag2TypeStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) tag2TypeStruMapList       -- [(Tag, Set (Category, PhraStru))]
-    tagPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-tag2TypeStruSetList, y<-tag2TypeStruSetList, fst x <= fst y]
+    tag2TypeStruSpanMap = toTag2TypeStruSpanMap phraSynList Map.empty           -- Map Tag [(Category, PhraStru, Span)]
+    tag2TypeStruSpanMapList = Map.toList tag2TypeStruSpanMap                    -- [(Tag, [(Category, PhraStru, Span)])]
+    tag2TypeStruSpanSetList = map (\x -> (fst x, (Set.fromList . snd) x)) tag2TypeStruSpanMapList       -- [(Tag, Set (Category, PhraStru, Span))]
+    tagPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y))
+                                        / (fromIntegral . Set.size) (Set.union (snd x) (snd y)))
+                                        | x<-tag2TypeStruSpanSetList, y<-tag2TypeStruSpanSetList, fst x <= fst y]
     numOfPhraSyn = length phraSynList
-    numOfTag = Map.size tag2TypeStruMap
+    numOfTag = Map.size tag2TypeStruSpanMap
     numOfTagPair = length tagPair2SimList
 
-{- Get Map Category [(Tag, PhraStru)] from PhraSyn list.
+{- Get Map Category [(Tag, PhraStru, Span)] from PhraSyn list.
  -}
-toType2TagStruMap :: [PhraSyn] -> Map Category [(Tag, PhraStru)] -> Map Category [(Tag, PhraStru)]
-toType2TagStruMap [] c2TsListMap = c2TsListMap
-toType2TagStruMap [phraSyn] c2TsListMap = Map.insert cate newTs c2TsListMap
+toType2TagStruSpanMap :: [PhraSyn] -> Map Category [(Tag, PhraStru, Span)] -> Map Category [(Tag, PhraStru, Span)]
+toType2TagStruSpanMap [] cate2TPSListMap = cate2TPSListMap
+toType2TagStruSpanMap [phraSyn] cate2TPSListMap = Map.insert cate newTPS cate2TPSListMap
     where
-    cate = fst3 phraSyn
-    ts = (snd3 phraSyn, thd3 phraSyn)
-    newTs = maybe [ts] (ts:) (Map.lookup cate c2TsListMap)
-toType2TagStruMap (ps:pss) c2TsListMap = toType2TagStruMap pss (toType2TagStruMap [ps] c2TsListMap)
+    cate = fst4 phraSyn
+    tps = (snd4 phraSyn, thd4 phraSyn, fth4 phraSyn)
+    newTPS = case (Map.lookup cate cate2TPSListMap) of
+               Just tPSs -> case (elem tps tPSs) of
+                              True -> tPSs
+                              False -> tps : tPSs
+               Nothing -> [tps]
+toType2TagStruSpanMap (ps:pss) cate2TPSListMap = toType2TagStruSpanMap pss (toType2TagStruSpanMap [ps] cate2TPSListMap)
 
-{- Get Map Tag [(Category, PhraStru)] from PhraSyn list.
+{- Get Map Tag [(Category, PhraStru, Span)] from PhraSyn list.
  -}
-toTag2TypeStruMap :: [PhraSyn] -> Map Tag [(Category, PhraStru)] -> Map Tag [(Category, PhraStru)]
-toTag2TypeStruMap [] t2CsListMap = t2CsListMap
-toTag2TypeStruMap [phraSyn] t2CsListMap = Map.insert tag newCs t2CsListMap
+toTag2TypeStruSpanMap :: [PhraSyn] -> Map Tag [(Category, PhraStru, Span)] -> Map Tag [(Category, PhraStru, Span)]
+toTag2TypeStruSpanMap [] tag2CPSListMap = tag2CPSListMap
+toTag2TypeStruSpanMap [phraSyn] tag2CPSListMap = Map.insert tag newCPS tag2CPSListMap
     where
-    tag = snd3 phraSyn
-    cs = (fst3 phraSyn, thd3 phraSyn)
-    newCs = maybe [cs] (cs:) (Map.lookup tag t2CsListMap)
-toTag2TypeStruMap (ps:pss) t2CsListMap = toTag2TypeStruMap pss (toTag2TypeStruMap [ps] t2CsListMap)
+    tag = snd4 phraSyn
+    cps = (fst4 phraSyn, thd4 phraSyn, fth4 phraSyn)
+    newCPS = case (Map.lookup tag tag2CPSListMap) of
+               Just cPSs -> case (elem cps cPSs) of
+                              True -> cPSs
+                              False -> cps : cPSs
+               Nothing -> [cps]
+toTag2TypeStruSpanMap (ps:pss) tag2CPSListMap = toTag2TypeStruSpanMap pss (toTag2TypeStruSpanMap [ps] tag2CPSListMap)
 
-{- Get Map PhraStru [(Category, Tag)] from PhraSyn list.
+{- Get Map PhraStru [(Category, Tag, Span)] from PhraSyn list.
  -}
-toStru2TypeTagMap :: [PhraSyn] -> Map PhraStru [(Category, Tag)] -> Map PhraStru [(Category, Tag)]
-toStru2TypeTagMap [] s2CtListMap = s2CtListMap
-toStru2TypeTagMap [phraSyn] s2CtListMap = Map.insert stru newCt s2CtListMap
+toStru2TypeTagSpanMap :: [PhraSyn] -> Map PhraStru [(Category, Tag, Span)] -> Map PhraStru [(Category, Tag, Span)]
+toStru2TypeTagSpanMap [] stru2CTSListMap = stru2CTSListMap
+toStru2TypeTagSpanMap [phraSyn] stru2CTSListMap = Map.insert stru newCTSs stru2CTSListMap
     where
-    stru = thd3 phraSyn
-    ct = (fst3 phraSyn, snd3 phraSyn)
-    newCt = maybe [ct] (ct:) (Map.lookup stru s2CtListMap)
-toStru2TypeTagMap (ps:pss) s2CtListMap = toStru2TypeTagMap pss (toStru2TypeTagMap [ps] s2CtListMap)
+    stru = thd4 phraSyn
+    cts = (fst4 phraSyn, snd4 phraSyn, fth4 phraSyn)
+    newCTSs = case (Map.lookup stru stru2CTSListMap) of
+                Just cTSs -> case (elem cts cTSs) of
+                               True -> cTSs
+                               False -> cts : cTSs
+                Nothing -> [cts]
+toStru2TypeTagSpanMap (ps:pss) stru2CTSListMap = toStru2TypeTagSpanMap pss (toStru2TypeTagSpanMap [ps] stru2CTSListMap)
+
+{- Get Map Span [(Category, Tag, PhraStru)] from PhraSyn list.
+ -}
+toSpan2TypeTagStruMap :: [PhraSyn] -> Map Span [(Category, Tag, PhraStru)] -> Map Span [(Category, Tag, PhraStru)]
+toSpan2TypeTagStruMap [] span2CTPListMap = span2CTPListMap
+toSpan2TypeTagStruMap [phraSyn] span2CTPListMap = Map.insert span newCTPs span2CTPListMap
+    where
+    span = fth4 phraSyn
+    ctp = (fst4 phraSyn, snd4 phraSyn, thd4 phraSyn)
+    newCTPs = case (Map.lookup span span2CTPListMap) of
+                Just cTPs -> case (elem ctp cTPs) of
+                               True -> cTPs
+                               False -> ctp : cTPs
+                Nothing -> [ctp]
+toSpan2TypeTagStruMap (ps:pss) span2CTPListMap = toSpan2TypeTagStruMap pss (toSpan2TypeTagStruMap [ps] span2CTPListMap)
 
 {- From SentClauPhraList, get similarity degree bewteen any two phrasal structures.
  -}
@@ -1645,15 +1681,17 @@ getStruPair2SimFromSCPL sentClauPhraList = getStruPair2SimFromPSL phraSynList
 getStruPair2SimFromPSL :: [PhraSyn] -> (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
 getStruPair2SimFromPSL phraSynList = (numOfPhraSyn, numOfPhraStru, numOfStruPair, struPair2SimList)
     where
-    stru2TypeTagMap = toStru2TypeTagMap phraSynList Map.empty                   -- Map PhraStru [(Category, Tag)]
-    stru2TypeTagMapList = Map.toList stru2TypeTagMap                            -- [(PhraStru, [(Category, Tag)])]
-    stru2TypeTagSetList = map (\x -> (fst x, (Set.fromList . snd) x)) stru2TypeTagMapList       -- [(PhraStru, Set (Category, Tag))]
-    struPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y)) / (fromIntegral . Set.size) (Set.union (snd x) (snd y))) | x<-stru2TypeTagSetList, y<-stru2TypeTagSetList, fst x <= fst y]
+    stru2TypeTagSpanMap = toStru2TypeTagSpanMap phraSynList Map.empty           -- Map PhraStru [(Category, Tag, Span)]
+    stru2TypeTagSpanMapList = Map.toList stru2TypeTagSpanMap                    -- [(PhraStru, [(Category, Tag, Span)])]
+    stru2TypeTagSpanSetList = map (\x -> (fst x, (Set.fromList . snd) x)) stru2TypeTagSpanMapList       -- [(PhraStru, Set (Category, Tag, Span))]
+    struPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y))
+                                         / (fromIntegral . Set.size) (Set.union (snd x) (snd y)))
+                                         | x<-stru2TypeTagSpanSetList, y<-stru2TypeTagSpanSetList, fst x <= fst y]
     numOfPhraSyn = length phraSynList
-    numOfPhraStru = Map.size stru2TypeTagMap
+    numOfPhraStru = Map.size stru2TypeTagSpanMap
     numOfStruPair = length struPair2SimList
 
-{- From SentClauPhraList, get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru).
+{- From SentClauPhraList, get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru, Span).
  - Singular Value Decomposition (SVD) is used in calculating similarity degrees between PhraSyn pairs.
  -}
 getPhraSynPairSimFromSCPLBySVD :: DistAlgo -> SentClauPhraList -> ([(PhraSyn, PhraSyn)], Matrix Double, Matrix Double, Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
@@ -1671,16 +1709,48 @@ getPhraSynPairSimFromSCPL distAlgo sentClauPhraList = getPhraSynPairSim distAlgo
     phraSynList = getPhraSynFromSents sentClauPhraList []                       -- [PhraSyn]
     phraSynPairs = [(x, y) | x <- phraSynList, y <- phraSynList, x <= y]        -- [(PhraSyn, PhraSyn)]
 
-{- From [(PhraSyn, PhraSyn)], get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru).
- - sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ssSim), where ccSim is similarity degree between categories of these two phrases,
- - ttSim is similarity degree between grammatic rule tags of these two phrases, and ssSim is similarity degree between phrase-inner structures.
- - Category, grammatic rule, and phrase-inner structure are not independent with each other, so matrix [[ccSim, ttSim, ssSim]] is converted into
+{- From [PhraSyn], get similarity degree bewteen any two phrasal spans.
+ - Similarity degree between two phrasal spans satisfies commutative law, sim (span1, span2) == sim (span2, span1),
+ - so only sim (span1, span2) where span1 <= span2 is calculated.
+ - numOfSpan: Number of different PhraSyns, namely (Category, Tag, PhraStru, Span).
+ - numOfSpan: Number of different phrasal spans.
+ - numOfSpanPair: Number of different phrase span pairs.
+ -}
+getSpanPair2SimFromSCPL :: SentClauPhraList -> (NumOfPhraSyn, NumOfSpan, NumOfSpanPair, [((Span, Span), SimDeg)])
+getSpanPair2SimFromSCPL sentClauPhraList = getSpanPair2SimFromPSL phraSynList
+    where
+    phraSynList = getPhraSynFromSents sentClauPhraList []                       -- [PhraSyn]
+
+{- From [PhraSyn], get similarity degree bewteen any two phrasal spans.
+ - Similarity degree between two phrasal spans satisfies commutative law, sim (span1, span2) == sim (span2, span1),
+ - so only sim (span1, span2) where span1 <= span2 is calculated.
+ - numOfSpan: Number of different PhraSyns, namely (Category, Tag, PhraStru, Span).
+ - numOfSpan: Number of different phrasal spans.
+ - numOfSpanPair: Number of different phrase span pairs.
+ -}
+getSpanPair2SimFromPSL :: [PhraSyn] -> (NumOfPhraSyn, NumOfSpan, NumOfSpanPair, [((Span, Span), SimDeg)])
+getSpanPair2SimFromPSL phraSynList = (numOfPhraSyn, numOfSpan, numOfSpanPair, spanPair2SimList)
+    where
+    span2TypeTagStruMap = toSpan2TypeTagStruMap phraSynList Map.empty           -- Map Span [(Category, Tag, PhraStru)]
+    span2TypeTagStruMapList = Map.toList span2TypeTagStruMap                    -- [(Span, [(Category, Tag, PhraStru)])]
+    span2TypeTagStruSetList = map (\x -> (fst x, (Set.fromList . snd) x)) span2TypeTagStruMapList       -- [(Span, Set (Category, Tag, PhraStru))]
+    spanPair2SimList = [((fst x, fst y), (fromIntegral . Set.size) (Set.intersection (snd x) (snd y))
+                                          / (fromIntegral . Set.size) (Set.union (snd x) (snd y)))
+                                          | x<-span2TypeTagStruSetList, y<-span2TypeTagStruSetList, fst x <= fst y]
+    numOfPhraSyn = length phraSynList
+    numOfSpan = Map.size span2TypeTagStruMap
+    numOfSpanPair = length spanPair2SimList
+
+{- From [(PhraSyn, PhraSyn)], get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru, Span).
+ - sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ppSim, ssSim), where ccSim is similarity degree between categories of these two phrases,
+ - ttSim is similarity degree between grammatic rule tags of these two phrases, ppSim is similarity degree between phrase-inner structures,
+ - and ssSim is similarity degree between spans of these two phrases.
+ - Category, grammatic rule, phrase-inner structure and phrasal spans are not independent with each other, so matrix [[ccSim, ttSim, ssSim]] is converted into
  - matrix [[ccSim', ttSim', ssSim']] acoording to SVD (Singular Value Decomposition) such that ccSim', ttSim' and ssSim' are orthogonal columns.
- - Thus, sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ssSim) = f'(ccSim', ttSim', ssSim'), where f' is Euclid length of vector (ccSim', ttSim', ssSim').
- -
- - origSimList: List of (ccSim, ttSim, ssSim), in which every triple (ccSim, ttSim, ssSim) is corresponding to one tuple (phraSyn1, phraSyn2) in phraSynPairList.
- - origSimMatrix:  (k >< 3) [ccSim1, ttSim1, ssSim1, ..., ccSimk, ttSimk, ssSimk], which is matrix form of origSimList.
- - centredSimMatrix: (k >< 3) [ccSim1/ccSimMean, ttSim1/ttSimMean, ssSim1/ssSimMean, ...], which is centred similarity degree matrix.
+ - Thus, sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ppSim, ssSim) = f'(ccSim', ttSim', ppSim', ssSim'), where f' is Euclid length of vector (ccSim', ttSim', ppSim', ssSim').
+ - origSimList: List of (ccSim, ttSim, ppSim, ssSim), in which every triple (ccSim, ttSim, ppSim, ssSim) is corresponding to one tuple (phraSyn1, phraSyn2) in phraSynPairList.
+ - origSimMatrix:  (k >< 4) [ccSim1, ttSim1, ppSim1, ssSim1, ..., ccSimk, ttSimk, ppSimk,ssSimk], which is matrix form of origSimList.
+ - centredSimMatrix: (k >< 4) [ccSim1/ccSimMean, ttSim1/ttSimMean, ppSim1/ppSimMean, ssSim1/ssSimMean, ...], which is centred similarity degree matrix.
  - covSimMatrix: (1/(k-1))(centredSimMatrixT <> centredSimMatrix), where centredSimMatrixT is the transpose of centredSimMatrix.
  - orthSimMatrix: origSimMatrix LA.<> v, where v is the right singular matrix.
  -}
@@ -1694,43 +1764,46 @@ getPhraSynPairSimBySVD distAlgo phraSynPairs = (phraSynPairs, origSimMatrix, cov
     tagPair2Sim = fth4 tagPair2SimTuple
     struPair2SimTuple = getStruPair2SimFromPSL phraSynList                  -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
     struPair2Sim = fth4 struPair2SimTuple
+    spanPair2SimTuple = getSpanPair2SimFromPSL phraSynList                  -- (NumOfPhraSyn, NumOfSpan, NumOfSpanPair, [((Span, Span), SimDeg)])
+    spanPair2Sim = fth4 spanPair2SimTuple
 
     numOfPhraSynPair = length phraSynPairs
-    origSimList = [(getSimDegFromAttPair2Sim (fst3 x) (fst3 y) typePair2Sim
-                  , getSimDegFromAttPair2Sim (snd3 x) (snd3 y) tagPair2Sim
-                  , getSimDegFromAttPair2Sim (thd3 x) (thd3 y) struPair2Sim) | (x, y) <- phraSynPairs]
-    origSimMatrix = (numOfPhraSynPair >< 3) $ concat [[fst3 e, snd3 e, thd3 e] | e <- origSimList]       -- hmatrix
+    origSimList = [(getSimDegFromAttPair2Sim (fst4 x) (fst4 y) typePair2Sim
+                  , getSimDegFromAttPair2Sim (snd4 x) (snd4 y) tagPair2Sim
+                  , getSimDegFromAttPair2Sim (thd4 x) (thd4 y) struPair2Sim
+                  , getSimDegFromAttPair2Sim (fth4 x) (fth4 y) spanPair2Sim) | (x, y) <- phraSynPairs]
+    origSimMatrix = (numOfPhraSynPair >< 4) $ concat [[fst4 e, snd4 e, thd4 e, fth4 e] | e <- origSimList]     -- hmatrix
 
 {- The following commented codes are replaced with function 'unSym . snd . meanCov'
     origSimMatrixToColumns = map toList $ toColumns origSimMatrix               -- [[SimDeg]]
     simMeanList = map (\x -> sum x / (fromIntegral numOfPhraSynPair)) origSimMatrixToColumns             -- [SimDeg]
-    meanMatrix = fromLists $ take numOfPhraSynPair (repeat simMeanList)         -- (numOfPhraSynPair >< 3)
+    meanMatrix = fromLists $ take numOfPhraSynPair (repeat simMeanList)         -- (numOfPhraSynPair >< 4)
     centredOrigSimMatrix = origSimMatrix - meanMatrix
 
     centredOrigSimMatrixT = tr' centredOrigSimMatrix                            -- Transpose
-    covSimMatrix = cmap (/ (fromIntegral (numOfPhraSynPair - 1))) (centredOrigSimMatrixT LA.<> centredOrigSimMatrix)   -- (3 >< 3)
+    covSimMatrix = cmap (/ (fromIntegral (numOfPhraSynPair - 1))) (centredOrigSimMatrixT LA.<> centredOrigSimMatrix)   -- (4 >< 4)
 -}
-    covSimMatrix = unSym $ snd (meanCov origSimMatrix)                          -- Matrix Double (3 >< 3)
+    covSimMatrix = unSym $ snd (meanCov origSimMatrix)                          -- Matrix Double (4 >< 4)
 
 -- Get right singular value matrix 'v', by (u,s,v) = svd origSimMatrix
 -- Then, convert origSimMatrix to another similarity matrix in which column dimensions are orthogonal.
     (u, s, v) = svd origSimMatrix
-    orthSimMatrix = origSimMatrix LA.<> v                                       -- (numOfPhraSynPair >< 3)
+    orthSimMatrix = origSimMatrix LA.<> v                                       -- (numOfPhraSynPair >< 4)
 
     phraSynPairSimList = case distAlgo of
-                           "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
-                           "Manhattan" -> map ((/ 3.0) . sumElements) (toRows orthSimMatrix)
+                           "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) orthSimMatrix))
+                           "Manhattan" -> map ((/ 4.0) . sumElements) (toRows orthSimMatrix)
     phraSynPair2SimList = zip phraSynPairs phraSynPairSimList     -- [((PhraSyn, PhraSyn), SimDeg)]
 
-{- From [(PhraSyn, PhraSyn)], get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru).
- - sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ssSim), where ccSim is similarity degree between categories of these two phrases,
- - ttSim is similarity degree between grammatic rule tags of these two phrases, and ssSim is similarity degree between phrase-inner structures.
- - Category, grammatic rule, and phrase-inner structure are not independent with each other, but experiments show,
- - the columns of matrix [[ccSim, ttSim, ssSim]] are orthogonal, the possible reason of which is these similarity are defined by mutual interpretion.
- - So, f(ccSim, ttSim, ssSim) is Root Mean Square of ccSim, ttSim and ssSim.
+{- From [(PhraSyn, PhraSyn)], get similarity degree bewteen any phrases in their PhraSyn = (Category, Tag, PhraStru, Span).
+ - sim(phraSyn1, phraSyn2) = f(ccSim, ttSim, ppSim, ssSim), where ccSim is similarity degree between categories of these two phrases,
+ - ttSim is similarity degree between grammatic rule tags of these two phrases, ppSim is similarity degree between phrase-inner structures,
+ - and ssSim is similarity degree between spans of these two phrases.
+ - Category, grammatic rule, phrase-inner structure, and phrasal spans are not independent with each other,
+ - so there are various distance algorithms of function 'f'.
  - DistAlgo: Distance algorithm name.
- - origSimList: List of (ccSim, ttSim, ssSim), in which every triple (ccSim, ttSim, ssSim) is corresponding to one tuple (phraSyn1, phraSyn2) in phraSynPairList.
- - origSimMatrix:  (k >< 3) [ccSim1, ttSim1, ssSim1, ..., ccSimk, ttSimk, ssSimk], which is matrix form of origSimList.
+ - origSimList: List of (ccSim, ttSim, ppSim, ssSim), in which every triple (ccSim, ttSim, ssSim) is corresponding to one tuple (phraSyn1, phraSyn2) in phraSynPairList.
+ - origSimMatrix:  (k >< 3) [ccSim1, ttSim1, ppSim, ssSim1, ..., ccSimk, ttSimk, ppSimk, ssSimk], which is matrix form of origSimList.
  -}
 getPhraSynPairSim :: DistAlgo -> [(PhraSyn, PhraSyn)] -> ([(PhraSyn, PhraSyn)], Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
 getPhraSynPairSim distAlgo phraSynPairs = (phraSynPairs, origSimMatrix, phraSynPair2SimList)
@@ -1742,24 +1815,31 @@ getPhraSynPairSim distAlgo phraSynPairs = (phraSynPairs, origSimMatrix, phraSynP
     tagPair2Sim = fth4 tagPair2SimTuple
     struPair2SimTuple = getStruPair2SimFromPSL phraSynList                  -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
     struPair2Sim = fth4 struPair2SimTuple
+    spanPair2SimTuple = getSpanPair2SimFromPSL phraSynList                  -- (NumOfPhraSyn, NumOfSpan, NumOfSpanPair, [((Span, Span), SimDeg)])
+    spanPair2Sim = fth4 spanPair2SimTuple
 
     numOfPhraSynPair = length phraSynPairs
-    origSimList = [(getSimDegFromAttPair2Sim (fst3 x) (fst3 y) typePair2Sim
-                  , getSimDegFromAttPair2Sim (snd3 x) (snd3 y) tagPair2Sim
-                  , getSimDegFromAttPair2Sim (thd3 x) (thd3 y) struPair2Sim) | (x, y) <- phraSynPairs]
-    origSimMatrix = (numOfPhraSynPair >< 3) $ concat [[fst3 e, snd3 e, thd3 e] | e <- origSimList]    -- hmatrix
+    origSimList = [(getSimDegFromAttPair2Sim (fst4 x) (fst4 y) typePair2Sim
+                  , getSimDegFromAttPair2Sim (snd4 x) (snd4 y) tagPair2Sim
+                  , getSimDegFromAttPair2Sim (thd4 x) (thd4 y) struPair2Sim
+                  , getSimDegFromAttPair2Sim (fth4 x) (fth4 y) spanPair2Sim) | (x, y) <- phraSynPairs]
+    origSimMatrix = (numOfPhraSynPair >< 4) $ concat [[fst4 e, snd4 e, thd4 e, fth4 e] | e <- origSimList]    -- hmatrix
 
     phraSynPairSimList = case distAlgo of
-                           "Euclidean" -> map (sqrt . (/ 3.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
-                           "Manhattan" -> map ((/ 3.0) . sumElements) (toRows origSimMatrix)
+                           "Euclidean" -> map (sqrt . (/ 4.0) . sumElements) (toRows (cmap (\x -> x*x) origSimMatrix))
+                           "Manhattan" -> map ((/ 4.0) . sumElements) (toRows origSimMatrix)
     phraSynPair2SimList = zip phraSynPairs phraSynPairSimList               -- [((PhraSyn, PhraSyn), SimDeg)]
 
 -- Get PhraSyn value pair from a similarity degree vector.
-getPhraSynPairFromSimDegVector :: (((Category, Category), SimDeg), ((Tag, Tag), SimDeg), ((PhraStru, PhraStru), SimDeg)) -> (PhraSyn, PhraSyn)
-getPhraSynPairFromSimDegVector (ccSim, ttSim, ssSim) = (phraSyn1, phraSyn2)
+getPhraSynPairFromSimDegVector :: ( ((Category, Category), SimDeg)
+                                  , ((Tag, Tag), SimDeg)
+                                  , ((PhraStru, PhraStru), SimDeg)
+                                  , ((Span, Span), SimDeg)
+                                  ) -> (PhraSyn, PhraSyn)
+getPhraSynPairFromSimDegVector (ccSim, ttSim, ppSim, ssSim) = (phraSyn1, phraSyn2)
     where
-    phraSyn1 = ((fst . fst) ccSim, (fst . fst) ttSim, (fst . fst) ssSim)
-    phraSyn2 = ((snd . fst) ccSim, (snd . fst) ttSim, (snd . fst) ssSim)
+    phraSyn1 = ((fst . fst) ccSim, (fst . fst) ttSim, (fst . fst) ppSim, (fst . fst) ssSim)
+    phraSyn2 = ((snd . fst) ccSim, (snd . fst) ttSim, (snd . fst) ppSim, (snd . fst) ssSim)
 
 -- Given two attribute values, get their similarity degree from attribute Similarity degree list.
 getSimDegFromAttPair2Sim :: Eq a => a -> a -> [((a, a), SimDeg)] -> SimDeg

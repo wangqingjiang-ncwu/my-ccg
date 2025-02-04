@@ -47,6 +47,11 @@ spec = do
       let ctsp = [(getCateFromString "(s\\.np)/.np", "Desig", "likes'","DE"),(getCateFromString "s/.np", "Desig", "likes'","DE")]
       ctspOfCate pc `shouldBe` ctsp
 
+    it "The result of ctpsOfCate ((1,1),[(s\\.np, \">\", \"likes' reading'\",\"VO\",True)],2) is [(\"s\\.np\", \">\", \"likes' reading'\", 1)]" $ do
+      let pc = createPhraCate 1 1 [(predCate, ">", "likes' reading'", "VO", True)] 2
+      let ctps = [(predCate, ">", "VO", 1)]
+      ctpsOfCate pc `shouldBe` ctps
+
     it "The result of csOfActCate ((1,0),[((s\\.np)/.np, \"Desig\", \"likes'\",\"DE\",True),(s/.np, \"Desig\", \"likes'\",\"DE\",False],1) is [(\"(s\\.np)/.np\", \"likes'\"),(\"s/.np\",\"likes'\")]" $ do
       let pc = createPhraCate 1 0 [(getCateFromString "(s\\.np)/.np", "Desig", "likes'", "DE", True),(getCateFromString "s/.np", "Desig", "likes'", "DE",False)] 1
       let cs = [(getCateFromString "(s\\.np)/.np", "likes'")]

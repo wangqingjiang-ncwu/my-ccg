@@ -37,14 +37,14 @@ import Utils
 -- CCG rules constitute a functional list.
 rules :: [(Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)]
 
--- rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, raiFh, raiFc, raiBh, raiBh2, raiBc]
-rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, raiFh, raiBh, raiBh2]
+-- rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, comBc2, raiFh, raiFc, raiBh, raiBh2, raiBc]
+rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, comBc2, raiFh, raiBh, raiBh2]
 
 {- In parsing trees, every combination should print its corresponding rule tag.
  - To now, the rules used for combining two phrases are not limited in the following.
  -}
 ruleTags :: [Tag]
-ruleTags = [">","<",">B",">B2","<B",">Bx","<Bx",">T->B",">T->Bx","<T-<B","<T-<B2","<T-<Bx"]
+ruleTags = [">","<",">B",">B2","<B",">Bx","<Bx","<Bx2",">T->B",">T->Bx","<T-<B","<T-<B2","<T-<Bx"]
 
 -- To create a predicate-argument structure from two semantic components.
 -- For semantic components themselves as predicate-argument structure, they should be bracketed.
@@ -196,6 +196,24 @@ comBc cate1 cate2
     ca2 = fst3 cate2
     se2 = snd3 cate2
     isAvail = (midSlash ca1 == "/x" || midSlash ca1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && leftCate ca1 == rightCate ca2
+
+-- CCG backward crossing composition^2, like (Y/xZ)|W X\xY -> (X/xZ)|W.
+-- Scene 1: ((s\.np)/.np)/.np  (s\.np)\x(s\.np) -> ((s\.np)/.np)/.np
+comBc2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
+comBc2 cate1 cate2
+    | isPrimitive ca1 || isPrimitive ca2 || isPrimitive lcate1 = (nilCate, "<Bx2", "", "", False)
+    | ca1 == conjCate4Backward || ca1 == conjCate4Forward = (nilCate, "<Bx2", "", "", False)
+    | ca1 == aux5Cate || ca1 == toneCate = (nilCate, "<Bx2", "", "", False)
+    | isAvail && (ca1 == verbCate2 && ca2 == verbCompCate) = (ca1, "<Bx2", semComb se2 se1, "HvC", True)
+    | otherwise = (nilCate, "<Bx2", "", "", False)
+    where
+    ca1 = fst3 cate1
+    se1 = snd3 cate1
+    ca2 = fst3 cate2
+    se2 = snd3 cate2
+    lcate1 = leftCate ca1
+    llcate1 = leftCate lcate1
+    isAvail = (midSlash lcate1 == "/x" || midSlash lcate1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && leftCate lcate1 == rightCate ca2
 
 -- CCG Forward type raising and harmonic composition: X (Y\X)/Z -> Y/(Y\X) (Y\X)/Z -> Y/Z
 -- To now, the rule is only used for objective extraction and predicate extraction.

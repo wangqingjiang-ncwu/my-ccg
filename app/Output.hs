@@ -63,7 +63,7 @@ module Output (
 import Category
 import Rule
 import Phrase
-import Parse
+--import Parse
 import Corpus
 --import AmbiResol (PhraSyn, OverPair, OverType, Prior,)
 import AmbiResol
@@ -137,7 +137,7 @@ showPhraCate pc = do
 
 -- Convert a PhraSyn value to its String value. PhraSyn :: (Category, Tag, PhraStru, Span)
 showPhraSyn :: PhraSyn -> IO ()
-showPhraSyn ps = putStr $ "(" ++ show (fst4 ps) ++ "," ++ (snd4 ps) ++ "," ++ (thd4 ps) ++ show (thd4 ps) ++ ")"
+showPhraSyn ps = putStr $ "(" ++ show (fst4 ps) ++ "," ++ (snd4 ps) ++ "," ++ (thd4 ps) ++ "," ++ show (fth4 ps) ++ ")"
 
 showNPhraSyn :: [PhraSyn] -> IO ()
 showNPhraSyn [] = putStr "[]"
@@ -418,7 +418,11 @@ showScripts' (s:ss) = do
     putStrLn ","
     showScripts' ss
 
--- Show [(SentIdx, [Script], [Script])] including the outest square brackets.
+{- Show [(SentIdx, [Script], [Script])] including the outest square brackets.
+ - SentIdx: Serial number of a sentence in table corpus.
+ - 1st [Script]: Parsing scripts of a sentence in benchmark treebank.
+ - 2nd [Script]: Parsing scripts of a sentence in experimental treebank.
+ -}
 showSnScript2List :: [(SentIdx, [Script], [Script])] -> IO ()
 showSnScript2List [] = putStrLn "[]"
 showSnScript2List xs = do
@@ -429,16 +433,19 @@ showSnScript2List xs = do
 -- Show [(SentIdx, [Script], [Script])] without the outest square brackets.
 showSnScript2List' [] = putStr ""
 showSnScript2List' [x] = do
-    putStr "("
-    putStr $ show (fst3 x)
-    putStr ","
+    putStrLn $ " Serial Num. = " ++ show (fst3 x)
+    let scriptPairs = zip (snd3 x) (thd3 x)                                     -- [(Script, Script)]
+    let checkList = zip [1..] $ map (\x -> fst x == (snd x)) scriptPairs        -- [(ClauIdx, Bool)], where True means script equality.
+    let oks = filter (\x -> snd x) checkList
+    let bads = filter (\x -> not (snd x)) checkList
+    putStrLn $ "     Indices of clauses with same script: " ++ show (map fst oks) ++ ", Indices of clauses with different script: "  ++ show (map fst bads)
+    putStr "     Benchmark    scripts: "
     showScripts (snd3 x)
-    putStr ","
+    putStr "     Experimental scripts: "
     showScripts (thd3 x)
-    putStr ")"
+    putStrLn $ " End of Serial Num. " ++ show (fst3 x)
 showSnScript2List' (x:xs) = do
     showSnScript2List' [x]
-    putStr ","
     showSnScript2List' xs
 
 showForest :: [[PhraCate]] -> IO ()

@@ -64,6 +64,7 @@ module Clustering (
     getPhraSynPair2SimFromCOT,       -- DistAlgo -> [ContextOfOT] -> Map (PhraSyn, PhraSyn) SimDeg
     getPhraSynPair2SimFromCSG,       -- DistAlgo ->[ContextOfSG] -> Map (PhraSyn, PhraSyn) SimDeg
     getPhraSynSetSim,                -- [PhraSyn] -> [PhraSyn] -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
+    toPhraSynPair2Sim,               -- Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
     getSentClauPhraList,             -- SentIdx -> SentIdx -> IO SentClauPhraList
 
     getContext2OverTypeBase,         -- SIdx -> SIdx -> IO Context2OverTypeBase
@@ -1953,9 +1954,10 @@ getPhraSynSetSim _ [] _ = 0.0
 getPhraSynSetSim [] _ _ = 0.0
 getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
     where
-    phraSynPairMatrix = [(a,b) | a <- psl1, b <- psl2]                  -- Matrix element must be number value type. Name matrix is borrowed.
-    phraSynPair2SimMatrix = map (toPhraSynPair2Sim phraSynPair2SimMap) phraSynPairMatrix              -- [((PhraSyn, PhraSyn), SimDeg)]
-    matchedPhraSynPair2SimList = getMatchedElemPair2SimList [] phraSynPair2SimMatrix                  -- [((PhraSyn, PhraSyn), SimDeg)]
+    phraSynPairMatrix = [(a,b) | a <- zip [1..] psl1, b <- zip [1..] psl2]      -- [((RowIdx, PhraSyn), (ColIdx, PhraSyn))], a tuple matrix.
+    phraSynPair2SimMatrix = map (\x -> (((fst . fst) x, (fst . snd) x), (toPhraSynPair2Sim phraSynPair2SimMap) ((snd . fst) x, (snd . snd) x))) phraSynPairMatrix
+                                                                                -- [((RowIdx, ColIdx), ((PhraSyn, PhraSyn), SimDeg))]
+    matchedPhraSynPair2SimList = map snd $ getMatchedElemPair2SimList [] phraSynPair2SimMatrix      -- [((PhraSyn, PhraSyn), SimDeg)]
     allMatchedPhraSynPair2SimList = case (signum (length psl1 - (length psl2))) of
       -1 -> matchedPhraSynPair2SimList ++ [((nullPhraSyn, x), 0.0) | x <- psl2, notElem x (map (snd . fst) matchedPhraSynPair2SimList)]
       0 -> matchedPhraSynPair2SimList
@@ -2183,9 +2185,12 @@ getOverTypePair2Sim startIdx endIdx = do
 getContextOfOTSetSim :: [ContextOfOT] -> [ContextOfOT] -> [((ContextOfOT, ContextOfOT), SimDeg)] -> SimDeg
 getContextOfOTSetSim cotl1 cotl2 contextOfOTPair2SimList = simDeg
     where
-    contextOfOTPairMatrix = nubBy (\x y -> x == swap y) [(a,b) | a <- cotl1, b <- cotl2]         -- Matrix element must be number value type. Name matrix is borrowed.
-    contextOfOTPair2SimMatrix = map (lookupContextOfOTPairSim contextOfOTPair2SimList) contextOfOTPairMatrix      -- [((ContextOfOT, ContextOfOT), SimDeg)]
-    matchedContextOfOTPair2SimList = getMatchedElemPair2SimList [] contextOfOTPair2SimMatrix         -- [((ContextOfOT, ContextOfOT), SimDeg)]
+--    contextOfOTPairMatrix = nubBy (\x y -> x == swap y) [(a,b) | a <- cotl1, b <- cotl2]         -- Matrix element must be number value type. Name matrix is borrowed.
+--    contextOfOTPair2SimMatrix = map (lookupContextOfOTPairSim contextOfOTPair2SimList) contextOfOTPairMatrix      -- [((ContextOfOT, ContextOfOT), SimDeg)]
+    contextOfOTPairMatrix = [(a,b) | a <- zip [1..] cotl1, b <- zip [1..] cotl2]      -- [((RowIdx, ContextOfOT), (ColIdx, ContextOfOT))], a tuple matrix.
+    contextOfOTPair2SimMatrix = map (\x -> (((fst . fst) x, (fst . snd) x), (lookupContextOfOTPairSim contextOfOTPair2SimList) ((snd . fst) x, (snd . snd) x))) contextOfOTPairMatrix
+                                                                                    -- [((RowIdx, ColIdx), ((ContextOfOT, ContextOfOT), SimDeg))]
+    matchedContextOfOTPair2SimList = map snd $ getMatchedElemPair2SimList [] contextOfOTPair2SimMatrix              -- [((ContextOfOT, ContextOfOT), SimDeg)]
     allMatchedContextOfOTPair2SimList = case (signum (length cotl1 - (length cotl2))) of
       -1 -> matchedContextOfOTPair2SimList ++ [((nullContextOfOT, x), 0.0) | x <- cotl2, notElem x (map (snd . fst) matchedContextOfOTPair2SimList)]
       0 -> matchedContextOfOTPair2SimList

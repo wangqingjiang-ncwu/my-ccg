@@ -39,6 +39,11 @@ spec = do
       let ctpsOfnPCs2 = ctpsOfCateList' nPCs2
       distPhraSynSetByIdentity ctpsOfnPCs1 ctpsOfnPCs2 `shouldBe` (0.0 :: Double)
 
+    it "The result of distPhraSynSetByIdentity sStub nPCs is 0.5 / 7.0" $ do
+      let sStub = [(numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, ">", "AHn", 1), (numeralCate, "Desig", "DE", 0), (verbCate, "Desig", "DE", 0), (npCate, "A/n->", "AHn", 2)]
+      let nPCs = [(verbCate, "Desig", "DE", 0), (numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, ">", "AHn", 1), (npCate, ">", "AHn", 1)]
+      abs (distPhraSynSetByIdentity sStub nPCs - (0.5 / 7.0 :: Double)) < 1e-10 `shouldBe` True
+
     it "The result of distVect4StruGeneByIdentity ([(np, \">\", \"HnC\", 2)], (s, \">B\", \"DHv\", 2), (np, \"<B\", \"AHn\", 2), [(np, \">B\", \"SP\", 2)]) ([(s/.np, \"<\", \"AHn\", 3)], (np, \">\", \"AHn\", 3), (np, \"<B\", \"AHn\", 2), [(s\\.np, \"<B\", \"AHn\", 3)], 2, Lp) is [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC", 2)], (getCateFromString "s", ">B", "DHv", 2), (getCateFromString "np","<B","AHn",2), [(getCateFromString "np",">B","SP",2)], 1, Lp)
       let sg2 = ([(getCateFromString "s/.np", "<", "AHn", 3)], (getCateFromString "np", ">", "AHn", 3), (getCateFromString "np","<B","AHn",2), [(getCateFromString "s\\.np","<B","AHn",3)], 2, Lp)

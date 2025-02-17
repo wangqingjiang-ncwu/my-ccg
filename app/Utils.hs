@@ -83,7 +83,9 @@ module Utils (
     acceptOrNot,       -- a -> String -> IO Maybe a
     compFiveLists,     -- [a] -> [a] -> [a] -> [a] -> [a] -> [[a]]
     dispList,          --  (Eq a, Show a) => Int -> [a] -> IO ()
-    getMatchedElemPair2SimList,   -- (Eq a, Ord b, Num b) => [((a, a), b)] -> [((a, a), b)] -> [((a, a), b)]
+    RowIdx,        -- Int
+    ColIdx,        -- Int
+    getMatchedElemPair2SimList,   -- (Eq a, Ord b, Num b) => [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))]
     formatDoubleAList, -- Show a => [(Double, a)] -> Int -> [(String, a)]
     ) where
 
@@ -698,26 +700,30 @@ dispELemList (x:xs) = do
         putStrLn ""
 
 {- Match element pairs which have similarity degrees from high to low.
- - (1) Suppose similarity degree matrix M = [((a,b),sim(a,b))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
- -     If there are n phrases, then there exists a similarity degree between every two phrases, and the matrix size is (n >< n).
- - (2) If sim(c,d) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
- -     [x | x <-M, notElem ((fst . fst) x) [c,d] && notElem ((snd . fst) x) [c,d]];
+ - (1) Suppose similarity degree matrix M = [((xIdx, yIdx), ((a,b),sim(a,b)))], a and b are phrases, and sim(a,b) is the similarity degree of (a,b);
+ -     Here, xIdx :: [1 .. m], yIdx :: [1 .. n], so the matrix size is (m >< n).
+ - (2) If ((x, y), ((c,d),sim(c,d))) is the maximum in M, Move ((c,d), sim(c,d)) from M to L, L stores matching result, while M is modified as
+ -     [e | e <-M, (fst . fst) e /= x, (snd . fst) e /= y];
  -     Repeat (1)(2) until M is empty.
  - (3) return L.
  -}
-getMatchedElemPair2SimList :: (Eq a, Ord b, Num b) => [((a, a), b)] -> [((a, a), b)] -> [((a, a), b)]
+
+type RowIdx = Int
+type ColIdx = Int
+
+getMatchedElemPair2SimList :: (Eq a, Ord b, Num b) => [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))]
 getMatchedElemPair2SimList matchedElemPair2SimList [] = matchedElemPair2SimList
 getMatchedElemPair2SimList matchedElemPair2SimList elemPair2SimMatrix = getMatchedElemPair2SimList matchedElemPair2SimList' elemPair2SimMatrix'
     where
-    simList = map snd elemPair2SimMatrix                                        -- [SimDeg]
+    simList = map (snd . snd) elemPair2SimMatrix                                -- [SimDeg]
     maxSim = maximum simList
     idx = case (elemIndex maxSim simList) of
             Just x -> x
             Nothing -> error "getMatchedElemPair2SimList: Impossible."
     elemWithMaxSim = elemPair2SimMatrix!!idx
-    (e1, e2) = fst elemWithMaxSim                                               -- (PhraSyn, PhraSyn)
+    (x, y) = fst elemWithMaxSim                                                 -- (xIdx, yIdx)
     matchedElemPair2SimList' = matchedElemPair2SimList ++ [elemWithMaxSim]
-    elemPair2SimMatrix' = [x | x <- elemPair2SimMatrix, notElem ((fst . fst) x) [e1, e2] && notElem ((snd . fst) x) [e1, e2]]  -- Remove related elements
+    elemPair2SimMatrix' = [e | e <- elemPair2SimMatrix, (fst . fst) e /= x, (snd . fst) e /= y]        -- Remove elements at row x and column y.
 
 {- Get the format print of [(Double, a)] with given decimal places to represent Double values.
  -}

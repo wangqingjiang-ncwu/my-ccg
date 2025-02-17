@@ -263,7 +263,9 @@ rightCate (Primitive a) = error $ "rightCate: " ++ show (Primitive a)
 rightCate (Derivative _ _ cate2) = cate2
 
 midSlash :: Category -> Slash
-midSlash (Primitive _) = error "midSlash"
+midSlash Nil = error "midSlash: Nil"
+midSlash X = error "midSlash: X"
+midSlash (Primitive _) = error "midSlash: Primitive"
 midSlash (Derivative _ s _) = s
 
 derivate :: Category -> Slash -> Category -> Category

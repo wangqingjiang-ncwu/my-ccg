@@ -7,6 +7,7 @@ module Parse (
     trans,             -- OnOff -> [PhraCate] -> [BanPCs] -> [PhraCate]
     transWithPruning,  -- [Rule] -> [PhraCate] -> [[PhraCate]] -> [OverPair] -> IO ([PhraCate],[BanPCs])
 --  parse,             -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
+    pruneByFinalTree,  -- [OverPair] -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
     prune,             -- [PhraCate] -> [PhraCate]
 --  prune',            -- [PhraCate] -> [PhraCate] -> IO ([PhraCate],[PhraCate])
     getOverlap,        -- [PhraCate] -> [(PhraCate,PhraCate)]
@@ -80,7 +81,8 @@ cateComb onOff pc1 pc2
 {- Use P/s only when
  - (1) subject-predicate structure appears at predicate position,
  - (2) subject-predicate structure occupies the head-word position of DHv,
- - (2) a phrase with structure XX follows.
+ - (3) a phrase with a structure HX following,
+ - (4) a phrase following a conjunction.
  -}
       s_P_SP = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
       ctspaBysToP_SP = [rule cate1 cate2 | rule <- [appB], cate1 <- csp1, cate2 <- s_P_SP, elem Ps onOff]
@@ -631,12 +633,13 @@ cateComb onOff pc1 pc2
 
 {- The conversion from noun to adjective adberbial type is ONLY allowed when
  - Te noun acts as adjective adverbial, using type (np/.np)/*(np/.np).
- - Such as "那么 好"
+ - (1) "那么np 好np/.np"
+ - (2) "这np 几个np/*np"
  -}
       n_Da_DHa = removeDup [(advCate4Adj, snd3 csp, thd3 csp) | csp <- csp1, (fst3 csp) == npCate]
       ctspaBynToDa_DHa = [rule cate1 cate2 | rule <- [appF], cate1 <- n_Da_DHa, cate2 <- csp_2, elem Dan onOff]
           where
-          csp_2 = removeDup [x| x<- csp2, fst3 x == adjCate]
+          csp_2 = removeDup [x| x<- csp2, cateEqual (fst3 x) adjCate]
       ctspaBynToDa = ctspaBynToDa_DHa
       catesBynToDa = [(fst5 cate, "Da/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBynToDa]
 
@@ -964,12 +967,26 @@ cateComb onOff pc1 pc2
       ctspaByvToA_dToHn = [rule cate1 cate2 | rule <- [appF], cate1 <- v_A_AHn, cate2 <- d_Hn_AHn, elem Av onOff, elem Hnd onOff]
       catesByvToA_dToHn = [(fst5 cate, "A/v-Hn/d-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToA_dToHn]
 
+{- The two adjacent types "<verb> np" convert to "np np\*np", forming structure HnC, here Hn/v and Cn/n happen simultaneously.
+ - Such as "买东西vi 这堂课np"
+ -}
+      ctspaByvToHn_nToCn = [rule cate1 cate2 | rule <- [appB], cate1 <- v_Hn_HnC, cate2 <- n_Cn_HnC, elem Hnv onOff, elem Cnn onOff]
+      catesByvToHn_nToCn = [(fst5 cate, "Hn/v-Cn/n-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvToHn_nToCn]
+
 {- The two adjacent types "(s\.np)/.np s\.np" convert to "s\.np (s\.np)\x(s\.np)", forming structure HvC, here P/vt and Cv/v happen simultaneously.
  - Such as "他 分配vt 到北京工作vi"，缺少'被'字，实为病句。
  -}
       vt_P_HvC = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == verbCate]
       ctspaByvtToP_vToCv = [rule cate1 cate2 | rule <- [appB], cate1 <- vt_P_HvC, cate2 <- v_Cv_HvC, elem Pvt onOff, elem Cvv onOff]
       catesByvtToP_vToCv = [(fst5 cate, "P/vt-Cv/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP_vToCv]
+
+{- The two adjacent types "s\.np 'vCate'" convert to "(s\.np)/.np np", forming structure VO, here Vt/vi and O/v happen simultaneously.
+ - Such as "衔接vi 开发vt"
+ - vi_Vt_VO = removeDup [(verbCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == predCate]
+ - v_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) vCate)]    -- Nonstrict equality between categories
+ -}
+      ctspaByviToVt_vToO = [rule cate1 cate2 | rule <- [appF], cate1 <- vi_Vt_VO, cate2 <- v_O_VO, elem Vtvi onOff, elem Ov onOff]
+      catesByviToVt_vToO = [(fst5 cate, "Vt/vi-O/v-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByviToVt_vToO]
 
 {- The two adjacent types "<adjective> <verb>" or "<adjective> <verb2>" convert to "np s\.np", forming structure SP, here S/a and P/vt happen simultaneously.
  - The double conversions happen in sentences where the object acts as the subject.
@@ -995,7 +1012,7 @@ cateComb onOff pc1 pc2
         ++ catesByu3ToU3d
         ++ catesBysToS_aToP ++ catesBysToA_vToHn ++ catesBysToA_dToHn ++ catesBysToHn_nToCn
         ++ catesBynToV_vToO ++ catesBynToA_sToHn ++ catesBynToA_aToHn ++ catesBynToA_vToHn ++ catesBynToA_dToHn ++ catesBynToDa_vToA
-        ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesByvToA_dToHn ++ catesByvtToP_vToCv
+        ++ catesByvToS_aToP ++ catesByvToA_vToHn ++ catesByvToA_dToHn ++ catesByvToHn_nToCn ++ catesByvtToP_vToCv ++ catesByviToVt_vToO
         ++ catesByaToS_vtToP
 
 {- Remove Nil's resultant cateories, NR phrase-structural categories, and duplicate ones.
@@ -1048,7 +1065,11 @@ transWithPruning onOff pcs banPCSets overPairs = do
     if newCbs /= []
       then do
         let pcs1 = pcs ++ newCbs                                      -- Before pruning
-        pcs1' <- prune overPairs pcs1 newCbs                          -- After pruning
+        confInfo <- readFile "Configuration"
+        let prune_algo = getConfProperty "prune_algo" confInfo
+        pcs1' <- case prune_algo of
+                   "NoDemandPhrase" -> prune overPairs pcs1 newCbs              -- Remove one no-demand phrase every time until stub tree has no syntactic ambiguity.
+                   "FinalTree" -> pruneByFinalTree overPairs pcs1 newCbs        -- Remove all phrases not belonging to final tree.
         let pcs2 = updateAct pcs1'                                    -- Attr. activity is corrected.
         let banPCSets2 = banPCSets ++ [[cb| cb <- pcs1, notElem4Phrase cb pcs2]]    -- Add a banned phrase set
         return (pcs2, banPCSets2)
@@ -1095,6 +1116,33 @@ parse onOff trans banPCsList = do
       else parse onOff trans2 banPCsList2
 -}
 
+{- Remove phrases by an OverPair list, here OverPair :: (PhraCate, PhraCate, Prior).
+ - Every element in an OverPair list describes a pair of overlapping phrases, in which one phrase or both of them should be removed.
+ - case Prior of
+ -   Lp -> Remove the 2nd phrase
+ -   Rp -> Remove the 1st phrase
+ -   Noth -> Remove both of them
+ - Function 'prune' recursively removes phrase(s) from the overlapping phrasal pair with the local lowest priority
+ - until there is no syntactic ambiguity in phrase set. When the function returns, some phrases not belonging to the final parsing tree
+ - might be retained in current parsing result.
+ - Every OverPair tuple records one syntactic ambiguity, in which there is at most one phrase belonging to the final parsing tree.
+ - Removing those phrases not belonging to final tree as soon as possible can decrease ambiguities in the latter parsing, so the
+ - function 'pruneByFinalTree' was proposed to replace function 'prune'.
+ - Here, "op" is one OverPair tuple, "pcs" is phrasal set, "newCbs" is the set of newly generated phrases.
+ -}
+pruneByFinalTree :: [OverPair] -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
+pruneByFinalTree [] pcs _ = return pcs
+pruneByFinalTree (op:ops) pcs newCbs = do
+    let (pc1, pc2) = case (thd3 op) of
+                       Lp -> (nilPhra, snd3 op)
+                       Rp -> (fst3 op, nilPhra)
+                       Noth -> (fst3 op, snd3 op)
+    let pcs' = removeOnePC pc1 pcs newCbs                      -- Remove phrase <pc1> and its descendants.
+    let pcs'' = removeOnePC pc2 pcs' newCbs                    -- Remove phrase <pc2> and its descendants.
+    putStr "The removed phrase(s):"
+    showNPhraCate' [x| x<-pcs, notElem x pcs'']                -- Show all phrases in List <pcs> but not in List <pcs'>.
+    pruneByFinalTree ops pcs'' newCbs
+
 {- We adopt pruning method to remove those banned phrases, based on some axioms.
    Axiom 1. The pruned phrases are no longer generated.
    Axiom 2. After pruning, Type-1 and Type-2 overlaps certainly disappear, but Type-3, -4, -5 overlaps might remain.
@@ -1103,13 +1151,14 @@ parse onOff trans banPCsList = do
    Any phrasal category having taken part in category combination should be set inactive, which
    can still combine with active categories. When removing a category, its parent categories should be set active.
    After one trip of transitive computing among an unambiguous partial tree, the ambiguous overlaps only exist between new generated phrases,
-   or between a new generated phrase and an old generated phrase.
+   or between a new generated phrase and a foregone generated phrase.
    Axiom 4. For a phrase to be removed, if it is generated before the current transitive computing, its children should be removed also.
    Here, "newCbs" is the set of newly generated phrases.
  -}
 prune :: [OverPair] -> [PhraCate] -> [PhraCate] -> IO [PhraCate]
 prune overPairs pcs newCbs = do
      let pcps = getOverlap pcs                      -- Get overlapping phrase pairs
+--     putStrLn $ "prune: pcps = " ++ show pcps
      if pcps == []                                  -- No overlapping phrases
        then return pcs
        else do
@@ -1140,30 +1189,29 @@ getOverlap [] = []
 getOverlap pcs = [(x,y)| x<-pcs, y<-pcs, spOfCate x > 0, spOfCate y > 0, x/=y, pclt x y, (acOfCate x)!!0 || (acOfCate y)!!0, getOverType pcs x y /= 0]
 
 {- Here, overlapping relation is unidirectional. (<pc1>, <pc2>) is overlapping, then (<pc2>, <pc1>) is not overlapping.
-   The relation has no transitivity. Without loss of generality, let AB and BC be overlapping pairs, then AC might be
-   not overlapping, one possible reason of which is both A and C are inactive. One phrase has the lowest priority means
-   its priority is lower than that of its every overlapping phrases.
+   One phrase without demand means no OverPair tuple ask it keep existing.
    For a list of overlapping-phrasal tuples,
    (1) If there is not any overlapping phrase, return ((-1,-1),[],-1), namely 'nilPhra'.
-   (2) From the first pair of overlapping phrases, select the lower-priority phrase by GeneBase, get the phrase's
+   (2) From the first pair of overlapping phrases, select the no demand phrase by OverPair Base, and get the phrase's
        related overlapping pairs from all unChecked pairs. If there is no related pair, return the phrase; otherwise
-       recursively call this function on all unChecked Overlapping pairs and the low priority phrase-related overlapping pairs.
-   (3) To support prior value 'Noth', which means the two checked overlapping phrases should be thrown away, this function return a tuple of phrases.
+       recursively call this function on all unChecked Overlapping pairs and the no demand phrase-related overlapping pairs.
+   (3) Prior value 'Noth' is supported. This function returns a tuple of no demand phrases.
  -}
-
 findPhraWithLowestPrio :: [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO (PhraCate, PhraCate)
-findPhraWithLowestPrio unCheckedOps ops overPairs = do
+findPhraWithLowestPrio unCheckedOps ops overPairs = do                 -- From scratch, unCheckedOps is equal to ops, and both are overlapping phrase set.
     if ops == []
       then return (nilPhra, nilPhra)                                   -- This is the border condition, usually not occurs.
       else do
-        let x = head ops
-        let xs = [op| op <-unCheckedOps, op /= x]
-        let pc1 = fst x
-        let pc2 = snd x
+        let x = head ops                                               -- First pair of overlapping phrases
+        let xs = [op| op <-unCheckedOps, op /= x]                      -- The remainings except the first
+        let pc1 = fst x                                                -- Left phrase
+        let pc2 = snd x                                                -- Right phrase
         pri <- getPrior overPairs pc1 pc2                              -- Find priority from a list of 'OverPair'
-        let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1
-        let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2
-        let pcps = pcps1 ++ pcps2
+        let pcps1 = [y| y <- xs, (fst y == pc1) || (snd y == pc1)]     -- [(PhraCate,PhraCate)] related with pc1, being a subset of phrase set 'xs'.
+        let pcps2 = [y| y <- xs, (fst y == pc2) || (snd y == pc2)]     -- [(PhraCate,PhraCate)] related with pc2, being a subset of phrase set 'xs'.
+--        let pcps = nub $ pcps1 ++ pcps2                              -- NOT yet be used.
+        let pcps = pcps1 ++ pcps2                                      -- [(PhraCate,PhraCate)] related with pc1 or pc2.
+--        putStrLn $ "findPhraWithLowestPrio: pcps = " ++ show pcps
         case pri of
           Lp -> if pcps2 /= []
                   then findPhraWithLowestPrio xs pcps2 overPairs
@@ -1395,6 +1443,7 @@ findCate (st, sp) (x:xs)
     | st == stOfCate x && sp == spOfCate x = x:(findCate (st, sp) xs)
     | otherwise = findCate (st, sp) xs
 
+-- The following are definitions of some functions in Module Output, and they use similar names.
 -- Show all phrases by one phrase per line.
 showNPhraCate' :: [PhraCate] -> IO ()
 showNPhraCate' [] = return ()

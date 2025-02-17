@@ -14,6 +14,7 @@ sent_source:corpus
 script_source:corpus
 tree_source:corpus
 # tree_source:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+# tree_source:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 
 # The database table where parsing trees go to.
 # Usually it is destination treebank when parsing with script.
@@ -29,7 +30,8 @@ tree_source:corpus
 #   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
-tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+#   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400_prod
+tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn351_400_prod
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -63,7 +65,11 @@ strugene_context_dist_algo:Euclidean
 
 # Range of serial numbers of sentences from which the used syntax ambiguity resolution model samples are.
 syntax_resol_sample_startsn:1
-syntax_resol_sample_endsn:60
+syntax_resol_sample_endsn:350
+
+# Algo. of pruning in resolving syntactic ambiguity.
+prune_algo:NoDemandPhrase
+# prune_algo:FinalTree
 
 # 'SLR' is one kind of category conversion ambiguity resolution model.
 # In 'SLR', one [([PhraCate], [Rule])] per clause, one [[([PhraCate], [Rule])]] per sentence.
@@ -73,19 +79,22 @@ cate_ambig_resol_target:treebank_including_SLR
 
 # Range of serial_nums of the used category ambiguity resolution model samples.
 cate_resol_sample_startsn:1
-cate_resol_sample_endsn:60
+cate_resol_sample_endsn:350
 
 # Benchmark treebank
 benchmark_treebank:corpus
 
 # Experimental treebank
-# experimental_treebank:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
-# experimental_treebank:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
-experimental_treebank:treebank_including_SLR
+#experimental_treebank:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+#experimental_treebank:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400
+#experimental_treebank:treebank_including_SLR
+experimental_treebank:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn351_400_prod
 
 # Experimental scripts associated with trees, created by a certain parsing algorithm.
-experimental_script:treebank_including_SLR
-# experimental_script:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+#experimental_script:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+experimental_script:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400_prod
+#experimental_script:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400
+#experimental_script:treebank_including_SLR
 
 # Definition for distance between two ambiguity resolution samples or between an ambiguity resolution sample and a cluster centre.
 # arithAdd: It's a distance-arithmetic method by arithmetic addition.
@@ -133,9 +142,7 @@ wot:1
 wpr:1
 
 # Default start index and end index in corpus.
-# defaultStartIdx:1
-# defaultEndIdx:200
-# defaultStartIdx:301
-# defaultEndIdx:400
-defaultStartIdx:1
-defaultEndIdx:60
+#defaultStartIdx:1
+#defaultEndIdx:200
+defaultStartIdx:351
+defaultEndIdx:400

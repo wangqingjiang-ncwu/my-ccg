@@ -329,28 +329,31 @@ doParseSentByHumanMind username = do
             contOrNot2 <- getLineUntil (tree_target ++ " will be updated. Please confirm again continuing or not [c/n] (RETURN for 'n'): ") ["c","n"] False
             if contOrNot2 == "c"
               then do
-                putStr "Please input value of 'serial_num': "
+                putStr "Please input value of 'serial_num' [RETURN for cancel]: "
                 line <- getLine
-                let sn = read line :: Int
+                if line /= ""
+                  then do
+                    let sn = read line :: Int
 
-                ok <- checkIpc sn username
-                if ok
-                  then do                          -- Pass authentication!
-                    conn <- getConn
-                    stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
-                    (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
-                    cate_tree_check <- S.read is
-                    let cate_tree_check' = case cate_tree_check of
-                                             Just x -> x
-                                             Nothing -> error "doParseSent: No cate_tree_check was read."
-                    skipToEof is                                                   -- Go to the end of the stream.
-                    let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
-                    let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
-                    if (cate_check == 1 && tree_check == 0)
-                      then getSentFromDB sn >>= getSent >>= parseSent sn
-                      else putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
-                  else do
-                    putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
+                    ok <- checkIpc sn username
+                    if ok
+                      then do                          -- Pass authentication!
+                        conn <- getConn
+                        stmt <- prepareStmt conn "select cate_check, tree_check from corpus where serial_num = ?"
+                        (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]            --([ColumnDef], InputStream [MySQLValue])
+                        cate_tree_check <- S.read is
+                        let cate_tree_check' = case cate_tree_check of
+                                                 Just x -> x
+                                                 Nothing -> error "doParseSent: No cate_tree_check was read."
+                        skipToEof is                                                   -- Go to the end of the stream.
+                        let cate_check = fromMySQLInt8 (cate_tree_check'!!0)
+                        let tree_check = fromMySQLInt8 (cate_tree_check'!!1)
+                        if (cate_check == 1 && tree_check == 0)
+                          then getSentFromDB sn >>= getSent >>= parseSent sn
+                          else putStrLn $ "Parsing failed because cate_check = " ++ (show cate_check) ++ ", tree_check = " ++ (show tree_check)
+                      else do
+                        putStrLn "Parsing failed! you are not the intellectual property creator of this sentence."
+                  else putStrLn "Operation was canceled."
               else putStrLn "Operation was canceled."
           else putStrLn "Operation was canceled."
 
@@ -801,10 +804,12 @@ doTestScriptIdentity username = do
                                                                                 -- [(SentIdx, [Script], [Script])]
         let checkList = map (\x -> (fst3 x, snd3 x == thd3 x)) snScript2List    -- [(Int, Bool)]
         let oks = filter (\x -> snd x == True) checkList
-        putStrLn $ "doTestScriptIdentity: Identical scripts = " ++ show oks
-        let bads = filter (\x -> snd3 x /= thd3 x) snScript2List
-        putStrLn $ "doTestScriptIdentity: Non-identical scripts = "
-        showSnScript2List bads
+        putStrLn $ " Serial numbers of sentences with same scripts = " ++ show (map fst oks)
+        let bads = filter (\x -> snd x == False) checkList
+        putStrLn $ " Serial numbers of sentences with different scripts = " ++ show (map fst bads)
+        let badSnScripts = filter (\x -> snd3 x /= thd3 x) snScript2List
+        putStrLn $ " Script contrast: "
+        showSnScript2List badSnScripts
         close conn
       else putStrLn "doTestScriptIdentity: Test is cancelled."
 

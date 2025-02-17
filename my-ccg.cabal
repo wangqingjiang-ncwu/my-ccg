@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -67,6 +67,7 @@ executable my-ccg-exe
       Rule
       SentParse
       Statistics
+      Test
       Utils
       Paths_my_ccg
   hs-source-dirs:
@@ -121,6 +122,7 @@ test-suite my-ccg-test
       Rule
       SentParse
       Statistics
+      Test
       Utils
       Paths_my_ccg
   hs-source-dirs:

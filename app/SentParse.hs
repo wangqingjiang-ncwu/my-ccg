@@ -1094,11 +1094,11 @@ doTransWithScript clauTag nPCs banPCSets prevOverPairs script = do
 --    putStr "doTransWithScript: overPairsByPrev: "
 --    showNOverPairLn overPairsByPrev
 
-    let pcpsWithPrior1 = map (\x->(fst3 x, snd3 x)) overPairsByPrev
+    let pcpsWithPrior1 = map (\x-> (fst3 x, snd3 x)) overPairsByPrev
     let pcps1 = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior1]
     let overPairsByScript = ambiResolByScript nPCs2 [] pcps1 script             -- [OverPair], phrasal pairs are resoluted by script.
---    putStr "doTransWithScript: overPairsByScript: "
---    showNOverPairLn overPairsByScript
+    putStr "doTransWithScript: overPairsByScript: "
+    showNOverPairLn overPairsByScript
 
     let pcpsWithPrior2 = map (\x->(fst3 x, snd3 x)) overPairsByScript
     let pcps2 = [pcp | pcp <- pcps1, notElem pcp pcpsWithPrior2]                -- [(PhraCate, PhraCate)] not resolved by script.
@@ -1112,7 +1112,9 @@ doTransWithScript clauTag nPCs banPCSets prevOverPairs script = do
     let overPairs = overPairsByPrev ++ overPairsByScript ++ overPairsByManual   -- All phrasal pairs with their ambiguity resolution policies in this round of transition.
     nbPCs <- transWithPruning onOff nPCs banPCSets overPairs                    -- Get transitive result with pruning. ([PhraCate],[BanPCs])
 
-    let nbPCs' = cleanupNbPCs nbPCs (thd3 script)         -- According to banned phrases in script, move unwanted phrases in 'nbPCs'. ([PhraCate],[BanPCs])
+    let nbPCs' = cleanupNbPCs nbPCs (thd3 script)     -- According to banned phrases in script, move unwanted phrases from stub Tree to BanPCs. ([PhraCate],[BanPCs])
+                                                      -- Implement consistency between benchmark script and experimental script.
+
     let pcs1 = quickSort4Phrase  [x | x <- fst nbPCs, notElem4Phrase x (fst nbPCs')]    -- The phrases moved away from original parsing tree.
     let pcs2 = quickSort4Phrase  [x | x <- last (snd nbPCs'), notElem4Phrase x (last (snd nbPCs))]      -- The phrases newly banned in original parsing tree.
     if pcs1 == pcs2
@@ -1176,8 +1178,13 @@ ambiResolByScript nPCs overPairs (pcp:pcps) script
     rp = snd pcp
 
 {- When parsing by scripts, every pair of phrases get its ambiguity resolution policy, 'Lp', 'Rp', or 'Noth'.
- - Then 'transWithPruning' is called to create new phrases, and syntactic ambiguities will be resolved till no syntactic ambuity exists.
- - Ambiguity resolution includes manual disambiguation which is meaningful when scripts are not completely correct.
+ - Then 'transWithPruning' is called to create new phrases, and resolves syntactic ambiguities incurred by new phrases.
+ - Originally, 'transWithPruning' works until no ambiguity exists, which might temperarily retain some phrases not belonging
+ - to final parsing tree. For one example, AB BC CD inculde two pairs of overlapping phrases. If BC is removed, AB and CD can be retained.
+ - If CD is removed, then either AB or BC should be removed such that no ambiguity exists. which phrase to be removed depends
+ - on function findPhraWithLowestPrio.
+ - Now, 'transWithPruning' remove all phrases not belonging to final tree, not using function findPhraWithLowestPrio every time
+ - to find one phrasal pair first considered to resolve its ambiguity.
  - This function was originally used to cleanup parsing result such that the residual unwanted phrases are moved into banned phrase set.
  - Now it operates on new Script definition, and only BanPCs value of current round transition is considered.
  - If Script value is correct, then there is no unwanted phrases in stub tree after parsing by scripts, and
@@ -1190,11 +1197,12 @@ cleanupNbPCs nbPCs banPCSetsFromScript = (nPCs', banPCSets')
     where
     nPCs = fst nbPCs                                                            -- Stub tree, and its corresponding
     banPCSets = snd nbPCs                                                       -- [BanPCs]
-    nPCs' = [x | x <- nPCs, notElem4Phrase x (head banPCSetsFromScript)]        -- New stub tree, and addtitional new
+    nPCs' = updateAct [x | x <- nPCs, notElem4Phrase x (head banPCSetsFromScript)]        -- New stub tree
+                                          -- Change attribute Act of some phrases as True, because their children phrases were just moved to BanPCs.
     banPCs = [x | x <- nPCs, notElem4Phrase x nPCs']                            -- BanPCs
     banPCSets' = case banPCSets of
                    [] -> error "cleanupNbPCs: transWithPruning did not return information about banned phrases."
-                   [x] -> [x ++ banPCs]
+                   [x] -> [x ++ banPCs]                                         -- Add new banned phrases discovered in cleanup stage.
                    xs -> init xs ++ [last xs ++ banPCs]
 
 {-
@@ -1519,45 +1527,64 @@ type SimDeg = Double
 
 {- Return merged Rule lists which have minimal distance. Before merging, rule lists are ordered by ascending similarity degrees.
  - Additionally, return the remaining (Dist, (ClauTag, [Rule])) value list.
- - For [(0.1,((1,2),[A/n]))],  return ([A/n], [])
- - For [(0.1,((1,2),[A/n])),(0.1,((2,3),[S/v])),(0.2,((3,4),[Hn/a])),(0.4,((4,5),[O/n]))],  return ([A/n, S/v], [(0.2,((3,4),[Hn/a])),(0.4,((4,5),[O/n])))])
+ - For [(0.1,((1,2),[A/n]))], return ([A/n], []).
+ - For [(0.1,((1,2),[A/n])),(0.1,((2,3),[S/v])),(0.2,((3,4),[Hn/a])),(0.4,((4,5),[O/n]))], return ([A/n, S/v], [(0.2,((3,4),[Hn/a])),(0.4,((4,5),[O/n])))]).
+ - Do not merge rules when clausal tag was repeatedly hit.
+ -   For [(-1.0,((30,1),[])),(-1.0,((30,1),[S/v])),(0.2,((3,4),[Hn/a]))], return [[],[(-1.0,((30,1),[S/v])),(0.2,((3,4),[Hn/a]))].
  -}
-getRuleListOfMinDist :: [(Double, (ClauTag, [Rule]))] -> ([Rule],[(Double,(ClauTag, [Rule]))])
+--getRuleListOfMinDist :: [(Double, (ClauTag, [Rule]))] -> ([Rule],[(Double,(ClauTag, [Rule]))])
+getRuleListOfMinDist :: [(Double, (ClauTag, ([PhraSyn],[Rule])))] -> ([Rule],[(Double,(ClauTag, ([PhraSyn],[Rule])))])
 getRuleListOfMinDist [] =  ([], [])
-getRuleListOfMinDist [(_, (_, rules))] = (rules, [])
+getRuleListOfMinDist [(_, (_, (_, rules)))] = (rules, [])
 getRuleListOfMinDist (x:(y:zs))
-    | abs (fst x - fst y) < 1.0e-5 = getRuleListOfMinDist ((fst x, ((0, 0), (snd . snd) x ++ (snd . snd) y)):zs)
-    | otherwise = ((snd . snd) x, (y:zs))
+    | fst x == -1.0 && fst y == -1.0 = ((snd. snd . snd) x, (y:zs))                  -- Do not merge rules when clausal tag was repeatedly hit.
+--    | abs (fst x - fst y) < 1.0e-5 = getRuleListOfMinDist ((fst x, ((0, 0), (snd . snd) x ++ (snd . snd) y)):zs)
+    | otherwise = ((snd. snd . snd) x, (y:zs))
 
-{- Set distance '-1' for every [(Dist, (ClauTag, [Rule]))] element which has Dist 0.0 and given ClauTag value.
+{- Set distance below zero for every [(Dist, (ClauTag, [Rule]))] element which has distance 0.0 and given ClauTag value.
+ - minDist: Minimal distance known to now. The initial value should be zero.
+ - From the last to the head, check every sample.
+ - If hitting given clausal tag, let its distance (minDist - 1e-4) and let the distance the new minimal distance.
+ - Actually, there is always new generated phrases for every time of transition, namely stub trees always changes as transition happens.
+ - For a clause, different transitions have different stub trees, and it is impossible of hitting a ClauTag value while having distance 0.0.
  -}
-setMinDist4ZeroDistAndClauTagHit :: ClauTag -> [(Double, (ClauTag, [Rule]))] -> [(Double, (ClauTag, [Rule]))]
-setMinDist4ZeroDistAndClauTagHit _ [] = []
-setMinDist4ZeroDistAndClauTagHit clauTag (x:xs)
-    | fst x < 1e-5 && (fst . snd) x == clauTag = (-1.0, snd x) : setMinDist4ZeroDistAndClauTagHit clauTag xs
-    | otherwise = x : setMinDist4ZeroDistAndClauTagHit clauTag xs
+--setMinDist4ZeroDistAndClauTagHit :: Double -> ClauTag -> [(Double, (ClauTag, [Rule]))] -> [(Double, (ClauTag, [Rule]))]
+setMinDist4ZeroDistAndClauTagHit :: Double -> ClauTag -> [(Double, (ClauTag, ([PhraSyn],[Rule])))] -> [(Double, (ClauTag, ([PhraSyn],[Rule])))]
+setMinDist4ZeroDistAndClauTagHit _ _ [] = []
+setMinDist4ZeroDistAndClauTagHit minDist clauTag xs = setMinDist4ZeroDistAndClauTagHit newMinDist clauTag (init xs) ++ [newX]
+    where
+    x = last xs
+    newX = case (fst x < 1e-6 && (fst . snd) x == clauTag) of                   -- Hit
+             True -> (minDist - 1e-4, snd x)                                    -- Distance = minDist - 1e-4
+             False -> x
+    newMinDist = case (fst newX < minDist) of
+                    True -> fst newX
+                    False -> minDist
 
 {- One transition of category combinations, in which category ambiguity resolution is done based upon model SLR,
  - and syntax ambiguity resolution is done based upon model StruGene2.
+ - SLROfClause :: [(ClauTag, (Stub, [Rule])]
+ - Stub :: [PhraSyn]
  -}
 doTransWithGrammarAmbiResol :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> Int -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
 doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s = do
-    putStrLn "nPCs="
-    showNPhraCateLn nPCs
+--    putStrLn "nPCs="
+--    showNPhraCateLn nPCs
     let sStub = ctpsOfCateList' nPCs                                            -- [PhraSyn] of stub tree
-    putStrLn "sStub="
-    showNPhraSynLn sStub
+--    putStrLn "sStub="
+--    showNPhraSynLn sStub
     let sSLRBase = map (\x -> (fst x, (ctpsOfCateList' ((fst . snd) x), (snd . snd) x))) sLR    -- [(ClauTag, ([PhraSyn],[Rule]))]
-    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity sStub ((fst . snd) x), (fst x, (snd . snd) x))) sSLRBase  -- [(Dist, (ClauTag, [Rule]))]
-    putStrLn $ "distRuleListWithoutSort = " ++ show (formatDoubleAList (take 30 distRuleListWithoutSort) 4)
+--    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity sStub ((fst . snd) x), (fst x, (snd . snd) x))) sSLRBase  -- [(Dist, (ClauTag, [Rule]))]
+    let distRuleListWithoutSort =  map (\x -> (distPhraSynSetByIdentity sStub ((fst . snd) x), x)) sSLRBase  -- [(Dist, (ClauTag, ([PhraSyn], [Rule])))]
+--    putStrLn $ "distRuleListWithoutSort = " ++ show (formatDoubleAList (take 10 distRuleListWithoutSort) 4)
 
-    let distRuleListHitFirst = sortOn fst $ setMinDist4ZeroDistAndClauTagHit clauTag distRuleListWithoutSort    -- Set distance -1 for hit SLR samples and sort
-    putStrLn $ "distRuleListHitFirst = " ++ show (formatDoubleAList (take 30 distRuleListHitFirst) 4)
+    let distRuleListHitFirst = sortOn fst $ setMinDist4ZeroDistAndClauTagHit 0.0 clauTag distRuleListWithoutSort    -- Set negative distances for hit SLR samples and sort
+--    putStrLn $ "distRuleListHitFirst = " ++ show (formatDoubleAList (take 10 distRuleListHitFirst) 4)
 
     let distRuleList = nubBy (\x y -> (snd . snd) x == (snd . snd) y) $ distRuleListHitFirst    -- Ascending SimDegs and no duplicate [Rule]
-    putStrLn $ "distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
+    putStrLn $ "distRuleList = " ++ show (formatDoubleAList (take 10 (map (\x -> (fst x, (((fst . snd) x, ((snd . snd . snd) x))))) distRuleList)) 4)    -- [(Dist, (ClauTag, ([PhraCate], [Rule])))]
 
-    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double,(ClauTag, [Rule]))])
+    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double, (ClauTag, ([PhraCate], [Rule])))])
     let distRuleList' = snd ruleListAndDistRuleList                             -- Remaining distance rule list
     let rules = fst ruleListAndDistRuleList                                     -- [Rule]
 
@@ -1566,14 +1593,16 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s
     let nPCs2 = trans rules nPCs banPCSets           -- Without pruning, get transitive result.
 
     putStr "New phrases before pruning: "
---    showNPhraCateLn [pc | pc <- nPCs2, notElem4Phrase pc nPCs]
     let pcs = [pc | pc <- nPCs2, notElem4Phrase pc nPCs]                        -- [PhraCate] of NEW phrases
     showNPhraCateLn pcs
+    putStr "Banned phrases: "
+    showNPhraCateListLn banPCSets                                               -- The banned phrases before updated.
+
     let spanList = map spOfCate nPCs                                            -- [Span]
-    if pcs == [] && (maximum spanList) /= lengthOfClause - 1                    -- End of transitions
+    if pcs == [] && (maximum spanList) /= lengthOfClause - 1                    -- No new phrases was created, and parsing tree does NOT yet formed.
       then if distRuleList' /= []
-             then doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList' lengthOfClause struGene2s
-             else return (rules, nPCs, banPCSets)                              -- No SLR sample is availble.
+             then doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList' lengthOfClause struGene2s     -- -- There are SLR samples available.
+             else return (rules, nPCs2, banPCSets ++ [[]])                      -- No SLR sample is availble.
       else if pcs /= []
              then do
                let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
@@ -1581,23 +1610,23 @@ doTransWithGrammarAmbiResol clauTag nPCs banPCSets sLR lengthOfClause struGene2s
                putStr "doTransWithGrammarAmbiResol: overPairs: "
                showNOverPairLn overPairs
 
-               nbPCs <- transWithPruning rules nPCs banPCSets overPairs        -- Get transitive result with pruning.
+               nbPCs <- transWithPruning rules nPCs banPCSets overPairs         -- Get transitive result with pruning.
                putStr "New phrases after pruning: "
                showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
                putStr "Banned phrases: "
                showNPhraCateListLn (snd nbPCs)                                  -- The banned phrases after updated.
                return (rules,(fst nbPCs),(snd nbPCs))
-             else return (rules, nPCs, banPCSets)
+             else return (rules, nPCs2, banPCSets ++ [[]])                      -- No new phrases were created.
 
 {- This function is called when one time of transition creates no new phrase before pruning and parsing tree is NOT formed.
  - Recursively use [Rule] with next miminal distance to do category conversions.
  -}
-doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> [(Double,(ClauTag, [Rule]))] -> Int -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
+doTransWithGrammarAmbiResol' :: ClauTag -> [PhraCate] -> [BanPCs] -> SLROfClause -> [(Double,(ClauTag, ([PhraSyn],[Rule])))] -> Int -> [StruGene2Sample] -> IO ([Rule], [PhraCate], [BanPCs])
 doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList lengthOfClause struGene2s = do
-    putStrLn $ "doTransWithGrammarAmbiResol' distRuleList = " ++ show (formatDoubleAList (take 30 distRuleList) 4)
+--    putStrLn $ "doTransWithGrammarAmbiResol' distRuleList = " ++ show (formatDoubleAList (take 10 distRuleList) 4)    -- [(Dist, (ClauTag, ([PhraCate], [Rule])))]
 
-    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double, (ClauTag, [Rule]))])
-    let distRuleList' = snd ruleListAndDistRuleList                             -- [(Double, (ClauTag, [Rule]))], the remaining distance rules list
+    let ruleListAndDistRuleList = getRuleListOfMinDist distRuleList             -- ([Rule], [(Double, (ClauTag, ([PhraCate], [Rule])))])
+    let distRuleList' = snd ruleListAndDistRuleList                             -- [(Double, (ClauTag, ([PhraCate], [Rule])))], the remaining distance rules list
     let rules = fst ruleListAndDistRuleList                                     -- [Rule]
 
     putStr "Rule switches: "
@@ -1611,7 +1640,7 @@ doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList lengthOfCla
     if pcs == [] && (maximum spanList) /= lengthOfClause - 1
       then if distRuleList' /= []
              then doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList' lengthOfClause struGene2s
-             else return (rules, nPCs, banPCSets)                              -- No SLR sample is available.
+             else return (rules, nPCs2, banPCSets ++ [[]])                      -- No SLR sample is available.
       else if pcs /= []
              then do
                let pcps = getOverlap nPCs2                    -- [(PhraCate, PhraCate)]
@@ -1619,13 +1648,13 @@ doTransWithGrammarAmbiResol' clauTag nPCs banPCSets sLR distRuleList lengthOfCla
                putStr "doTransWithGrammarAmbiResol: overPairs: "
                showNOverPairLn overPairs
 
-               nbPCs <- transWithPruning rules nPCs banPCSets overPairs        -- Get transitive result with pruning.
+               nbPCs <- transWithPruning rules nPCs banPCSets overPairs         -- Get transitive result with pruning.
                putStr "New phrases after pruning: "
                showNPhraCateLn [pc | pc <- fst nbPCs, notElem4Phrase pc nPCs]
                putStr "Banned phrases: "
                showNPhraCateListLn (snd nbPCs)                                  -- The banned phrases after updated.
                return (rules,(fst nbPCs),(snd nbPCs))
-             else return (rules, nPCs, banPCSets)
+             else return (rules, nPCs2, banPCSets ++ [[]])
 
 {- This function is obsoleted, and has been replaced with ambiResolByStruGene2.
  -}
@@ -1962,9 +1991,9 @@ parseClauseWithStruGene2 resolMethod clauTag rules nPCs banPCSets script struGen
       else if nPCs /= (snd3 rtbPCs)
         then do
           let scriptTail = case script of
-                              (clauIdx, [], bPCSets) -> (clauIdx, [], bPCSets)          -- Null script
-                              (clauIdx, [x], bPCSets) -> (clauIdx, [], tail bPCSets)    -- Remove the head elements of OnOff and [BanPCs] list in parsing script.
-                              (clauIdx, (x:xs), bPCSets) -> (clauIdx, xs, tail bPCSets)
+                              (clauIdx, [], []) -> error "parseClauseWithStruGene2: (clauIdx, [], [])"       -- Has not been parsed.
+                              (clauIdx, [x], _) -> (clauIdx, [[]], [[]])        -- Add script for one transition with no category conversion and no banned phrases.
+                              (clauIdx, (x:xs), (b:bs)) -> (clauIdx, xs, bs)    -- Remove the head elements of OnOff and [BanPCs] list in parsing script.
 
           parseClauseWithStruGene2 resolMethod clauTag (rules ++ [fst3 rtbPCs]) (snd3 rtbPCs) (thd3 rtbPCs) scriptTail struGene2s
                                                -- Do the next trip of transition
@@ -2293,8 +2322,11 @@ evaluateExperimentalTreebank = do
         if startSnOfET == startSnOfBT && endSnOfET == endSnOfBT
           then do
             finalMachAmbiResolRes <- findMachAmbiResolRes startSnOfET endSnOfET benchmarkTreebank experimentalTreebank ((0, 0), (0, 0), (0, 0, 0, 0))
+            putStrLn $ "finalMachAmbiResolRes: Benchmark (Positives, Negatives) = " ++ show (fst3 finalMachAmbiResolRes)
+            putStrLn $ "                       Experimental (Positives, Negatives) = " ++ show (snd3 finalMachAmbiResolRes)
+            putStrLn $ "                       (TP, TN, Semantic TP, Completed Num. of Multi-words clauses) = " ++ show (thd3 finalMachAmbiResolRes)
+
             let precision = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . snd3) finalMachAmbiResolRes)
-            putStrLn $ "finalMachAmbiResolRes = " ++ show finalMachAmbiResolRes
             putStrLn $ "Precision = " ++ (printf "%.4f" (precision :: Double))            -- Precision = TP / (TP + FP)
 
             let recall = fromIntegral ((fst4 . thd3) finalMachAmbiResolRes) / fromIntegral ((fst . fst3) finalMachAmbiResolRes)
@@ -2306,17 +2338,17 @@ evaluateExperimentalTreebank = do
       else putStrLn "Operation was canceled."
 
 -- According to a benchmark treebank, there are statistical numbers of a certain machine-building treebank.
-type NumOfManPositPhrase = Int         -- Num. of phrases in a manually built tree, namely TP + FN
-type NumOfManNegPhrase = Int           -- Num. of phrases in a manually built banned phrase category set namely banPCs
+type NumOfManPositPhrase = Int         -- Num. of phrases in a manually built tree.
+type NumOfManNegPhrase = Int           -- Num. of phrases in a manually built banned phrases set, namely banPCSets.
 type NumOfMachPositPhrase = Int        -- Num. of phrases in a machine-building tree, namely TP + FP
-type NumOfMachNegPhrase = Int          -- Num. of phrases in a machine-building banned phrase category set namely banPCs
+type NumOfMachNegPhrase = Int          -- Num. of phrases in a machine-building banned phrases set, namely banPCSets
 type NumOfCommonPositPhrase = Int      -- True Positive, namely TP
 type NumOfCommonNegPhrase = Int        -- True Negative, namely TN. Actually, it is pseudo TN because it is difficult to get ALL negative instances.
 type NumOfCommonPhraseOnlySeman = Int  -- TP of attribute Seman
 type NumOfCommonResClause = Int        -- Num. of experimental clauses same with benchmark clauses
 type MachAmbiResolRes = ((NumOfManPositPhrase, NumOfManNegPhrase)
                        , (NumOfMachPositPhrase, NumOfMachNegPhrase)
-                       , (NumOfCommonPositPhrase, NumOfCommonNegPhrase,NumOfCommonPhraseOnlySeman,NumOfCommonResClause)
+                       , (NumOfCommonPositPhrase, NumOfCommonNegPhrase, NumOfCommonPhraseOnlySeman, NumOfCommonResClause)
                         )
 
 {- Calculate precisions, recall rates, and F1 scores of machine-building parsing trees.
@@ -2351,8 +2383,8 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
     let index = clauseNo - 1                               -- List index
     let pcs = getClauPhraCate s                            -- [PhraCate] of benchmark clause
     let pcs' = getClauPhraCate s'                          -- [PhraCate] of experimental clause
-    let phraseOfSpan0 = getPhraBySpan 0 pcs                -- Length of benchmark clause
-    let phraseOfSpan0' = getPhraBySpan 0 pcs'              -- Length of experimental clause
+    let phraseOfSpan0 = getPhraBySpan 0 pcs                -- Words of benchmark clause
+    let phraseOfSpan0' = getPhraBySpan 0 pcs'              -- Words of experimental clause
     let phraseWithoutSpan0 = [x| x <- pcs, notElem x phraseOfSpan0]             -- [PhraCate] of benchmark phrases with at least two words
     let phraseWithoutSpan0' = [x| x <- pcs', notElem x phraseOfSpan0']          -- [PhraCate] of experimental phrases with at least two words
     let npcWithoutAct = nPhraCateWithoutAct phraseWithoutSpan0 []               -- Eliminating attribute 'Act'
@@ -2367,7 +2399,7 @@ findMachAmbiResolResOfASent clauseNo (s:cs) (s':cs') script script' origMachAmbi
     let commonNegPhrase = [x| x <- banPCs', elem (phraCateWithoutAct x) banPCsWithoutAct]    -- PSEUDO True Negative (TN)
     let commonPhraseOnlySeman = [x| x <- npcOnlySeman, elem x npcOnlySeman']    -- TP in experimental [Seman] against benchmark [Seman]
     let phraseWithLongestSp = last pcs                                          -- Suppose phrases be sorted by spans from 0 to longest
-    let commonResClause = case elem phraseWithLongestSp phraseWithoutSpan0' of  -- Calculating accuracy rate by clauses, one-word clauses were NOT taken into account。
+    let commonResClause = case elem phraseWithLongestSp phraseWithoutSpan0' of  -- Adds 1 if parsing was completed, here one-word clauses were NOT taken into account。
                                True -> 1                                        -- For one-word clauses,  phraseWithoutSpan0' = [], elem returns False.
                                False -> 0
 

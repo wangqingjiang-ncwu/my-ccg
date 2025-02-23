@@ -31,7 +31,7 @@ tree_source:corpus
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 #   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400_prod
-tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn351_400_prod
+tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -144,5 +144,5 @@ wpr:1
 # Default start index and end index in corpus.
 #defaultStartIdx:1
 #defaultEndIdx:200
-defaultStartIdx:351
+defaultStartIdx:1
 defaultEndIdx:400

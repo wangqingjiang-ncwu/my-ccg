@@ -230,7 +230,10 @@ posCate = [("n","np"),
  -}
 
 phraStruList :: [PhraStru]
-phraStruList =  ["MQ","PQ","XX","CC","DHv","HvC","DHa","DHs","DHd","DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P","U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs","SP","TP","EM","HP","KP","DE","NR"]
+phraStruList =  ["MQ","PQ","XX","HX","CC","DHv","HvC","DHa","DHs","DHd"
+                 ,"DHx","DHoe","HaC","AHn","HnC","HmC","VO","OE","PE","U1P"
+                 ,"U2P","U3P","U3Pv","U3Pa","U4P","U5P","U6P","PO","MOv","MOs"
+                 ,"SP","TP","EM","HP","KP","DE","NR"]
 
 -- Sentence index number
 type SentIdx = Int

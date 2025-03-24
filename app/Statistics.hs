@@ -127,7 +127,9 @@ countInTree bottomSn topSn funcIndex = do
        else putStr ""                                          -- No operation for 'else' condition
 
     if funcIndex == 2                                          -- To get the number of clauses in every sentence.
-       then putStrLn $ "countInTree: The number of clauses in every sentence: " ++ show sentClauNumList
+       then do
+         putStrLn $ "countInTree: The number of clauses in every sentence: " ++ show sentClauNumList
+         putStrLn $ "countInTree: The total number of clauses in sentences: " ++ show (sum sentClauNumList)
        else putStr ""
 
     if funcIndex == 3                                          -- To get the number of sentences, the number of clauses in every
@@ -348,7 +350,7 @@ countInTree bottomSn topSn funcIndex = do
 
          let phraSynPairSimTuple = getPhraSynPairSimFromSCPLBySVD distAlgo sentClauPhraList
          let numOfPhraSynPair = length (fst5 phraSynPairSimTuple)
-         putStrLn $ "countInTree: No. of phraSyn pairs: " ++ show numOfPhraSynPair
+         putStrLn $ "countInTree: Num. of phraSyn pairs: " ++ show numOfPhraSynPair
 
          let origSimMatrix = snd5 phraSynPairSimTuple
          let origSimMatrixToRows = map toList $ toRows origSimMatrix                         -- [[SimDeg]]

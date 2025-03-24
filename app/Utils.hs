@@ -534,7 +534,7 @@ stringToSixTuple str = (first, second, third, fourth, fifth, sixth)
       fifth = listHead (listDrop 4 str')
       sixth = listLast str'
 
-{- Get the index of first toppest delimiter such ',' or ';'. Toppest delimiters are those which don't be embedded
+{- Get the index of first toppest delimiter such as ',' or ';'. Toppest delimiters are those which don't be embedded
    in any list element. The index is initialized as 0, and will be -1 when meeting an empty list. To remember how
    many left parentheses '(' and square brackets '[' have been met, the integers 'nlp' and 'nlb' are needed. The
    index is initialized as 0.
@@ -546,7 +546,7 @@ indexOfDelimiter nlp nlb i de str
     | x == ')' = indexOfDelimiter (nlp - 1) nlb (i+1) de str
     | x == '[' = indexOfDelimiter nlp (nlb + 1) (i+1) de str
     | x == ']' = indexOfDelimiter nlp (nlb - 1) (i+1) de str
-    | x == ',' && nlp == 0 && nlb == 0 = i
+    | x == de && nlp == 0 && nlb == 0 = i
     | otherwise = indexOfDelimiter nlp nlb (i+1) de str
     where
       x = str!!i

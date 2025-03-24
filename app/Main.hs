@@ -366,17 +366,13 @@ doParseSentByScript username = do
     let script_source = getConfProperty "script_source" confInfo                     -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
     let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
-    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
-    let cate_ambig_resol_target = getConfProperty "cate_ambig_resol_target" confInfo
     let category_ambig_resol_sample_update_switch = getConfProperty "category_ambig_resol_sample_update_switch" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " tree_target: " ++ tree_target
-    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
     putStrLn $ " syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
-    putStrLn $ " cate_ambig_resol_target: " ++ cate_ambig_resol_target
     putStrLn $ " category_ambig_resol_sample_update_switch: " ++ category_ambig_resol_sample_update_switch
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
@@ -458,7 +454,9 @@ doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
     confInfo <- readFile "Configuration"               -- Read the local configuration file
     let tree_source = getConfProperty "tree_source" confInfo
+    let tree_field = getConfProperty "tree_field" confInfo
     putStrLn $ " tree_source: " ++ tree_source
+    putStrLn $ " tree_field: " ++ tree_field
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'c') ") ["c","n"] True
     if contOrNot == "c"
@@ -466,7 +464,7 @@ doDisplayTreesForASent username = do
         putStr "Please input value of 'serial_num': "
         line <- getLine
         let sn = read line :: Int
-        readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
+        readTree_String sn tree_source tree_field >>= sentToClauses >>= dispTreeOfSent
       else putStrLn "Operation was cancelled."
 
 {-- 9. Display parsing Trees of the sentence indicated by serial_num, which is for comparing differences between two kinds of parsing trees.
@@ -474,14 +472,15 @@ doDisplayTreesForASent :: String -> IO ()
 doDisplayTreesForASent username = do
     confInfo <- readFile "Configuration"
     let tree_source = getConfProperty "tree_source" confInfo
+    let tree_field = getConfProperty "tree_field" confInfo
     let ambi_resol_result_tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
 
     putStr "Please input value of 'serial_num': "
     line <- getLine
     let sn = read line :: Int
---    readTree_String sn tree_source >>= sentToClauses >>= dispTreeOfSent
-    clauses <- (readTree_String sn tree_source >>= sentToClauses)
-    clauses' <- (readTree_String sn ambi_resol_result_tree_source >>= sentToClauses)
+--    readTree_String sn tree_source tree_field >>= sentToClauses >>= dispTreeOfSent
+    clauses <- (readTree_String sn tree_source tree_field >>= sentToClauses)
+    clauses' <- (readTree_String sn ambi_resol_result_tree_source tree_field >>= sentToClauses)
     dispComparisonTreesOfAmbiResolResult 1 clauses clauses' tree_source ambi_resol_result_tree_source
 
     interpreter username

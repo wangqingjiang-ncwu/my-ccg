@@ -32,6 +32,7 @@ import Data.List.Utils
 import Data.Tuple.Utils
 import Category
 import Phrase
+import CL
 import Utils
 
 -- CCG rules constitute a functional list.
@@ -46,33 +47,33 @@ rules = [appF, appB, comFh, comFh2, comBh, comFc, comBc, comBc2, raiFh, raiBh, r
 ruleTags :: [Tag]
 ruleTags = [">","<",">B",">B2","<B",">Bx","<Bx","<Bx2",">T->B",">T->Bx","<T-<B","<T-<B2","<T-<Bx"]
 
--- To create a predicate-argument structure from two semantic components.
--- For semantic components themselves as predicate-argument structure, they should be bracketed.
-semComb :: Seman -> Seman -> Seman
-semComb se1 se2
-    | elem ' ' se1 == False && elem ' ' se2 == False = se1 ++ " " ++ se2
-    | elem ' ' se1 == True  && elem ' ' se2 == False = "(" ++ se1 ++ ")" ++ " " ++ se2
-    | elem ' ' se1 == False && elem ' ' se2 == True  = se1 ++ " " ++ "(" ++ se2 ++ ")"
-    | otherwise = "(" ++ se1 ++ ")" ++ " " ++ "(" ++ se2 ++ ")"
+{- Combine two semantic components by given combinator and reduct at most 10 steps.
+ - Semantics of word or phrase is considered as CL term. return reducted CL term.
+ -}
+semComb :: String -> Seman -> Seman -> Seman
+semComb combinator se1 se2 = show t'
+    where
+      t = getTermFromStr $ "((" ++ combinator ++ " " ++ se1 ++ ") " ++ se2 ++ ")"
+      t' = reduct 0 10 t
 
--- CCG forward application
+-- CCG forward application, using combinator "A" to combine two semantic components.
 appF :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 appF cate1 cate2
     | isPrimitive ca1 = (nilCate, ">", "", "", False)
-    | ca1 == aux6Cate = (lca, ">", semComb se1 se2, "U6P", True)
-    | ca1 == conjCate = (derivate ca2 "\\*" ca2, ">", semComb se1 se2, "HX", True)
-    | ca1 == conjCate4Forward = (ca2, ">", semComb se1 se2, "CC", True)
-    | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb se1 se2, "AHn", True)                    -- np/*np in structure U1P is ok.
-    | isAvail && (cateEqual ca1 verbCate || cateEqual ca1 verbCate2) = (lca, ">", semComb se1 se2, "VO", True)
-    | isAvail && (ca1 == advCate || ca1 == baPhraseCate) = (lca, ">", semComb se1 se2, "DHv", True)
-    | isAvail && (ca1 == advCate || ca1 == predCate) = (lca, ">", semComb se1 se2, "DHv", True)
-    | isAvail && (ca1 == prep2AdvCate || ca1 == prep2CompCate) = (lca, ">", semComb se1 se2, "PO", True)
-    | isAvail' && ca1 == advCate4Adj = (lca, ">", semComb se1 se2, "DHa", True)
-    | isAvail && (ca1 == aux3Cate || ca1 == aux3dCate) = (leftCate ca1, ">", semComb se1 se2, "U3P", True)
-    | isAvail && ca1 == advCate4Sent = (sCate, ">", semComb se1 se2, "DHs", True)
-    | isAvail && ca1 == prefixCate = (lca, ">", semComb se1 se2, "HP", True)
-    | isAvail && ca1 == advCate4OE = (lca, ">", semComb se1 se2, "DHoe", True)
-    | isAvail =  (lca, ">", semComb se1 se2, "NR", True)
+    | ca1 == aux6Cate = (lca, ">", semComb "A" se1 se2, "U6P", True)
+    | ca1 == conjCate = (derivate ca2 "\\*" ca2, ">", semComb "A" se1 se2, "HX", True)
+    | ca1 == conjCate4Forward = (ca2, ">", semComb "A" se1 se2, "CC", True)
+    | isAvail && cateEqual ca1 adjCate = (leftCate ca1, ">", semComb "A" se1 se2, "AHn", True)                    -- np/*np in structure U1P is ok.
+    | isAvail && (cateEqual ca1 verbCate || cateEqual ca1 verbCate2) = (lca, ">", semComb "A" se1 se2, "VO", True)
+    | isAvail && (ca1 == advCate || ca1 == baPhraseCate) = (lca, ">", semComb "A" se1 se2, "DHv", True)
+    | isAvail && (ca1 == advCate || ca1 == predCate) = (lca, ">", semComb "A" se1 se2, "DHv", True)
+    | isAvail && (ca1 == prep2AdvCate || ca1 == prep2CompCate) = (lca, ">", semComb "A" se1 se2, "PO", True)
+    | isAvail' && ca1 == advCate4Adj = (lca, ">", semComb "A" se1 se2, "DHa", True)
+    | isAvail && (ca1 == aux3Cate || ca1 == aux3dCate) = (leftCate ca1, ">", semComb "A" se1 se2, "U3P", True)
+    | isAvail && ca1 == advCate4Sent = (sCate, ">", semComb "A" se1 se2, "DHs", True)
+    | isAvail && ca1 == prefixCate = (lca, ">", semComb "A" se1 se2, "HP", True)
+    | isAvail && ca1 == advCate4OE = (lca, ">", semComb "A" se1 se2, "DHoe", True)
+    | isAvail =  (lca, ">", semComb "A" se1 se2, "NR", True)
     | otherwise = (nilCate, ">", "", "", False)
     where
     ca1 = fst3 cate1
@@ -83,28 +84,28 @@ appF cate1 cate2
     isAvail = head (midSlash ca1) == '/' && (rightCate ca1 == ca2 || rightCate ca1 == xCate)
     isAvail' = head (midSlash ca1) == '/' && cateEqual (rightCate ca1) ca2
 
--- CCG backward application, here using nonstrict equality.
+-- CCG backward application, here using nonstrict equality. Combinator T is used to combine two semantic components.
 appB :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 appB cate1 cate2
     | isPrimitive ca2 = (nilCate, "<", "", "", False)
-    | ca2 == aux5Cate =  (ca1, "<", semComb se2 se1, "U5P", True)
-    | ca2 == toneCate = (ca1, "<", semComb se2 se1, "TP", True)
-    | ca2 == conjCate4Backward = (ca1, "<", semComb se2 se1, "CC", True)
-    | isAvail && ca1 == numeralCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "MQ", True)
-    | isAvail' && ca1 == adjCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
-    | isAvail' && ca1 == numeralCate && ca2 == adjCompCate && ps2 /= "HX" = (ca1, "<", semComb se2 se1, "HmC", True)
---    | isAvail' && ca1 == pronCate4Numeral && ca2 == quantifierCate = (leftCate ca2, "<", semComb se2 se1, "PQ", True)
-    | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb se2 se1, "U1P", True)
-    | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb se2 se1, "U2P", True)
-    | isAvail && ca1 == adjCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HaC", True)
-    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb se2 se1, "U1P", True)          -- Obsoleted!
-    | isAvail && cateEqual ca2 predCate = (leftCate ca2, "<", semComb se2 se1, "SP", True)
-    | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "HX" = (leftCate ca2, "<", semComb se2 se1, "HnC", True)
-    | isAvail' && ca2 == verbCompCate = (leftCate ca2, "<", semComb se2 se1, "HvC", True)                             -- For '把' phrase, isAvail' is used.
-    | isAvail && ca2 == postfixCate = (npCate, "<", semComb se2 se1, "KP", True)
-    | isAvail && ca2 == prep4BeiCate = (leftCate ca2, "<", semComb se2 se1, "MOs", True)
-    | (isAvail || isAvail') && ps2 == "HX" = (leftCate ca2, "<", semComb se2 se1, "XX", True)
-    | isAvail =  (leftCate ca2, "<", semComb se2 se1, "NR", True)
+    | ca2 == aux5Cate =  (ca1, "<", semComb "T" se1 se2, "U5P", True)
+    | ca2 == toneCate = (ca1, "<", semComb "T" se1 se2, "TP", True)
+    | ca2 == conjCate4Backward = (ca1, "<", semComb "T" se1 se2, "CC", True)
+    | isAvail && ca1 == numeralCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb "T" se1 se2, "MQ", True)
+    | isAvail' && ca1 == adjCate && ca2 == quantifierCate && ps2 /= "HX" = (leftCate ca2, "<", semComb "T" se1 se2, "PQ", True)
+    | isAvail' && ca1 == numeralCate && ca2 == adjCompCate && ps2 /= "HX" = (ca1, "<", semComb "T" se1 se2, "HmC", True)
+--    | isAvail' && ca1 == pronCate4Numeral && ca2 == quantifierCate = (leftCate ca2, "<", semComb "T" se1 se2, "PQ", True)
+    | isAvail && ca2 == aux1Cate = (leftCate ca2, "<", semComb "T" se1 se2, "U1P", True)
+    | isAvail && ca2 == aux2Cate = (leftCate ca2, "<", semComb "T" se1 se2, "U2P", True)
+    | isAvail && ca1 == adjCate && ps2 /= "HX" = (leftCate ca2, "<", semComb "T" se1 se2, "HaC", True)
+    | isAvail && ca2 == getCateFromString "(np/*np)\\*X" = (leftCate ca2, "<", semComb "T" se1 se2, "U1P", True)          -- Obsoleted!
+    | isAvail && cateEqual ca2 predCate = (leftCate ca2, "<", semComb "T" se1 se2, "SP", True)
+    | isAvail && ca1 == npCate && ca2 == nounCompCate && ps2 /= "HX" = (leftCate ca2, "<", semComb "T" se1 se2, "HnC", True)
+    | isAvail' && ca2 == verbCompCate = (leftCate ca2, "<", semComb "T" se1 se2, "HvC", True)                             -- For '把' phrase, isAvail' is used.
+    | isAvail && ca2 == postfixCate = (npCate, "<", semComb "T" se1 se2, "KP", True)
+    | isAvail && ca2 == prep4BeiCate = (leftCate ca2, "<", semComb "T" se1 se2, "MOs", True)
+    | (isAvail || isAvail') && ps2 == "HX" = (leftCate ca2, "<", semComb "T" se1 se2, "XX", True)
+    | isAvail =  (leftCate ca2, "<", semComb "T" se1 se2, "NR", True)
     | otherwise = (nilCate, "<", "", "", False)
     where
     ca1 = fst3 cate1
@@ -116,16 +117,17 @@ appB cate1 cate2
     isAvail = head (midSlash ca2) == '\\' && (rightCate ca2 == ca1 || rightCate ca2 == xCate)
     isAvail' = head (midSlash ca2) == '\\' && (cateEqual (rightCate ca2) ca1)
 
--- CCG forward harmonic composition, like X/Y Y/Z -> X/Z.
--- The rule is usually used for "adverbal + transitive verb" structure, and sometimes used for "PO+PO" structure, such as "从p 小学n 到p 中学n".
+{- CCG forward harmonic composition, like X/Y Y/Z -> X/Z. Combinator B is used to combine two semantic components.
+ - The rule is usually used for "adverbal + transitive verb" structure, and sometimes used for "PO+PO" structure, such as "从p 小学n 到p 中学n".
+ -}
 comFh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comFh cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">B", "", "", False)
-    | isAvail && (cateEqual ca2 verbCate || cateEqual ca2 verbCate2 || ca1 == baPhraseCate) = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb se1 se2, "DHv", True)
-    | isAvail && ca1 == advCate && ca2 == advCate && ps1 == "PO" && ps2 == "PO" = (advCate, ">B", semComb se1 se2, "PO", True)
-    | isAvail && ca1 == advCate && ca2 == baPhraseCate = (baPhraseCate, ">B", semComb se1 se2, "DHas", True)
-    | isAvail && ca1 == advCate && ca2 == advCate = (advCate, ">B", semComb se1 se2, "DHd", True)     -- 例，今天nt 下午nt
-    | isAvail = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb se1 se2, "NR", True)
+    | isAvail && (cateEqual ca2 verbCate || cateEqual ca2 verbCate2 || ca1 == baPhraseCate) = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb "B" se1 se2, "DHv", True)
+    | isAvail && ca1 == advCate && ca2 == advCate && ps1 == "PO" && ps2 == "PO" = (advCate, ">B", semComb "B" se1 se2, "PO", True)
+    | isAvail && ca1 == advCate && ca2 == baPhraseCate = (baPhraseCate, ">B", semComb "B" se1 se2, "DHas", True)
+    | isAvail && ca1 == advCate && ca2 == advCate = (advCate, ">B", semComb "B" se1 se2, "DHd", True)     -- 例，今天nt 下午nt
+    | isAvail = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">B", semComb "B" se1 se2, "NR", True)
     | otherwise = (nilCate, ">B", "", "", False)
     where
     ca1 = fst3 cate1
@@ -136,14 +138,15 @@ comFh cate1 cate2
     ps2 = thd3 cate2
     isAvail = (midSlash ca1 == "/#" || midSlash ca1 == "/.") && (midSlash ca2 == "/#" || midSlash ca2 == "/.") && rightCate ca1 == leftCate ca2
 
--- CCG forward harmonic composition^2, like X/Y (Y/Z)/W -> (X/Z)/W.
--- To now, the rule is only used for "adverbal + double objects-transitive verb" structure.
+{- CCG forward harmonic composition^2, like X/Y (Y/Z)/W -> (X/Z)/W. Combinator B3 is used to combine two semantic components.
+ - To now, the rule is only used for "adverbal + double objects-transitive verb" structure.
+ -}
 comFh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comFh2 cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">B2", "", "", False)
     | isPrimitive (leftCate ca2) = (nilCate, ">B2", "", "", False)
-    | isAvail && cateEqual ca2 (getCateFromString "((s\\.np)/.np)/.np") = (derivate (derivate (leftCate ca1) (midSlash lCate2) (rightCate lCate2)) (midSlash ca2) (rightCate ca2), ">B2", semComb se1 se2, "DHv", True)
-    | isAvail =  (derivate (derivate (leftCate ca1) (midSlash lCate2) (rightCate lCate2)) (midSlash ca2) (rightCate ca2), ">B2", semComb se1 se2, "NR", True)
+    | isAvail && cateEqual ca2 (getCateFromString "((s\\.np)/.np)/.np") = (derivate (derivate (leftCate ca1) (midSlash lCate2) (rightCate lCate2)) (midSlash ca2) (rightCate ca2), ">B2", semComb "B3" se1 se2, "DHv", True)
+    | isAvail =  (derivate (derivate (leftCate ca1) (midSlash lCate2) (rightCate lCate2)) (midSlash ca2) (rightCate ca2), ">B2", semComb "B3" se1 se2, "NR", True)
     | otherwise = (nilCate, ">B2", "", "", False)
     where
     ca1 = fst3 cate1
@@ -153,12 +156,12 @@ comFh2 cate1 cate2
     lCate2 = leftCate ca2
     isAvail = (midSlash ca1 == "/#" || midSlash ca1 == "/.") && (midSlash ca2 == "/#" || midSlash ca2 == "/.") && (midSlash lCate2 == "/#" || midSlash lCate2 == "/.") && rightCate ca1 == leftCate lCate2
 
-{- CCG backward harmonic composition, like Y\Z X\Y -> X\Z.
+{- CCG backward harmonic composition, like Y\Z X\Y -> X\Z. Combinator B' is used to combine two semantic components.
  -}
 comBh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comBh cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, "<B", "", "", False)
-    | isAvail = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<B", semComb se2 se1, "NR", True)
+    | isAvail = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<B", semComb "B'" se1 se2, "NR", True)
     | otherwise = (nilCate, "<B", "", "", False)
     where
     ca1 = fst3 cate1
@@ -167,12 +170,12 @@ comBh cate1 cate2
     se2 = snd3 cate2
     isAvail = (midSlash ca1 == "\\#" || midSlash ca1 == "\\.") && (midSlash ca2 == "\\#" || midSlash ca2 == "\\.") && rightCate ca2 == leftCate ca1
 
--- CCG forward crossing composition, like X/xY Y\xZ -> X\xZ.
+-- CCG forward crossing composition, like X/xY Y\xZ -> X\xZ. Combinator B is used to combine two semantic components.
 comFc :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comFc cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, ">Bx", "", "", False)
-    | isAvail && ca1 == advCate4DirecVerb && ca2 == verbCompCate = (verbCompCate, ">Bx", semComb se1 se2, "DHx", True)
-    | isAvail = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">Bx", semComb se1 se2, "NR", True)
+    | isAvail && ca1 == advCate4DirecVerb && ca2 == verbCompCate = (verbCompCate, ">Bx", semComb "B" se1 se2, "DHx", True)
+    | isAvail = (derivate (leftCate ca1) (midSlash ca2) (rightCate ca2), ">Bx", semComb "B" se1 se2, "NR", True)
     | otherwise = (nilCate, ">Bx", "", "", False)
     where
     ca1 = fst3 cate1
@@ -181,14 +184,14 @@ comFc cate1 cate2
     se2 = snd3 cate2
     isAvail = (midSlash ca1 == "/x" || midSlash ca1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && rightCate ca1 == leftCate ca2
 
--- CCG backward crossing composition, like Y/xZ X\xY ->X/xZ.
+-- CCG backward crossing composition, like Y/xZ X\xY ->X/xZ. Combinator B' is used to combine two semantic components.
 comBc :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comBc cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 = (nilCate, "<Bx", "", "", False)
-    | isAvail && (ca1 == predCate || ca1 == verbCate || ca1 == verbCate2) && ca2 == verbCompCate = (ca1, "<Bx", semComb se2 se1, "HvC", True)
---  | isAvail && (ca1 == advCate4DirecVerb && ca2 == verbCompCate) = (ca1, "<Bx", semComb se2 se1, "NR", True)     -- 没有形成短语DHx
---  | isAvail && cateEqual ca1 adjCate && cateEqual ca2 (getCateFromString "np\\.np") = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb se2 se1, "HaC", True)
-    | isAvail = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb se2 se1, "NR", True)
+    | isAvail && (ca1 == predCate || ca1 == verbCate || ca1 == verbCate2) && ca2 == verbCompCate = (ca1, "<Bx", semComb "B'" se1 se2, "HvC", True)
+--  | isAvail && (ca1 == advCate4DirecVerb && ca2 == verbCompCate) = (ca1, "<Bx", semComb "B'" se1 se2, "NR", True)     -- 没有形成短语DHx
+--  | isAvail && cateEqual ca1 adjCate && cateEqual ca2 (getCateFromString "np\\.np") = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb "B'" se1 se2, "HaC", True)
+    | isAvail = (derivate (leftCate ca2) (midSlash ca1) (rightCate ca1), "<Bx", semComb "B'" se1 se2, "NR", True)
     | otherwise = (nilCate, "<Bx", "", "", False)
     where
     ca1 = fst3 cate1
@@ -197,14 +200,15 @@ comBc cate1 cate2
     se2 = snd3 cate2
     isAvail = (midSlash ca1 == "/x" || midSlash ca1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && leftCate ca1 == rightCate ca2
 
--- CCG backward crossing composition^2, like (Y/xZ)|W X\xY -> (X/xZ)|W.
--- Scene 1: ((s\.np)/.np)/.np  (s\.np)\x(s\.np) -> ((s\.np)/.np)/.np
+{- CCG backward crossing composition^2, like (Y/xZ)|W X\xY -> (X/xZ)|W. Combinator B3' is used to combine two semantic components.
+ - Scene 1: ((s\.np)/.np)/.np  (s\.np)\x(s\.np) -> ((s\.np)/.np)/.np
+ -}
 comBc2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 comBc2 cate1 cate2
     | isPrimitive ca1 || isPrimitive ca2 || isPrimitive lcate1 = (nilCate, "<Bx2", "", "", False)
     | ca1 == conjCate4Backward || ca1 == conjCate4Forward = (nilCate, "<Bx2", "", "", False)
     | ca1 == aux5Cate || ca1 == toneCate = (nilCate, "<Bx2", "", "", False)
-    | isAvail && (ca1 == verbCate2 && ca2 == verbCompCate) = (ca1, "<Bx2", semComb se2 se1, "HvC", True)
+    | isAvail && (ca1 == verbCate2 && ca2 == verbCompCate) = (ca1, "<Bx2", semComb "B3'" se1 se2, "HvC", True)
     | otherwise = (nilCate, "<Bx2", "", "", False)
     where
     ca1 = fst3 cate1
@@ -215,14 +219,14 @@ comBc2 cate1 cate2
     llcate1 = leftCate lcate1
     isAvail = (midSlash lcate1 == "/x" || midSlash lcate1 == "/.") && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.") && leftCate lcate1 == rightCate ca2
 
--- CCG Forward type raising and harmonic composition: X (Y\X)/Z -> Y/(Y\X) (Y\X)/Z -> Y/Z
+-- CCG Forward type raising and harmonic composition: X (Y\X)/Z -> Y/(Y\X) (Y\X)/Z -> Y/Z. Combinator R is used to combine two semantic components.
 -- To now, the rule is only used for objective extraction and predicate extraction.
 raiFh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiFh cate1 cate2
     | isPrimitive ca2 || isPrimitive lcate2 || isX lcate2 = (nilCate, ">T->B", "", "", False)
-    | isAvail && (ca2 == verbCate || ca2 == verbCate2) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "OE", True)
-    | isAvail && (ca2 == advCate || ca2 == baPhraseCate) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "PE", True)
-    | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb se2 se1, "NR", True)
+    | isAvail && (ca2 == verbCate || ca2 == verbCate2) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb "R" se1 se2, "OE", True)
+    | isAvail && (ca2 == advCate || ca2 == baPhraseCate) = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb "R" se1 se2, "PE", True)
+    | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->B", semComb "R" se1 se2, "NR", True)
     | otherwise = (nilCate, ">T->B", "", "", False)
     where
     ca1 = fst3 cate1
@@ -232,11 +236,11 @@ raiFh cate1 cate2
     lcate2 = leftCate ca2
     isAvail = (ca1 == rightCate lcate2) && (head (midSlash lcate2) == '\\') && (midSlash ca2 == "/#" || midSlash ca2 == "/.")
 
--- Forward type raising and crossing composition: X (Y\X)\Z -> Y/(Y\X) (Y\X)\Z -> Y\Z
+-- Forward type raising and crossing composition: X (Y\X)\Z -> Y/(Y\X) (Y\X)\Z -> Y\Z. Combinator R is used to combine two semantic components.
 raiFc :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiFc cate1 cate2
     | isPrimitive ca2 || isPrimitive lcate2 || isX lcate2 = (nilCate, ">T->Bx", "", "", False)
-    | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->Bx", semComb se2 se1, "NR", True)
+    | isAvail = (derivate (leftCate lcate2) (midSlash ca2) (rightCate ca2), ">T->Bx", semComb "R" se1 se2, "NR", True)
     | otherwise = (nilCate, ">T->Bx", "", "", False)
     where
     ca1 = fst3 cate1
@@ -246,7 +250,7 @@ raiFc cate1 cate2
     lcate2 = leftCate ca2
     isAvail = (ca1 == rightCate lcate2) && (head (midSlash lcate2) == '\\') && (midSlash ca2 == "\\x" || midSlash ca2 == "\\.")
 
-{- Backward type raising and harmonic composition: (Y/X)\Z X -> (Y/X)\Z Y\(Y/X)-> Y\Z
+{- Backward type raising and harmonic composition: (Y/X)\Z X -> (Y/X)\Z Y\(Y/X)-> Y\Z. Combinator C is used to combine two semantic components.
  - '被'字结构 MOs
  - 被pb 他r 打vt => 被pb (他r 打vt)vi => (s/#(s/.np))\.np np (s\.np)/.np => (s/#(s/.np))\.np s/.np => (s/#(s/.np))\.np s\#(s/#(s/.np)) => s\.np, namely raiBh.
  - Seemingly, the functional name "raiBh" should be "raiBB", because 'h' is not necessary for representing harmonic，while backward direction in combination should be reflected.
@@ -254,8 +258,8 @@ raiFc cate1 cate2
 raiBh :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBh cate1 cate2
     | isPrimitive ca1 || isPrimitive lcate1 || isX lcate1 = (nilCate, "<T-<B", "", "", False)
-    | isAvail && ca1 == prep4BeiCate = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<B", semComb se1 se2, "MOs", True)
-    | isAvail = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<B", semComb se1 se2, "NR", True)
+    | isAvail && ca1 == prep4BeiCate = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<B", semComb "C" se1 se2, "MOs", True)
+    | isAvail = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<B", semComb "C" se1 se2, "NR", True)
     | otherwise = (nilCate, "<T-<B", "", "", False)
     where
     ca1 = fst3 cate1
@@ -265,17 +269,16 @@ raiBh cate1 cate2
     lcate1 = leftCate ca1
     isAvail = (rightCate lcate1 == ca2) && (head (midSlash lcate1) == '/') && (midSlash ca1 == "\\#" || midSlash ca1 == "\\.")
 
-{- CCG backward type raising and backward harmonic composition^2:  ((Y/X)\Z)/W X-> ((Y/X)\Z)/W Y\(Y/X)-> (Y\Z)/W
- - Here, backward harmonic composition^2 is not pure, because the two parameters are not all backward.
+{- CCG backward type raising and backward harmonic composition^2:  ((Y/X)\Z)|W X-> ((Y/X)\Z)|W Y\(Y/X)-> (Y\Z)|W, where '|' is either '/' or '\'.
+ - Combinator U is used to combine two semantic components.
  - To now, the rule is only used for '把' phrase.
  - For examples, ((s/.np)\.np)/#((s\.np)/.np) np => ((s/.np)\.np)/#((s\.np)/.np) s\.(s/.np) => (s\.np)/#((s\.np)/.np)
- - Similarly, the functional name should be "raiBB2".
  -}
 raiBh2 :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBh2 cate1 cate2
     | isPrimitive ca1 || isPrimitive lcate1 || isX lcate1 || isPrimitive llcate1 || isX llcate1 = (nilCate, "<T-<B2", "", "", False)
-    | isAvail && ca1 == prep4BaCate && ca2 == npCate = (derivate (derivate (leftCate llcate1) (midSlash lcate1) (rightCate lcate1)) (midSlash ca1) (rightCate ca1), "<T-<B2", semComb se1 se2, "MOv", True)
-    | isAvail = (derivate (derivate (leftCate llcate1) (midSlash lcate1) (rightCate lcate1)) (midSlash ca1) (rightCate ca1), "<T-<B2", semComb se1 se2, "NR", True)
+    | isAvail && ca1 == prep4BaCate && ca2 == npCate = (derivate (derivate (leftCate llcate1) (midSlash lcate1) (rightCate lcate1)) (midSlash ca1) (rightCate ca1), "<T-<B2", semComb "U" se1 se2, "MOv", True)
+    | isAvail = (derivate (derivate (leftCate llcate1) (midSlash lcate1) (rightCate lcate1)) (midSlash ca1) (rightCate ca1), "<T-<B2", semComb "U" se1 se2, "NR", True)
     | otherwise = (nilCate, "<T-<B2", "", "", False)
     where
     ca1 = fst3 cate1
@@ -286,11 +289,11 @@ raiBh2 cate1 cate2
     llcate1 = leftCate lcate1
     isAvail = (ca2 == rightCate llcate1) && (head (midSlash llcate1) == '/') && (midSlash lcate1 == "\\#" || midSlash lcate1 == "\\.") && (midSlash ca1 == "/#" || midSlash ca1 == "/.")
 
--- Backward type raising and crossing composition: (Y/X)/Z X -> (Y/X)/Z Y\(Y/X)-> Y/Z
+-- Backward type raising and crossing composition: (Y/X)/Z X -> (Y/X)/Z Y\(Y/X)-> Y/Z. Combinator C is used to combine two semantic components.
 raiBc :: (Category,Seman,PhraStru) -> (Category,Seman,PhraStru) -> (Category, Tag, Seman, PhraStru, Act)
 raiBc cate1 cate2
     | isPrimitive ca1 || isPrimitive lcate1 || isX lcate1 = (nilCate, "<T-<Bx", "", "", False)
-    | isAvail = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<Bx", semComb se1 se2, "NR", True)
+    | isAvail = (derivate (leftCate lcate1) (midSlash ca1) (rightCate ca1), "<T-<Bx", semComb "C" se1 se2, "NR", True)
     | otherwise = (nilCate, "<T-<Bx", "", "", False)
     where
     ca1 = fst3 cate1

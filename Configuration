@@ -12,9 +12,15 @@ sent_source:corpus
 
 # The database tables where parsing trees and scripts come from.
 script_source:corpus
-tree_source:corpus
+
+# tree_source:corpus
 # tree_source:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 # tree_source:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+tree_source:treebank_including_SLR_CL_seman
+
+# Field storing parsing tree, default value of which is 'tree'.
+#tree_field:tree_pa
+tree_field:tree
 
 # The database table where parsing trees go to.
 # Usually it is destination treebank when parsing with script.
@@ -31,7 +37,8 @@ tree_source:corpus
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn301_400
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 #   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400_prod
-tree_target:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+#   - tree_target:treebank_including_SLR_CL_seman
+tree_target:treebank_including_SLR_CL_seman
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -59,9 +66,10 @@ category_ambig_resol_sample_update_switch:Off
 # Possible values:
 #   - Euclidean
 #   - Manhattan
-phra_gram_dist_algo:Euclidean
-overlap_type_dist_algo:Euclidean
-strugene_context_dist_algo:Euclidean
+# Owing correlations, Manhattan algo. is better than Euclidean algo. in composing elementary distances.
+phra_gram_dist_algo:Manhattan
+overlap_type_dist_algo:Manhattan
+strugene_context_dist_algo:Manhattan
 
 # Range of serial numbers of sentences from which the used syntax ambiguity resolution model samples are.
 syntax_resol_sample_startsn:1

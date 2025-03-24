@@ -35,6 +35,7 @@ module Phrase (
     tpaOfCate,     -- PhraCate -> [(Tag, PhraStru, Act)]
     ctspOfCate,    -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
     ctspOfActCate, -- PhraCate -> [(Category, Tag, Seman, PhraStru)]
+    phraCateWithoutSeman,  -- PhraCate -> ((Start, Span), [(Category, Tag, PhraStru, Act)], SecStart)
     phraCateWithoutAct,    -- PhraCate -> ((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)
     nPhraCateWithoutAct,   -- [PhraCate] -> [((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)]
     cspOfCate,     -- PhraCate -> [(Category, Seman, PhraStru)]
@@ -72,8 +73,11 @@ module Phrase (
     divPhraCateBySpan',        -- [PhraCate] -> [[PhraCate]]
     sortPhraCateBySpan',       -- [PhraCate] -> [PhraCate]
     notElem4Phrase,            -- PhraCate -> [PhraCate] -> Bool
+    notElem4Phrase',           -- PhraCate -> [PhraCate] -> Bool
     elem4Phrase,               -- PhraCate -> [PhraCate] -> Bool
+    elem4Phrase',              -- PhraCate -> [PhraCate] -> Bool
     equalSortedPhraList,       -- [PhraCate] -> [PhraCate] -> Bool
+    equalSortedPhraList',      -- [PhraCate] -> [PhraCate] -> Bool
     ) where
 
 import Data.Tuple
@@ -215,6 +219,11 @@ ctspOfCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) ctspa
 
 ctspOfActCate :: PhraCate -> [(Category, Tag, Seman, PhraStru)]
 ctspOfActCate (_, ctspa, _) = map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) [y| y <- ctspa, fif5 y]
+
+phraCateWithoutSeman :: PhraCate -> ((Start, Span), [(Category, Tag, PhraStru, Act)], SecStart)
+phraCateWithoutSeman (ss, ctspa, st) = (ss, ctpa, st)
+    where
+    ctpa = map (\x -> (fst5 x, snd5 x, fth5 x, fif5 x)) ctspa
 
 phraCateWithoutAct :: PhraCate -> ((Start, Span), [(Category, Tag, Seman, PhraStru)], SecStart)
 phraCateWithoutAct (ss, ctspa, st) = (ss, ctsp, st)
@@ -465,14 +474,42 @@ notElem4Phrase x (y:ys)
       ssy = ssOfCate y
       ctspy = ctspOfCate y
 
+-- Without considering Act and Seman attributes, decide whether a phrase is NOT in a certain phrasal list.
+notElem4Phrase' :: PhraCate -> [PhraCate] -> Bool
+notElem4Phrase' x [] = True
+notElem4Phrase' x (y:ys)
+    | (stx==sty)&&(spx==spy)&&(ssx==ssy)&&(ctpx==ctpy) = False
+    | otherwise = notElem4Phrase' x ys
+    where
+      stx = stOfCate x
+      spx = spOfCate x
+      ssx = ssOfCate x
+      ctpx = ctpOfCate x
+      sty = stOfCate y
+      spy = spOfCate y
+      ssy = ssOfCate y
+      ctpy = ctpOfCate y
+
 -- Without considering Act attribute, decide whether a phrase is in a certain phrasal list.
 elem4Phrase :: PhraCate -> [PhraCate] -> Bool
 elem4Phrase = \x y -> not (notElem4Phrase x y)
 
+-- Without considering Act and Seman attributes, decide whether a phrase is in a certain phrasal list.
+elem4Phrase' :: PhraCate -> [PhraCate] -> Bool
+elem4Phrase' = \x y -> not (notElem4Phrase' x y)
+
 -- Compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
 equalSortedPhraList :: [PhraCate] -> [PhraCate] -> Bool
-equalSortedPhraList pc1 pc2
-    | pc1 == [] && pc2 == [] = True
-    | (pc1 /= [] && pc2 == []) || (pc1 == [] && pc2 /= []) = False
-    | head pc1 /= head pc2 = False
-    | otherwise = equalSortedPhraList (tail pc1) (tail pc2)
+equalSortedPhraList pcs1 pcs2
+    | pcs1 == [] && pcs2 == [] = True
+    | (pcs1 /= [] && pcs2 == []) || (pcs1 == [] && pcs2 /= []) = False
+    | head pcs1 /= head pcs2 = False
+    | otherwise = equalSortedPhraList (tail pcs1) (tail pcs2)
+
+-- Ignorig semantic item in phrasal categories, compare two lists sorted by function quickSort, return True when they have same set of phrasal categories.
+equalSortedPhraList' :: [PhraCate] -> [PhraCate] -> Bool
+equalSortedPhraList' pcs1 pcs2
+    | pcs1 == [] && pcs2 == [] = True
+    | (pcs1 /= [] && pcs2 == []) || (pcs1 == [] && pcs2 /= []) = False
+    | phraCateWithoutSeman (head pcs1) /= phraCateWithoutSeman (head pcs2) = False
+    | otherwise = equalSortedPhraList' (tail pcs1) (tail pcs2)

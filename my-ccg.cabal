@@ -55,6 +55,7 @@ executable my-ccg-exe
   other-modules:
       AmbiResol
       Category
+      CL
       Clustering
       Corpus
       Database
@@ -98,6 +99,7 @@ test-suite my-ccg-test
   other-modules:
       AmbiResolSpec
       CategorySpec
+      CLSpec
       ClusteringSpec
       CorpusSpec
       DatabaseSpec
@@ -109,6 +111,7 @@ test-suite my-ccg-test
       StatisticsSpec
       AmbiResol
       Category
+      CL
       Clustering
       Corpus
       Database

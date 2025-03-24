@@ -42,8 +42,7 @@ module SentParse (
     updateSyntaxAmbiResolSample,      -- [PhraCate] -> [OverPair] -> IO ()
     updateSyntaxAmbiResolSample',     -- [PhraCate] -> OverPair -> IO ()
     storeClauseParsingToTreebank,     -- SentIdx -> ClauIdx -> ([[Rule]], [PhraCate], BanPCs) -> IO ()
-    storeTree,            -- SentIdx -> String -> IO ()
-    readTree_String,      -- SentIdx -> IO String
+    readTree_String,      -- SentIdx -> String -> String -> IO String
     sentToClauses,        -- String -> IO [String]
     dispTreeOfSent,       -- [String] -> IO ()
     dispTree,             -- [String] -> IO ()
@@ -860,6 +859,10 @@ parseSentByScript sn cs = do
     let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
 
     conn <- getConn
+    let sqlstat = DS.fromString $ "create table if not exists " ++ tree_target ++ " (serial_num int primary key auto_increment,tree mediumtext, script mediumtext, tree_check tinyint(1), SLR mediumtext, tagClause varchar(50))"
+    stmt <- prepareStmt conn sqlstat
+    executeStmt conn stmt []
+
     let query = DS.fromString ("select script from " ++ script_source ++ " where serial_num = ?")       -- Query is instance of IsString.
     stmt <- prepareStmt conn query
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]                         --([ColumnDef], InputStream [MySQLValue])
@@ -985,7 +988,8 @@ parseSentByScript' sn cs scripts = do
 
         rtbPCs <- parseClauseWithScript (sn, clauIdx) [] nPCs [] [] lastScript []        -- Parse begins with empty '[[Rule]]', empty '[BanPCs]' and empty SLROfClause value.
         let newClauIdxTree = snd4 rtbPCs
-        let judgeClauIdxTree = quickSort4Phrase (snd origClauIdxTree) == quickSort4Phrase newClauIdxTree   -- Bool
+--        let judgeClauIdxTree = quickSort4Phrase (snd origClauIdxTree) == quickSort4Phrase newClauIdxTree   -- Bool
+        let judgeClauIdxTree = equalSortedPhraList' (quickSort4Phrase (snd origClauIdxTree)) (quickSort4Phrase newClauIdxTree)     -- Ignoring semantic item.
         let numOfClauEqual' = case judgeClauIdxTree of
                                 True -> numOfClauEqual + 1
                                 False -> numOfClauEqual
@@ -1097,6 +1101,8 @@ doTransWithScript clauTag nPCs banPCSets prevOverPairs script = do
     let pcpsWithPrior1 = map (\x-> (fst3 x, snd3 x)) overPairsByPrev
     let pcps1 = [pcp | pcp <- pcps, notElem pcp pcpsWithPrior1]
     let overPairsByScript = ambiResolByScript nPCs2 [] pcps1 script             -- [OverPair], phrasal pairs are resoluted by script.
+--    putStr "doTransWithScript: script: "
+--    showScripts [script]
     putStr "doTransWithScript: overPairsByScript: "
     showNOverPairLn overPairsByScript
 
@@ -1168,9 +1174,9 @@ ambiResolByPrevOverPair currentOverPairs (pcp:pcps) prevOverPairs
 ambiResolByScript :: [PhraCate] -> [OverPair] -> [(PhraCate, PhraCate)] -> Script -> [OverPair]
 ambiResolByScript _ overPairs [] _ = overPairs
 ambiResolByScript nPCs overPairs (pcp:pcps) script
-    | notElem4Phrase lp banPCs && elem4Phrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
-    | elem4Phrase lp banPCs && notElem4Phrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
-    | elem4Phrase lp banPCs && elem4Phrase rp banPCs = ambiResolByScript nPCs ((lp, rp, Noth):overPairs) pcps script
+    | notElem4Phrase' lp banPCs && elem4Phrase' rp banPCs = ambiResolByScript nPCs ((lp, rp, Lp):overPairs) pcps script
+    | elem4Phrase' lp banPCs && notElem4Phrase' rp banPCs = ambiResolByScript nPCs ((lp, rp, Rp):overPairs) pcps script
+    | elem4Phrase' lp banPCs && elem4Phrase' rp banPCs = ambiResolByScript nPCs ((lp, rp, Noth):overPairs) pcps script
     | otherwise = ambiResolByScript nPCs overPairs pcps script
     where
     banPCs = head (thd3 script)
@@ -2507,7 +2513,7 @@ doTransWithManualResol clauTag onOff nPCs banPCSets prevOverPairs = do
 
                let pcps = getOverlap nPCs2                  -- [(PhraCate, PhraCate)]
                let overPairsByPrev = ambiResolByPrevOverPair [] pcps prevOverPairs            -- [OverPair], phrasal pairs appearing in the previous rounds of transitions.
-               putStr "ambiResolByScript: overPairsByPrev: "
+               putStr "doTransWithManualResol: overPairsByPrev: "
                showNOverPairLn overPairsByPrev
 
                let pcpsWithPrior = map (\x->(fst3 x, snd3 x)) overPairsByPrev
@@ -2859,33 +2865,15 @@ storeClauseParsingToTreebank sn clauIdx rtbPCs = do
           then putStrLn $ "storeClauseParsingToTreebank: " ++ show rn ++ " row(s) were modified."
           else error "storeClauseParsingToTreebank: update failed!"
 
-{- Store the parsing tree of a clause into database. Actually, here is an append operation.
-   The function is obsoleted, and replaced with Function storeClauseParsing.
- -}
-storeTree :: SentIdx -> String -> IO ()
-storeTree sn treeStr = do
-    confInfo <- readFile "Configuration"               -- Read the local configuration file
-    let tree_source = getConfProperty "ambi_resol_result_tree_source" confInfo
-    origTree <- readTree_String sn tree_source
-    let newTree = origTree ++ ";" ++ treeStr                 -- Use ';' to seperate clause trees
-    conn <- getConn
-    stmt <- prepareStmt conn "update corpus set tree = ? where serial_num = ?"
-    ok <- executeStmt conn stmt [toMySQLText newTree, toMySQLInt32 sn]
-    close conn
-    if (getOkAffectedRows ok == 1)
-      then putStrLn "storeTree: succeeded."
-      else error "storeTree: failed!"
-
 {- Read the tree String of designated sentence in treebank.
  - There are several treebanks stored in database, their table names are corpus, treebank1, and so on.
+ - tree_source: Source of trees.
+ - tree_field: Field storing parsing tree.
  -}
-readTree_String :: SentIdx -> String -> IO String
-readTree_String sn tree_source = do
-    confInfo <- readFile "Configuration"               -- Read the local configuration file
-    let tree_source = getConfProperty "tree_source" confInfo
-
+readTree_String :: SentIdx -> String -> String -> IO String
+readTree_String sn tree_source tree_field = do
     conn <- getConn
-    let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num = ?"
+    let sqlstat = DS.fromString $ "select " ++ tree_field ++" from " ++ tree_source ++ " where serial_num = ?"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 sn]
     row <- S.read is                                --Get [<tree>]

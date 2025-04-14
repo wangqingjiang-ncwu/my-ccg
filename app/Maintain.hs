@@ -18,6 +18,7 @@ module Maintain (
     addHX2Phrase,        -- PhraCate -> PhraCate
     removeStruGene2SamplesUsingPhraSyn0,      -- IO ()
     countClausalAmbigAtSGSamples,             -- IO ()
+    countPriorAmbigAtSGSamples,               -- IO ()
     ) where
 
 import Control.Monad
@@ -308,7 +309,7 @@ countClausalAmbigAtSGSamples = do
         rows <- readStreamByInt32UText [] is                                    -- [(SIdx, CTPListStr)]
         let rowsHavingDupClauTag = filter (hasDupClauTagInCTPList . snd)  (map (\x -> (fst x, (stringToCTPList . snd) x))  rows)    -- [(SIdx, CTPList)]
         let numOfRowsHavingDupClauTag = length rowsHavingDupClauTag             -- Int
-        putStr $ show (length rowsHavingDupClauTag) ++ " samples clausal ambiguity, and they are: "
+        putStr $ show numOfRowsHavingDupClauTag ++ " samples have clausal ambiguity, and they are: "
         putStrLn $ show rowsHavingDupClauTag
 
         let ratio = fromIntegral numOfRowsHavingDupClauTag / fromIntegral (length rows)
@@ -316,3 +317,31 @@ countClausalAmbigAtSGSamples = do
         close conn
 
       else putStrLn "countClausalAmbigAtSGSamples: Operation was canceled."
+
+{- Count Prior ambiguity at StruGene2 samples, namely count samples whose field 'clauTagPrior' has different Prior values.
+ -}
+countPriorAmbigAtSGSamples :: IO ()
+countPriorAmbigAtSGSamples = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        conn <- getConn
+        let sqlstat = DS.fromString $ "select id, clauTagPrior from " ++ syntax_ambig_resol_model
+        stmt <- prepareStmt conn sqlstat
+        (_, is) <- queryStmt conn stmt []
+        rows <- readStreamByInt32UText [] is                                    -- [(SIdx, CTPListStr)]
+        let rowsHavingPriorAmbi = filter (isPriorAmbiInClauTagPriorList . snd)  (map (\x -> (fst x, (stringToCTPList . snd) x))  rows)    -- [(SIdx, CTPList)]
+        let numOfRowsHavingPriorAmbi = length rowsHavingPriorAmbi               -- Int
+        putStr $ show numOfRowsHavingPriorAmbi ++ " samples have Prior ambiguity, and they are: "
+        putStrLn $ show rowsHavingPriorAmbi
+
+        let ratio = fromIntegral numOfRowsHavingPriorAmbi / fromIntegral (length rows)
+        putStrLn $ " Ratio of samples having Prior ambiguity on all samples is " ++ (printf "%.4f" (ratio :: Double))
+        close conn
+
+      else putStrLn "countPriorAmbigAtSGSamples: Operation was canceled."

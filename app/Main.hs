@@ -857,9 +857,10 @@ doMaintenance username = do
     putStrLn " 3 -> Add phrasal structure Half-juXtaposition to corpus field 'tree' and 'script'"
     putStrLn " 4 -> Remove StruGene2 samples using PhraSyn0 definition"
     putStrLn " 5 -> Count clausal ambiguity at StruGene2 samples"
+    putStrLn " 6 -> Count Prior ambiguity at StruGene2 samples"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -870,6 +871,7 @@ doMaintenance username = do
                "3" -> doAddHX2TreeAndScript username
                "4" -> doRemoveStruGene2SamplesUsingPhraSyn0 username
                "5" -> doCountClausalAmbigAtSGSamples username
+               "6" -> doCountPriorAmbigAtSGSamples username
              doMaintenance username                            -- Rear recursion
 
 -- C_1. Rearrange index column in a certain table.
@@ -946,6 +948,10 @@ doRemoveStruGene2SamplesUsingPhraSyn0 username = removeStruGene2SamplesUsingPhra
 -- C_5. Count clausal ambiguity at StruGene2 samples.
 doCountClausalAmbigAtSGSamples :: String -> IO ()
 doCountClausalAmbigAtSGSamples username = countClausalAmbigAtSGSamples
+
+-- C_6. Count Prior ambiguity at StruGene2 samples.
+doCountPriorAmbigAtSGSamples :: String -> IO ()
+doCountPriorAmbigAtSGSamples username = countPriorAmbigAtSGSamples
 
 -- D. 测试聚类模块的相关函数.
 doClustering :: String -> IO ()

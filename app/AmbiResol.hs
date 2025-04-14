@@ -31,6 +31,7 @@ module AmbiResol (
     getSentRangeByStruGeneSamples,  -- [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
     countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
     priorWithHighestFreq,       -- [ClauTagPrior] -> Prior
+    isPriorAmbiInClauTagPriorList,  -- [ClauTagPrior] -> Bool
     fromMaybePrior,             -- Maybe Prior -> Prior
     hasClauTagInSynAmbiResol,   -- ClauTag -> IO Bool
     hasSentSampleInSynAmbiResol,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
@@ -76,7 +77,7 @@ module AmbiResol (
     fromStruGene2ByHighestFreqPrior,   -- StruGene2 -> StruGene
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
-    readStreamByInt32U3TextInt8Text, -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+    readStreamByInt32U3TextInt8Text,   -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     SynAmbiResolMethod,  -- String
     rmNullCTPRecordsFromDB,       -- IO ()
 
@@ -199,6 +200,16 @@ priorWithHighestFreq clauTagPriorList
       rpCount = countPriorInCTPList Rp clauTagPriorList
       nothCount = countPriorInCTPList Noth clauTagPriorList
       maxFreq = maximum [lpCount, rpCount, nothCount]
+
+{- Decide whether attribute Prior is ambiguitious in a ClauTagPrior value list.
+ -}
+isPriorAmbiInClauTagPriorList :: [ClauTagPrior] -> Bool
+isPriorAmbiInClauTagPriorList [] = False
+isPriorAmbiInClauTagPriorList clauTagPriorList = (lpCount * rpCount /= 0) || (rpCount * nothCount /= 0) || (lpCount * nothCount /= 0)
+    where
+      lpCount = countPriorInCTPList Lp clauTagPriorList
+      rpCount = countPriorInCTPList Rp clauTagPriorList
+      nothCount = countPriorInCTPList Noth clauTagPriorList
 
 -- Extract Prior value from Maybe Prior value.
 fromMaybePrior :: Maybe Prior -> Prior

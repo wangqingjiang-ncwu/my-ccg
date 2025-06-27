@@ -2637,9 +2637,9 @@ getCateSimMap = do
     let cate_sim_tbl = getConfProperty confInfo "cate_sim_tbl"
     conn <- getConn
     let sqlStr = "SELECT * FROM " ++ cate_sim_tbl
-    (_, is) <- query_ conn (fromString sqlStr)
+    (_, is) <- query_ conn (DS.fromString sqlStr)
     rows <- S.toList is
-    let cateSimMap = Map.fromList (map (\x -> (((getCateFromString . fromMySQLText) x!!1, (getCateFromString . fromMySQLText) x!!2),  fromMySQLDouble x!!3)) rows)
+    let cateSimMap = Map.fromList (map (\x -> (((getCateFromString . fromMySQLText) (x!!1), (getCateFromString . fromMySQLText) (x!!2)),  fromMySQLDouble (x!!3))) rows)
     return cateSimMap
 
 -- Similarity degrees between grammatic rules.
@@ -2649,9 +2649,9 @@ getTagSimMap = do
     let tag_sim_tbl = getConfProperty confInfo "tag_sim_tbl"
     conn <- getConn
     let sqlStr = "SELECT * FROM " ++ tag_sim_tbl
-    (_, is) <- query_ conn (fromString sqlStr)
+    (_, is) <- query_ conn (DS.fromString sqlStr)
     rows <- S.toList is
-    let tagSimMap = Map.fromList (map (\x -> ((fromMySQLText x!!1, fromMySQLText x!!2),  fromMySQLDouble x!!3)) rows)
+    let tagSimMap = Map.fromList (map (\x -> ((fromMySQLText (x!!1), fromMySQLText (x!!2)),  fromMySQLDouble (x!!3))) rows)
     return tagSimMap
 
 -- Similarity degrees between phrasal structures.
@@ -2661,9 +2661,9 @@ getStruSimMap = do
     let stru_sim_tbl = getConfProperty confInfo "stru_sim_tbl"
     conn <- getConn
     let sqlStr = "SELECT * FROM " ++ stru_sim_tbl
-    (_, is) <- query_ conn (fromString sqlStr)
+    (_, is) <- query_ conn (DS.fromString sqlStr)
     rows <- S.toList is
-    let struSimMap = Map.fromList (map (\x -> ((fromMySQLText x!!1, fromMySQLText x!!2),  fromMySQLDouble x!!3)) rows)
+    let struSimMap = Map.fromList (map (\x -> ((fromMySQLText (x!!1), fromMySQLText (x!!2)),  fromMySQLDouble (x!!3))) rows)
     return struSimMap
 
 -- Similarity degrees between phrasal spans.
@@ -2673,7 +2673,7 @@ getSpanSimMap = do
     let span_sim_tbl = getConfProperty confInfo "span_sim_tbl"
     conn <- getConn
     let sqlStr = "SELECT * FROM " ++ span_sim_tbl
-    (_, is) <- query_ conn (fromString sqlStr)
+    (_, is) <- query_ conn (DS.fromString sqlStr)
     rows <- S.toList is
-    let spanSimMap = Map.fromList (map (\x -> ((fromMySQLInt8 x!!1, fromMySQLInt8 x!!2),  fromMySQLDouble x!!3)) rows)
+    let spanSimMap = Map.fromList (map (\x -> ((fromMySQLInt8 (x!!1), fromMySQLInt8 (x!!2)),  fromMySQLDouble (x!!3))) rows)
     return spanSimMap

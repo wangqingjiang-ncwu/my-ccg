@@ -31,6 +31,7 @@ import Control.Monad
 import qualified System.IO.Streams as S
 import qualified Data.String as DS
 import Database.MySQL.Base
+import Data.List
 import Data.List.Utils
 import Data.Tuple.Utils
 import Text.Printf
@@ -45,11 +46,11 @@ import Utils
 import Database
 import Corpus
 import SentParse (sentToClauses, dispTreeOfSent)
-import AmbiResol (PhraSyn0, PhraSyn)
+import AmbiResol (PhraSyn0, PhraSyn, readPhraSynFromStr, readPhraSynListFromStr)
 import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
-import Output(showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList)
+import Output(showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList, showSpanPair2SimList)
 
 type Clau = [PhraCate]
 type Sent = [Clau]
@@ -87,6 +88,10 @@ type Sents = [Sent]
  - 3. Get frequencies of most common phrasal overlapping (LROs) by given common proportion;
  - 4. Get frequencies of most common unambiguous phrasal overlapping (LROPs) by given common proportion;
  - 5. Get hit count of different overlapping types, namely [(OverType, sum(LpHitCount + RpHitCount + NothHitCount))];
+ - 6. Get similarity degree between every pair of categories;
+ - 7. Get similarity degree between every pair of grammatic rules;
+ - 8. Get similarity degree between every pair of phrasal structures;
+ - 9. Get similarity degree between every pair of phrasal spans;
 
  - The following functions read Table 'tree', then search all clauses according the input index.
  - 1. Get serial_num list indicating those parsing trees which include given CCG tags;
@@ -527,9 +532,8 @@ countInScript bottomSn topSn funcIndex = do
 
 {- Get statistics in table 'stru_gene', here 'funcIndex' indicates which statistics will be done.
  -}
-countInStruGene :: Int -> IO ()
-countInStruGene funcIndex = do
-    conn <- getConn
+countInStruGene :: Int -> Int -> Int -> IO ()
+countInStruGene startIdx endIdx funcIndex = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     putStrLn $ "The syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model           -- Display the ambiguity resolution model
@@ -564,7 +568,7 @@ countInStruGene funcIndex = do
     if funcIndex == 3
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType from " ++ syntax_ambig_resol_model
+         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType from " ++ syntax_ambig_resol_model
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          leftOver_RightOver_OverTypeList <- readStreamByTextTextInt8 [] is           -- [String], here the string is "LeftOver_RightOver_OverType"
@@ -587,7 +591,7 @@ countInStruGene funcIndex = do
     if funcIndex == 4
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver,rightOver,overType,prior from " ++ syntax_ambig_resol_model
+         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType, prior from " ++ syntax_ambig_resol_model
          stmt <- prepareStmt conn sqlstat
          (defs, is) <- queryStmt conn stmt []
          leftOver_RightOver_OverType_PriorList <- readStreamByTextTextInt8Text [] is        -- [String], here the string is "LeftOver_RightOver_OverType_Prior"
@@ -616,6 +620,199 @@ countInStruGene funcIndex = do
          (defs, is) <- queryStmt conn stmt []
          overType2HitCountList <- readStreamByInt8Decimal [] is                 -- [(Int,Double)], here every row has overType and its hit count.
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": HitCounts of different overlapping types [(OverType, HitCount)]: " ++ show (map (\x->(fst x, floor (snd x))) overType2HitCountList)
+       else putStr ""
+
+    -- 6.  Get similarity degree between every pair of categories.
+    if funcIndex == 6
+       then do
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+         contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
+         let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
+         let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
+         let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)   -- [PhraSyn]
+
+         let typePair2SimTuple = getTypePair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfCate, numOfCatePair, [((Category, Category), SimDeg)])
+         let typePair2SimList = fth4 typePair2SimTuple                          -- [((Category, Category), SimDeg)]
+         let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInStruGene: The number of different PhraSyns: " ++ show (fst4 typePair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different categories: " ++ show (snd4 typePair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different category pairs: " ++ show (thd4 typePair2SimTuple)
+
+         let tblName = "cate_sim_" ++ show (endIdx - startIdx + 1)              -- "cate_sim_xxx"
+         putStrLn $ " Table " ++ tblName ++ " will be created again."
+         let sqlstat = DS.fromString $ "DROP TABLE IF EXISTS " ++ tblName       -- Drop table if exists
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tblName ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cate1 VARCHAR(100), cate2 VARCHAR(100), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "INSERT INTO " ++ tblName ++ " SET cate1 = ?, cate2 = ?, sim = ?"
+
+         cOrS <- getLineUntil "Store complete or sparse triangular matrix into database? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInStruGene: Complete typePair2SimList: "
+             showCatePair2SimList (formatMapListWithDoubleValue typePair2SimList 4)
+             let typePair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) typePair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat typePair2SimMySQLValueList                   -- Store complete typePair2SimList into cate_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+             close conn
+           else do
+             putStr $ "countInStruGene: Sparse typePair2SimList: "
+             showCatePair2SimList (formatMapListWithDoubleValue sparseTypePair2SimList 4)
+             let sparseTypePair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) sparseTypePair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat sparseTypePair2SimMySQLValueList              -- Store sparse typePair2SimList into cate_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+       else putStr ""
+
+    -- 7.  Get similarity degree between every pair of grammatic rules.
+    if funcIndex == 7
+       then do
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+         contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
+         let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
+         let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
+         let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)   -- [PhraSyn]
+
+         let tagPair2SimTuple = getTagPair2SimFromPSL phraSynList               -- (numOfPhraSyn, numOfTag, numOfTagPair, [((Tag, Tag), SimDeg)])
+         let tagPair2SimList = fth4 tagPair2SimTuple                            -- [((Tag, Tag), SimDeg)]
+         let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInStruGene: The number of different phraSyns: " ++ show (fst4 tagPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different tags: " ++ show (snd4 tagPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different tag pairs: " ++ show (thd4 tagPair2SimTuple)
+
+         let tblName = "tag_sim_" ++ show (endIdx - startIdx + 1)               -- "tag_sim_xxx"
+         putStrLn $ " Table " ++ tblName ++ " will be created again."
+         let sqlstat = DS.fromString $ "DROP TABLE IF EXISTS " ++ tblName       -- Drop table if exists
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tblName ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, tag1 VARCHAR(50), tag2 VARCHAR(50), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "INSERT INTO " ++ tblName ++ " SET tag1 = ?, tag2 = ?, sim = ?"
+
+         cOrS <- getLineUntil "Store complete or sparse triangular matrix into database? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInStruGene: The whole tagPair2SimList: "
+             showTagPair2SimList (formatMapListWithDoubleValue tagPair2SimList 4)
+             let tagPair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) tagPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat tagPair2SimMySQLValueList           -- Store complete tagPair2SimList into tag_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+           else do
+             putStr $ "countInStruGene: sparse tagPair2SimList: "
+             showTagPair2SimList (formatMapListWithDoubleValue sparseTagPair2SimList 4)
+             let sparseTagPair2SimMySQLValueList = map (\x -> [toMySQLText ((fst . fst) x), toMySQLText ((snd . fst) x), toMySQLDouble (snd x)]) sparseTagPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat sparseTagPair2SimMySQLValueList     -- Store sparse tagPair2SimList into tag_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+        else putStr ""
+
+    -- 8.  Get similarity degree between every pair of phrasal structures.
+    if funcIndex == 8
+       then do
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+         contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
+         let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
+         let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
+         let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)   -- [PhraSyn]
+
+         let struPair2SimTuple = getStruPair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfPhraStru, numOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+         let struPair2SimList = fth4 struPair2SimTuple                          -- [((PhraStru, PhraStru), SimDeg)]
+         let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInStruGene: The number of different phraSyns: " ++ show (fst4 struPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different phrasal structures: " ++ show (snd4 struPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different structure pairs: " ++ show (thd4 struPair2SimTuple)
+
+         let tblName = "stru_sim_" ++ show (endIdx - startIdx + 1)              -- "stru_sim_xxx"
+         putStrLn $ " Table " ++ tblName ++ " will be created again."
+         let sqlstat = DS.fromString $ "DROP TABLE IF EXISTS " ++ tblName       -- Drop table if exists
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tblName ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stru1 VARCHAR(10), stru2 VARCHAR(10), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "INSERT INTO " ++ tblName ++ " SET stru1 = ?, stru2 = ?, sim = ?"
+
+         cOrS <- getLineUntil "Store complete or sparse triangular matrix into database? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInStruGene: The whole struPair2SimList: "
+             showStruPair2SimList (formatMapListWithDoubleValue struPair2SimList 4)
+             let struPair2SimMySQLValueList = map (\x -> [toMySQLText ((fst . fst) x), toMySQLText ((snd . fst) x), toMySQLDouble (snd x)]) struPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat struPair2SimMySQLValueList          -- Store complete struPair2SimList into stru_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+           else do
+             putStr $ "countInStruGene: sparse struPair2SimList: "
+             showStruPair2SimList (formatMapListWithDoubleValue sparseStruPair2SimList 4)
+             let sparseStruPair2SimMySQLValueList = map (\x -> [toMySQLText ((fst . fst) x), toMySQLText ((snd . fst) x), toMySQLDouble (snd x)]) sparseStruPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat sparseStruPair2SimMySQLValueList    -- Store sparse struPair2SimList into stru_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+       else putStr ""
+
+    -- 9.  Get similarity degree between every pair of phrasal spans.
+    if funcIndex == 9
+       then do
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+         contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
+         let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
+         let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
+         let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)   -- [PhraSyn]
+
+         let spanPair2SimTuple = getSpanPair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfSpan, numOfSpanPair, [((Span, Span), SimDeg)])
+         let spanPair2SimList = fth4 spanPair2SimTuple                          -- [((Span, Span), SimDeg)]
+         let sparseSpanPair2SimList = [x | x <- spanPair2SimList, snd x /= fromIntegral 0]
+         putStrLn $ "countInStruGene: The number of different phraSyns: " ++ show (fst4 spanPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different phrasal spans: " ++ show (snd4 spanPair2SimTuple)
+         putStrLn $ "countInStruGene: The number of different span pairs: " ++ show (thd4 spanPair2SimTuple)
+
+         let tblName = "span_sim_" ++ show (endIdx - startIdx + 1)              -- "span_sim_xxx"
+         putStrLn $ " Table " ++ tblName ++ " will be created again."
+         let sqlstat = DS.fromString $ "DROP TABLE IF EXISTS " ++ tblName       -- Drop table if exists
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tblName ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, span1 TINYINT, span2 TINYINT, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         let sqlstat = DS.fromString $ "INSERT INTO " ++ tblName ++ " SET span1 = ?, span2 = ?, sim = ?"
+
+         cOrS <- getLineUntil "Store complete or sparse triangular matrix into database? ['c' or RETURN for complete, 's' for sparse] " ["c","s"] True
+         if cOrS == "c"
+           then do
+             putStr $ "countInStruGene: The whole spanPair2SimList: "
+             showSpanPair2SimList (formatMapListWithDoubleValue spanPair2SimList 4)
+             let spanPair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) spanPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat spanPair2SimMySQLValueList          -- Store complete spanPair2SimList into span_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+           else do
+             putStr $ "countInStruGene: sparse spanPair2SimList: "
+             showSpanPair2SimList (formatMapListWithDoubleValue sparseSpanPair2SimList 4)
+             let sparseSpanPair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) sparseSpanPair2SimList  -- [[MySQLValue]]
+             oks <- executeMany conn sqlstat sparseSpanPair2SimMySQLValueList    -- Store sparse spanPair2SimList into span_sim_xxx
+             putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
+             putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
        else putStr ""
 
 {- Get search result in field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and

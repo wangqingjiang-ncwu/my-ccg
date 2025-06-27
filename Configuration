@@ -15,8 +15,8 @@ script_source:corpus
 
 # tree_source:corpus
 # tree_source:treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn001_200
-# tree_source:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
-tree_source:treebank_including_SLR_CL_seman
+tree_source:treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
+# tree_source:treebank_including_SLR_CL_seman
 
 # Field storing parsing tree, default value of which is 'tree'.
 #tree_field:tree_pa
@@ -154,3 +154,15 @@ wpr:1
 #defaultEndIdx:200
 defaultStartIdx:1
 defaultEndIdx:400
+
+# Table names of storing similarity degrees between syntactic categories.
+cate_sim_tbl:cate_sim_18782
+
+# Table names of storing similarity degrees between grammatic rules.
+tag_sim_tbl:tag_sim_18782
+
+# Table names of storing similarity degrees between phrasal structures.
+cate_sim_tbl:stru_sim_18782
+
+# Table names of storing similarity degrees between phrasal spans.
+span_sim_tbl:span_sim_18782

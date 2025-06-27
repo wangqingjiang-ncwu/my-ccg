@@ -1,5 +1,6 @@
 module Test (
-  testCase
+  testCase,
+  test1
 ) where
 
 import Prelude hiding (lookup)
@@ -12,3 +13,12 @@ testCase i = case i of
                1 -> putStrLn "1"
                2 -> putStrLn "2"
                _ -> putStrLn "Other"
+
+test1 :: Int -> IO ()
+test1 arg = do
+    let loop i
+          | i > 10 = putStrLn "[Done] i > 10"
+          | otherwise = do
+              putStrLn $ show i
+              loop (i + 1)
+    loop arg

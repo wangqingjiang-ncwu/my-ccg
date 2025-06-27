@@ -536,7 +536,8 @@ doCountInTreebank username = do
     putStrLn " s8 -> Get number of abandoned not-recognizable phrases in parsing every clause"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","tF","s1","s2","s3","s4","s5","s6","s7","s8","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: "
+        ["?","t1","t2","t3","t4","t5","t6","t7","t8","t9","tA","tB","tC","tD","tE","tF","s1","s2","s3","s4","s5","s6","s7","s8","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -617,9 +618,13 @@ doCountInStruGene username = do
     putStrLn " 3 -> Get frequencies of most common phrasal overlapping (LROs) by given common proportion"
     putStrLn " 4 -> Get frequencies of most common phrasal overlapping (LROPs) by given common proportion"
     putStrLn " 5 -> Get hit count of different overlapping types, namely [(OverType, sum(LpHitCount + RpHitCount + NothHitCount))]"
+    putStrLn " 6 -> Get similarity degree between every pair of categories"
+    putStrLn " 7 -> Get similarity degree between every pair of grammatic rules"
+    putStrLn " 8 -> Get similarity degree between every pair of phrasal structures"
+    putStrLn " 9 -> Get similarity degree between every pair of phrasal spans"
     putStrLn " 0 -> Go back to the upper layer."
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -630,13 +635,27 @@ doCountInStruGene username = do
                "3" -> doCountInStruGene' username 3
                "4" -> doCountInStruGene' username 4
                "5" -> doCountInStruGene' username 5
+               "6" -> doCountInStruGene' username 6
+               "7" -> doCountInStruGene' username 7
+               "8" -> doCountInStruGene' username 8
+               "9" -> doCountInStruGene' username 9
              doCountInStruGene username                        -- Rear recursion
 
--- A2_1. Display statistical results from table 'stru_gene'.
+-- A2_1. Display statistical results from a certain StruGene sample base, such as table 'stru_gene_202501'.
 doCountInStruGene' :: String -> Int -> IO ()
 doCountInStruGene' username funcIndex = do
-    countInStruGene funcIndex
-    doCountInStruGene username
+    putStr "Please input the value of 'id' of start sample: "
+    startIdxStr <- getLine
+    let startIdx = read startIdxStr :: Int
+    putStr "Please input the value of 'id' of end sample: "
+    endIdxStr <- getLine
+    let endIdx = read endIdxStr :: Int
+
+    let prompt = " Sample(s) from " ++ startIdxStr ++ " to " ++ endIdxStr ++ " will be searched, are you sure? [y/n] (RETURN for 'y'): "
+    answer <- getLineUntil prompt ["y","n"] True
+    if answer == "n"
+      then putStrLn "doCountInStruGene: cancelled."
+      else countInStruGene startIdx endIdx funcIndex
 
 -- A3. Display search result in treebank. 't' means from field 'tree', and 's' means from 'script'.
 doSearchInTreebank :: String -> IO ()

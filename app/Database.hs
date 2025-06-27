@@ -48,6 +48,7 @@ module Database (
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32UText,          -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
+  readStreamByTextTextTextText,    -- [(String, String, String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String, String, String)]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   getConn,                     -- IO MySQLConn
@@ -265,6 +266,16 @@ readStreamByInt32TextText :: [(Int, String, String)] -> S.InputStream [MySQLValu
 readStreamByInt32TextText es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByInt32TextText (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1), fromMySQLText (x!!2))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed list [(String, String, String, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText].
+ -}
+readStreamByTextTextTextText :: [(String, String, String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String, String, String)]
+readStreamByTextTextTextText es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByTextTextTextText (es ++ [(fromMySQLText (x!!0), fromMySQLText (x!!1), fromMySQLText (x!!2), fromMySQLText (x!!3))]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], append it to existed string list, then read the next,

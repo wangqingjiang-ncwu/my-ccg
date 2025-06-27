@@ -58,6 +58,7 @@ module Output (
     showCatePair2SimList,   -- [((Category, Category), String)] -> IO ()
     showTagPair2SimList,    -- [((Tag, Tag), String)] -> IO ()
     showStruPair2SimList,   -- [((PhraStru, PhraStru), String)] -> IO ()
+    showSpanPair2SimList,   -- [((Span, Span), String)] -> IO ()
     ) where
 
 import Category
@@ -836,3 +837,19 @@ showStruPair2SimList' (s:ss) = do
     showStruPair2SimList' [s]
     putStr ", "
     showStruPair2SimList' ss
+
+-- Print spanPair2SimList in Module Statistics, where similarity bewteen every pair of phrasal spans is the formated string of a float value.
+showSpanPair2SimList :: [((Span, Span), String)] -> IO ()
+showSpanPair2SimList [] = putStrLn "[]"
+showSpanPair2SimList (s:ss) = do
+    putStr "["
+    showSpanPair2SimList' (s:ss)
+    putStrLn "]"
+
+showSpanPair2SimList' :: [((Span, Span), String)] -> IO ()
+showSpanPair2SimList' [] = putStr ""
+showSpanPair2SimList' [s] = putStr $ "((" ++ (show . fst . fst) s ++ ", " ++ (show . snd . fst) s ++ "), " ++ snd s ++ ")"
+showSpanPair2SimList' (s:ss) = do
+    showSpanPair2SimList' [s]
+    putStr ", "
+    showSpanPair2SimList' ss

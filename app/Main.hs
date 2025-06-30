@@ -56,7 +56,7 @@ main = do
     hFlush stdout                                  -- Flush buffered data to assure changing the encoding.
 
     putStrLn " Chinese CCG parser (build 0.2.7.0)"
-    putStrLn " Copyright (c) 2019-2023 China University of Water Resources and Electric Power, All rights reserved."
+    putStrLn " Copyright (c) 2019-2025 China University of Water Resources and Electric Power, All rights reserved."
 
     (username, ok) <- login 1
     if ok
@@ -622,9 +622,10 @@ doCountInStruGene username = do
     putStrLn " 7 -> Get similarity degree between every pair of grammatic rules"
     putStrLn " 8 -> Get similarity degree between every pair of phrasal structures"
     putStrLn " 9 -> Get similarity degree between every pair of phrasal spans"
+    putStrLn " A -> Get similarity degree between every pair of PhraSyn values"
     putStrLn " 0 -> Go back to the upper layer."
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -639,6 +640,7 @@ doCountInStruGene username = do
                "7" -> doCountInStruGene' username 7
                "8" -> doCountInStruGene' username 8
                "9" -> doCountInStruGene' username 9
+               "A" -> doCountInStruGene' username 10
              doCountInStruGene username                        -- Rear recursion
 
 -- A2_1. Display statistical results from a certain StruGene sample base, such as table 'stru_gene_202501'.
@@ -988,8 +990,9 @@ doClustering username = do
     putStrLn " B -> Get similarity degrees between any two contexts of StruGene samples"
     putStrLn " C -> Among StruGene samples, calculate similarity degrees from one to all contexts"
     putStrLn " D -> Get similarity degrees between one ClauTagPrior context to every context of StruGene samples"
+    putStrLn " E -> Among StruGene samples, calculate similarity degree between every pair of contexts"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1010,6 +1013,7 @@ doClustering username = do
                "B" -> clusteringAnalysis 11
                "C" -> clusteringAnalysis 12
                "D" -> clusteringAnalysis 13
+               "E" -> clusteringAnalysis 14
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数

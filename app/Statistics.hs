@@ -33,6 +33,7 @@ import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List
 import Data.List.Utils
+import Data.Tuple
 import Data.Tuple.Utils
 import Text.Printf
 import qualified Data.Tuple as Tuple
@@ -50,7 +51,8 @@ import AmbiResol (PhraSyn0, PhraSyn, readPhraSynFromStr, readPhraSynListFromStr)
 import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
-import Output(showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList, showSpanPair2SimList)
+import Output (showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList, showSpanPair2SimList)
+import AmbiResol (phraSynToString)
 
 type Clau = [PhraCate]
 type Sent = [Clau]
@@ -312,7 +314,7 @@ countInTree bottomSn topSn funcIndex = do
 -- To calculate similarities between every pair of grammatic rules.
     if funcIndex == 13
        then do
-         let tagPair2SimTuple = getTagPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+         let tagPair2SimTuple = getTagPair2SimFromSCPL sentClauPhraList         -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
          let tagPair2SimList = fth4 tagPair2SimTuple
          let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 tagPair2SimTuple)
@@ -331,7 +333,7 @@ countInTree bottomSn topSn funcIndex = do
 -- To calculate similarities between every pair of phrasal structures.
     if funcIndex == 14
        then do
-         let struPair2SimTuple = getStruPair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+         let struPair2SimTuple = getStruPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
          let struPair2SimList = fth4 struPair2SimTuple
          let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 struPair2SimTuple)
@@ -353,7 +355,7 @@ countInTree bottomSn topSn funcIndex = do
          confInfo <- readFile "Configuration"
          let distAlgo = getConfProperty "phra_gram_dist_algo" confInfo
 
-         let phraSynPairSimTuple = getPhraSynPairSimFromSCPLBySVD distAlgo sentClauPhraList
+         phraSynPairSimTuple <- getPhraSynPairSimFromSCPLBySVD distAlgo sentClauPhraList
          let numOfPhraSynPair = length (fst5 phraSynPairSimTuple)
          putStrLn $ "countInTree: Num. of phraSyn pairs: " ++ show numOfPhraSynPair
 
@@ -642,7 +644,7 @@ countInStruGene startIdx endIdx funcIndex = do
          putStrLn $ "countInStruGene: The number of different categories: " ++ show (snd4 typePair2SimTuple)
          putStrLn $ "countInStruGene: The number of different category pairs: " ++ show (thd4 typePair2SimTuple)
 
-         let tblName = "cate_sim_" ++ show (endIdx - startIdx + 1)              -- "cate_sim_xxx"
+         let tblName = "type_sim_" ++ show (endIdx - startIdx + 1)              -- "type_sim_xxx"
          putStrLn $ " Table " ++ tblName ++ " will be created again."
          let sqlstat = DS.fromString $ "DROP TABLE IF EXISTS " ++ tblName       -- Drop table if exists
          stmt <- prepareStmt conn sqlstat
@@ -658,7 +660,7 @@ countInStruGene startIdx endIdx funcIndex = do
              putStr $ "countInStruGene: Complete typePair2SimList: "
              showCatePair2SimList (formatMapListWithDoubleValue typePair2SimList 4)
              let typePair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) typePair2SimList  -- [[MySQLValue]]
-             oks <- executeMany conn sqlstat typePair2SimMySQLValueList                   -- Store complete typePair2SimList into cate_sim_xxx
+             oks <- executeMany conn sqlstat typePair2SimMySQLValueList                   -- Store complete typePair2SimList into type_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
              close conn
@@ -666,7 +668,7 @@ countInStruGene startIdx endIdx funcIndex = do
              putStr $ "countInStruGene: Sparse typePair2SimList: "
              showCatePair2SimList (formatMapListWithDoubleValue sparseTypePair2SimList 4)
              let sparseTypePair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) sparseTypePair2SimList  -- [[MySQLValue]]
-             oks <- executeMany conn sqlstat sparseTypePair2SimMySQLValueList              -- Store sparse typePair2SimList into cate_sim_xxx
+             oks <- executeMany conn sqlstat sparseTypePair2SimMySQLValueList              -- Store sparse typePair2SimList into type_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
        else putStr ""
@@ -706,7 +708,7 @@ countInStruGene startIdx endIdx funcIndex = do
            then do
              putStr $ "countInStruGene: The whole tagPair2SimList: "
              showTagPair2SimList (formatMapListWithDoubleValue tagPair2SimList 4)
-             let tagPair2SimMySQLValueList = map (\x -> [toMySQLText ((show . fst . fst) x), toMySQLText ((show . snd . fst) x), toMySQLDouble (snd x)]) tagPair2SimList  -- [[MySQLValue]]
+             let tagPair2SimMySQLValueList = map (\x -> [toMySQLText ((fst . fst) x), toMySQLText ((snd . fst) x), toMySQLDouble (snd x)]) tagPair2SimList  -- [[MySQLValue]]
              oks <- executeMany conn sqlstat tagPair2SimMySQLValueList           -- Store complete tagPair2SimList into tag_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
@@ -813,6 +815,53 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat sparseSpanPair2SimMySQLValueList    -- Store sparse spanPair2SimList into span_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+       else putStr ""
+
+    -- 10. Get similarity degree between every pair of PhraSyn values.
+    if funcIndex == 10
+       then do
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+         contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
+         let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
+         putStrLn $ "countInStruGene: Num. of ContextOfOT values = " ++ (show . length) contextOfOTList
+
+         confInfo <- readFile "Configuration"
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ phrasyn_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, phrasyn1 VARCHAR(70), phrasyn2 VARCHAR(70), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         phraSynPair2SimMap <- getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList     -- Map (PhraSyn, PhraSyn) SimDeg
+         let phraSynPair2SimList = Map.toList phraSynPair2SimMap                                 -- [((PhraSyn, PhraSyn), SimDeg)]
+         forM_ phraSynPair2SimList $ \((ps1, ps2), simDeg) -> do
+             let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+             stmt <- prepareStmt conn sqlstat
+             (_, is) <- queryStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2]
+             rows <- S.toList is
+             closeStmt conn stmt
+             if rows == []
+               then do
+                 let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                 stmt <- prepareStmt conn sqlstat
+                 ok <- executeStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2, toMySQLDouble simDeg]
+                 putStrLn $ "countInStruGene: Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                 closeStmt conn stmt
+               else if length rows == 1
+                      then do
+                        let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
+                        stmt <- prepareStmt conn sqlstat
+                        ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                        putStrLn $ "countInStruGene: Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                        closeStmt conn stmt
+                      else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
+         close conn
        else putStr ""
 
 {- Get search result in field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and

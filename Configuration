@@ -156,13 +156,27 @@ defaultStartIdx:1
 defaultEndIdx:400
 
 # Table names of storing similarity degrees between syntactic categories.
-cate_sim_tbl:cate_sim_18782
+type_sim_tbl:type_sim_18782
 
 # Table names of storing similarity degrees between grammatic rules.
 tag_sim_tbl:tag_sim_18782
 
 # Table names of storing similarity degrees between phrasal structures.
-cate_sim_tbl:stru_sim_18782
+stru_sim_tbl:stru_sim_18782
 
 # Table names of storing similarity degrees between phrasal spans.
 span_sim_tbl:span_sim_18782
+
+# Table names of storing similarity degrees between PhraSyn samples.
+phrasyn_sim_tbl:phrasyn_sim_18782
+
+# Table names of storing similarity degrees between ContextOfSG samples.
+csg_sim_tbl:csg_sim_202506
+
+# Whether storing similarity degrees between ContextOfSG samples.
+store_csg_sim:True
+
+# How to get similarity degrees on basic grammatic attributes.
+# dynamic: Collect PhraSyn values, then calculate similarity degrees on grammatic attributes.
+# static: Precalculate similarity degrees on grammatic attributes, and store them in database.
+howToGetGramAttrSim:static

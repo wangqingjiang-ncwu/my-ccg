@@ -644,8 +644,8 @@ updateStruGene' clauTag contextOfSG overPairs = do
                              "3" -> "Noth"
             let sqlstat = read (show ("insert stru_gene (leftExtend,leftOver,rightOver,rightExtend,overType,prior) values ('" ++ lev ++ "','" ++ lov ++ "','" ++ rov ++ "','" ++ rev ++ "'," ++ otv ++ ",'" ++ newPrior ++ "')")) :: Query
             stmt1 <- prepareStmt conn sqlstat
-            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
-            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            ok <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID ok)
             close conn                                   -- Close MySQL connection.
             return ((leftOver, rightOver, read newPrior::Prior):overPairs)
 

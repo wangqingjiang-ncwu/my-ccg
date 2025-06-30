@@ -62,6 +62,7 @@ module AmbiResol (
     nScdToString,        -- [Scd] -> String
     phraSynToString,     -- PhraSyn -> String
     nPhraSynToString,    -- [PhraSyn] -> String
+    contextOfSGToString, -- ContextOfSG -> String
     struGeneToString,    -- StruGene -> String
     nStruGeneToString,   -- [StruGene] -> String
     removeDup4OverPair,  -- [OverPair] -> [OverPair]
@@ -463,6 +464,16 @@ phraSynToString phs = "(" ++ ca ++ "," ++ ta ++ "," ++ ps ++ "," ++ sp ++ ")"
 -- Get the string of [PhraSyn]
 nPhraSynToString :: [PhraSyn] -> String
 nPhraSynToString nps = listToString (map phraSynToString nps)
+
+-- Get the string of a ContextOfSG sample
+contextOfSGToString :: ContextOfSG -> String
+contextOfSGToString csg = "(" ++ le ++ "," ++ lo ++ "," ++ re ++ "," ++ ro ++ "," ++ ot ++ ")"
+    where
+    le = nPhraSynToString (fst5 csg)
+    lo = phraSynToString (snd5 csg)
+    re = phraSynToString (thd5 csg)
+    ro = nPhraSynToString (fth5 csg)
+    ot = show (fif5 csg)
 
 -- Get the string of a StruGene
 struGeneToString :: StruGene -> String

@@ -553,6 +553,7 @@ countInStruGene startIdx endIdx funcIndex = do
                           Nothing -> error "countInStruGene: Failed in executing select count(*) from stru_gene."
          S.skipToEof is
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The total number of structural genes: " ++ show (fromMySQLInt64 (totalNum!!0))
+         close conn
        else putStr ""
 
     -- 2. Get frequencies of different overlapping types, namely [(OverType, Freq)].
@@ -564,6 +565,7 @@ countInStruGene startIdx endIdx funcIndex = do
          (defs, is) <- queryStmt conn stmt []
          overType2FrequencyList <- readStreamByInt8Int64 [] is                  -- [[Int]], here every row has two integers, overType and its occuring frequency.
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": Frequencies of different overlapping types [(OverType, Freq)]: " ++ show overType2FrequencyList
+         close conn
        else putStr ""
 
     -- 3. Get frequencies of most common phrasal overlapping, namely [(LeftOver_RightOver_OverType, Int), here the common proportion is 'prop';
@@ -587,6 +589,7 @@ countInStruGene startIdx endIdx funcIndex = do
          let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLRO2FreqByProp)
          let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The truncated descending list of frequencies of different LROs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLRO2FreqByProp
+         close conn
        else putStr ""
 
     -- 4. Get frequencies of most common unambiguous phrasal overlapping, namely [(LeftOver_RightOver_OverType_Prior, Int), here the common proportion is 'prop';
@@ -611,6 +614,7 @@ countInStruGene startIdx endIdx funcIndex = do
          let valueTrunc = foldl (+) 0 (map snd truncatedDescListOfLROP2FreqByProp)
          let realProp = (/) (fromIntegral valueTrunc) (fromIntegral valueTotal) :: Float
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": The truncated descending list of frequencies of different LROPs by proportion " ++ (printf "%.02f" realProp) ++ ": " ++ show truncatedDescListOfLROP2FreqByProp
+         close conn
        else putStr ""
 
     -- 5. Get hit count of different overlapping types, namely [(OverType, HitCount)], where HitCount = LpHitCount + RpHitCount + NothHitCount.
@@ -622,6 +626,7 @@ countInStruGene startIdx endIdx funcIndex = do
          (defs, is) <- queryStmt conn stmt []
          overType2HitCountList <- readStreamByInt8Decimal [] is                 -- [(Int,Double)], here every row has overType and its hit count.
          putStrLn $ "countIn" ++ syntax_ambig_resol_model ++ ": HitCounts of different overlapping types [(OverType, HitCount)]: " ++ show (map (\x->(fst x, floor (snd x))) overType2HitCountList)
+         close conn
        else putStr ""
 
     -- 6.  Get similarity degree between every pair of categories.
@@ -663,7 +668,6 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat typePair2SimMySQLValueList                   -- Store complete typePair2SimList into type_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
-             close conn
            else do
              putStr $ "countInStruGene: Sparse typePair2SimList: "
              showCatePair2SimList (formatMapListWithDoubleValue sparseTypePair2SimList 4)
@@ -671,6 +675,7 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat sparseTypePair2SimMySQLValueList              -- Store sparse typePair2SimList into type_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+         close conn
        else putStr ""
 
     -- 7.  Get similarity degree between every pair of grammatic rules.
@@ -719,7 +724,8 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat sparseTagPair2SimMySQLValueList     -- Store sparse tagPair2SimList into tag_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
-        else putStr ""
+         close conn
+       else putStr ""
 
     -- 8.  Get similarity degree between every pair of phrasal structures.
     if funcIndex == 8
@@ -767,6 +773,7 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat sparseStruPair2SimMySQLValueList    -- Store sparse struPair2SimList into stru_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+         close conn
        else putStr ""
 
     -- 9.  Get similarity degree between every pair of phrasal spans.
@@ -815,6 +822,7 @@ countInStruGene startIdx endIdx funcIndex = do
              oks <- executeMany conn sqlstat sparseSpanPair2SimMySQLValueList    -- Store sparse spanPair2SimList into span_sim_xxx
              putStrLn $ "countInStruGene: " ++ show (length oks) ++ " rows have been inserted."
              putStrLn $ "countInStruGene: Last inserted ID = " ++ show (getOkLastInsertID (last oks))
+         close conn
        else putStr ""
 
     -- 10. Get similarity degree between every pair of PhraSyn values.

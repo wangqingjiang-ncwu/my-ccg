@@ -75,8 +75,10 @@ module Clustering (
     getContextOfOTPairSim,           -- Context2OverTypeBase -> IO ([(SimDeg,SimDeg,SimDeg,SimDeg)], [((ContextOfOT, ContextOfOT), SimDeg)])
     getOverTypePair2Sim,             -- SIdx -> SIdx -> [((OverType, OverType), SimDeg)]
     getContext2ClauTagPriorBase,     -- SIdx -> SIdx -> IO [Context2ClauTagPrior]
+    getSIdx2ContextOfSGBase,         -- SIdx -> SIdx -> IO [(SIdx, ContextOfSG)]
     getContextOfSGPairSimBySVD,      -- Context2ClauTagPriorBase -> IO ([(ContextOfSG, ContextOfSG)], Matrix Double, Matrix Double, [((ContextOfSG, ContextOfSG), SimDeg)])
     getContextOfSGPairSim,           -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+    getOneContextOfSGPairSim,        -- ContextOfSG -> ContextOfSG -> Map (PhraSyn, PhraSyn) SimDeg -> IO SimDeg
     getContextOfSGPairSimWithStaticOT,     -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     getOneToAllContextOfSGSim,       -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     getOneToAllContextOfSGSim',      -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
@@ -87,6 +89,7 @@ module Clustering (
     readStaticTagPair2Sim,      -- IO [((Tag, Tag), SimDeg)]
     readStaticStruPair2Sim,     -- IO [((Stru, Stru), SimDeg)]
     readStaticSpanPair2Sim,     -- IO [((Span, Span), SimDeg)]
+    readStaticPhraSynPair2Sim,  -- IO [((PhraSyn, PhraSyn), SimDeg)]
     ) where
 
 import Category
@@ -103,6 +106,7 @@ import Data.Time.Clock
 import Database
 import Database.MySQL.Base
 import System.IO
+import Text.Printf
 import qualified System.IO.Streams as S
 import qualified Data.String as DS
 import Data.Map (Map)
@@ -1402,6 +1406,7 @@ clusteringAnalysis funcIndex = do
  -}
     if funcIndex == 12
        then do
+         ct1 <- getCurrentTime                                                  -- Get current time
          confInfo <- readFile "Configuration"
          let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
@@ -1448,7 +1453,9 @@ clusteringAnalysis funcIndex = do
                  disp 4 origSimMatrixWithDist
                  putStrLn " contextOfSGPair2SimList: "
                  dispList 1 contextOfSGPair2SimList
-            else putStrLn "Operation was canceled."
+             ct2 <- getCurrentTime
+             putStrLn $ "Elapsed time: " ++ show (diffUTCTime ct2 ct1)
+           else putStrLn "Operation was canceled."
         else putStr ""
 
 {- 13. Get similarity degrees between one ClauTagPrior context to every context of StruGene samples.
@@ -1518,33 +1525,89 @@ clusteringAnalysis funcIndex = do
        then do
          confInfo <- readFile "Configuration"
          let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
-         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
-         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
          let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
+         let overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
+         let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+         let store_csg_sim = getConfProperty "store_csg_sim" confInfo
+         let csg_sim_tbl = getConfProperty "csg_sim_tbl" confInfo
 
          putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
-         putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
-         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
          putStrLn $ " strugene_context_dist_algo: " ++ strugene_context_dist_algo
+         putStrLn $ " overlap_type_dist_algo: " ++ overlap_type_dist_algo
+         putStrLn $ " phrasyn_sim_tbl: " ++ phrasyn_sim_tbl
+         putStrLn $ " store_csg_sim: " ++ store_csg_sim
+         putStrLn $ " csg_sim_tbl: " ++ csg_sim_tbl
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ csg_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, contextofsg1idx INT UNSIGNED, contextofsg2idx INT UNSIGNED, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
 
          contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
          if contOrNot == "c"
            then do
+             putStrLn "All to all similarity degree calculations begin ..."
+             t1 <- getCurrentTime                -- UTCTime
+
              startIdx <- getNumUntil "Please input index number of start StruGene sample [Return for 1]: " [0 ..]
              endIdx <- getNumUntil "Please input index number of end StruGene sample [Return for last]: " [0 ..]
-             context2ClauTagPriorBase <- getContext2ClauTagPriorBase startIdx endIdx             -- [(ContextOfSG, ClauTagPrior)]
+             sIdx2ContextOfSGList <- getSIdx2ContextOfSGBase startIdx endIdx         -- [(SIdx, ContextOfSG)]
+             let sIdx2ContextOfSGSet = Set.fromList sIdx2ContextOfSGList             -- Set (SIdx, ContextOfSG)
+             let sIdx2ContextOfSGPairList = filter (\(x,y) -> x <= y) $ Set.toList $ Set.cartesianProduct sIdx2ContextOfSGSet sIdx2ContextOfSGSet
+                                                              -- [((SIdx, ContextOfSG), (SIdx, ContextOfSG))], where commutative unique
+--             putStrLn $ "sIdx2ContextOfSGPairList!!0: " ++ show (sIdx2ContextOfSGPairList!!0)
+             putStrLn $ "ContextOfSG pair list was created."
 
-             let numOfStruGeneSample = length context2ClauTagPriorBase
-             t1 <- getCurrentTime                                               -- UTCTime
-             putStrLn " One to All similarity degree calculations begin ..."
-             forM_ [1 .. numOfStruGeneSample] $ \sIdx -> do
-               let contextOfSG = fst (context2ClauTagPriorBase!!(sIdx-1))             -- ContextOfSG
-               contextOfSGPairSimTuple <- getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase
-               putStr $ " " ++ show sIdx
+             phraSynPair2SimList <- readStaticPhraSynPair2Sim
+             let phraSynPair2SimMap = Map.fromList phraSynPair2SimList          -- Map (PhraSyn, PhraSyn) SimDeg
+             putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg was created."
+
+             let otPair2SimList = case overlap_type_dist_algo of
+                                    "Euclidean" -> [((1,1),1.0),((1,2),7.3351553900482406e-3),((1,3),4.8666647227816856e-2),((1,4),3.3917793725912755e-2),((1,5),0.4247127394531829)
+                                                   ,((2,2),1.0),((2,3),0.11777246281776142),((2,4),0.1761503383674159),((2,5),1.0017916991325765e-2)
+                                                   ,((3,3),1.0),((3,4),0.5887136000291061),((3,5),7.134132733982824e-2)
+                                                   ,((4,4),1.0),((4,5),5.1362972267575656e-2)
+                                                   ,((5,5),1.0)]
+                                    "Manhattan" -> [((1,1),1.0),((1,2),4.470173439533701e-2),((1,3),0.20418481026327456),((1,4),0.16004358484296605),((1,5),0.12951425063877822)
+                                                   ,((2,2),1.0),((2,3),0.14760105015849836),((2,4),0.21749622640726418),((2,5),9.390008726364139e-3)
+                                                   ,((3,3),1.0),((3,4),0.5220146998431232),((3,5),5.141417139299777e-2)
+                                                   ,((4,4),1.0),((4,5),4.3757227872407406e-2)
+                                                   ,((5,5),1.0)]
+
+             forM_ sIdx2ContextOfSGPairList $ \(sc1, sc2) -> do                 -- sc1, sc2 :: (SIdx, ContextOfSG)
+               simDeg <- getOneContextOfSGPairSim (snd sc1) (snd sc2) phraSynPair2SimMap
+               let csg1idx = toMySQLInt32U (fst sc1)
+               let csg2idx = toMySQLInt32U (fst sc2)
+               let sim = toMySQLDouble simDeg
+               case store_csg_sim of
+                 "True" -> do
+                   let sqlstat = DS.fromString $ "SELECT id FROM " ++ csg_sim_tbl ++ " where contextofsg1idx = ? and contextofsg2idx = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   (_, is) <- queryStmt conn stmt [csg1idx, csg2idx]
+                   rows <- S.toList is                                 -- [[MySQLValue]]
+                   closeStmt conn stmt
+                   if rows == []
+                     then do             -- Not hit
+                       let sqlstat = DS.fromString $ "INSERT INTO " ++ csg_sim_tbl ++ " SET contextofsg1idx = ?, contextofsg2idx = ?, sim = ?"
+                       stmt <- prepareStmt conn sqlstat
+                       ok <- executeStmt conn stmt [csg1idx, csg2idx, sim]
+                       putStrLn $ " Similarity between ContextOfSG sample " ++ show (fst sc1) ++ " and " ++ show (fst sc2) ++ " was interted into Record " ++ show (getOkLastInsertID ok)
+                       closeStmt conn stmt
+                     else if length rows == 1
+                            then do      -- Hit
+                              let sqlstat = DS.fromString $ "UPDATE " ++ csg_sim_tbl ++ " SET sim = ? where id = ?"
+                              stmt <- prepareStmt conn sqlstat
+                              ok <- executeStmt conn stmt [sim, (rows!!0)!!0]
+                              putStrLn $ " Update similarity between ContextOfSG sample " ++ show (fst sc1) ++ " and " ++ show (fst sc2) ++ " at Record " ++ show (fromMySQLInt32U ((rows!!0)!!0))
+                              closeStmt conn stmt
+                            else error $ "clusteringAnalysis: More than one time of hitting on (" ++ (show . fst) sc1 ++ ", " ++ (show . fst) sc2 ++ ")"
+                 "False" -> putStrLn "clusteringAnalysis: No database operation."
              t2 <- getCurrentTime                                                            -- UTCTime
              putStrLn $ "\n End with time " ++ show (diffUTCTime t2 t1) ++ " seconds."
            else putStrLn "Operation was canceled."
-        else putStr ""
+         close conn                                   -- Close MySQL connection.
+       else putStr ""
 
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
 type SimDeg = Double          -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
@@ -1872,8 +1935,6 @@ getPhraSynPairSimBySVD distAlgo phraSynPairs = do
  -}
 getPhraSynPairSim :: DistAlgo -> [(PhraSyn, PhraSyn)] -> IO ([(PhraSyn, PhraSyn)], Matrix Double, [((PhraSyn, PhraSyn), SimDeg)])
 getPhraSynPairSim distAlgo phraSynPairs = do
---    putStrLn $ "getPhraSynPairSim:  phraSynPairs!!0 = " ++ show (phraSynPairs!!0)
-
     let phraSynList = nub $ (\x -> fst x ++ snd x) $ unzip phraSynPairs         -- [PhraSyn], used to calculate similarity for every grammatic attribute.
     confInfo <- readFile "Configuration"
     let howToGetGramAttrSim = getConfProperty "howToGetGramAttrSim" confInfo
@@ -1959,18 +2020,6 @@ getPhraSynPair2SimFromTreebank startIdx endIdx = do
 getPhraSynPair2SimFromCOT :: DistAlgo -> [ContextOfOT] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
 getPhraSynPair2SimFromCOT distAlgo contextOfOTList = do
     let (les, los, ros, res) = unzip4 contextOfOTList                               -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-{-    let leps = [(x, y) | x <- les, y <- les, x <= y]                                -- [(LeftExtend, LeftExtend)]
-    let lops = [(x, y) | x <- los, y <- los, x <= y]                                -- [(LeftOver, LeftOver)]
-    let rops = [(x, y) | x <- ros, y <- ros, x <= y]                                -- [(RightOver, RightOVer)]
-    let reps = [(x, y) | x <- res, y <- res, x <= y]                                -- [(RightExtend, RightExtend)]
-    let lePhraSynPairs = nub $ [(u, v) | lep <- leps, let le1 = fst lep, let le2 = snd lep, u <- le1, v <- le2]   -- [(PhraSyn, PhraSyn)]
-    let loPhraSynPairs = nub $ lops
-    let roPhraSynPairs = nub $ rops
-    let rePhraSynPairs = nub $ [(u, v) | rep <- reps, let re1 = fst rep, let re2 = snd rep, u <- re1, v <- re2]   -- [(PhraSyn, PhraSyn)]
-    let phraSynPairs = map (\(x,y) -> if (x<=y) then (x,y) else (y,x))
-                         $ nubBy (\x y -> x == swap y) $ lePhraSynPairs ++ loPhraSynPairs ++ roPhraSynPairs ++ rePhraSynPairs
--}
-
     let les' = Set.fromList les                                   -- Remove duplicates, Set LeftExtend
     let los' = Set.fromList los                                   -- Remove duplicates, Set LeftOver
     let ros' = Set.fromList ros                                   -- Remove duplicates, Set RightOver
@@ -1980,21 +2029,15 @@ getPhraSynPair2SimFromCOT distAlgo contextOfOTList = do
     let lops = Set.cartesianProduct los' los'        -- Set (LeftOver, LeftOver)
     let rops = Set.cartesianProduct ros' ros'        -- Set (RightOver, RightOver)
     let reps = Set.cartesianProduct res' res'        -- Set (RightExtend, RightExtend)
-{-
- let lePhraSynPairs = nub $ [(u, v) | lep <- leps, let le1 = fst lep, let le2 = snd lep, u <- le1, v <- le2]   -- [(PhraSyn, PhraSyn)]
- let loPhraSynPairs = nub $ lops
- let roPhraSynPairs = nub $ rops
- let rePhraSynPairs = nub $ [(u, v) | rep <- reps, let re1 = fst rep, let re2 = snd rep, u <- re1, v <- re2]   -- [(PhraSyn, PhraSyn)]
- let phraSynPairs = map (\(x,y) -> if (x<=y) then (x,y) else (y,x))
-                      $ nubBy (\x y -> x == swap y) $ lePhraSynPairs ++ loPhraSynPairs ++ roPhraSynPairs ++ rePhraSynPairs
--}
+
     let lePhraSynPairs = Set.fromList [(u, v) | (le1, le2) <- Set.toList leps, u <- le1, v <- le2]   -- Set (PhraSyn, PhraSyn)
     let loPhraSynPairs = lops
     let roPhraSynPairs = rops
     let rePhraSynPairs = Set.fromList [(u, v) | (re1, re2) <- Set.toList reps, u <- re1, v <- re2]   -- Set (PhraSyn, PhraSyn)
+
     let phraSynPairSet = Set.union (Set.union (Set.union lePhraSynPairs loPhraSynPairs) roPhraSynPairs) rePhraSynPairs   -- Set (PhraSyn, PhraSyn)
 
-    let phraSynPairs = filter (\(ps1, ps2) -> ps1 <= ps2) $ Set.toList phraSynPairSet     -- [(PhraSyn, PhraSyn)]
+    let phraSynPairs = filter (\(ps1, ps2) -> ps1 <= ps2) $ Set.toList phraSynPairSet     -- [(PhraSyn, PhraSyn)], where Set.toList is in not-descending order.
 
     putStrLn $ "getPhraSynPair2SimFromCOT: Num. of PhraSyn value pairs = " ++ (show . length) phraSynPairs
     phraSynPairSimTuple <- getPhraSynPairSim distAlgo phraSynPairs
@@ -2010,16 +2053,24 @@ getPhraSynPair2SimFromCOT distAlgo contextOfOTList = do
 getPhraSynPair2SimFromCSG :: DistAlgo -> [ContextOfSG] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
 getPhraSynPair2SimFromCSG distAlgo contextOfSGList = do
     let (les, los, ros, res, _) = unzip5 contextOfSGList                            -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-    let leps = [(x, y) | x <- les, y <- les, x <= y]                                -- [(LeftExtend, LeftExtend)]
-    let lops = [(x, y) | x <- los, y <- los, x <= y]                                -- [(LeftOver, LeftOver)]
-    let rops = [(x, y) | x <- ros, y <- ros, x <= y]                                -- [(RightOver, RightOVer)]
-    let reps = [(x, y) | x <- res, y <- res, x <= y]                                -- [(RightExtend, RightExtend)]
-    let lePhraSynPairs = nub $ [(u, v) | lep <- leps, let le1 = fst lep, let le2 = snd lep, u <- le1, v <- le2]   -- [(PhraSyn, PhraSyn)]
-    let loPhraSynPairs = nub $ lops
-    let roPhraSynPairs = nub $ rops
-    let rePhraSynPairs = nub $ [(u, v) | rep <- reps, let re1 = fst rep, let re2 = snd rep, u <- re1, v <- re2]   -- [(PhraSyn, PhraSyn)]
-    let phraSynPairs = map (\(x,y) -> if (x<=y) then (x,y) else (y,x))
-                         $ nubBy (\x y -> x == swap y) $ lePhraSynPairs ++ loPhraSynPairs ++ roPhraSynPairs ++ rePhraSynPairs
+    let les' = Set.fromList les                                   -- Remove duplicates, Set LeftExtend
+    let los' = Set.fromList los                                   -- Remove duplicates, Set LeftOver
+    let ros' = Set.fromList ros                                   -- Remove duplicates, Set RightOver
+    let res' = Set.fromList res                                   -- Remove duplicates, Set RightExtend
+
+    let leps = Set.cartesianProduct les' les'        -- Set (LeftExtend, LeftExtend)
+    let lops = Set.cartesianProduct los' los'        -- Set (LeftOver, LeftOver)
+    let rops = Set.cartesianProduct ros' ros'        -- Set (RightOver, RightOver)
+    let reps = Set.cartesianProduct res' res'        -- Set (RightExtend, RightExtend)
+
+    let lePhraSynPairs = Set.fromList [(u, v) | (le1, le2) <- Set.toList leps, u <- le1, v <- le2]   -- Set (PhraSyn, PhraSyn)
+    let loPhraSynPairs = lops
+    let roPhraSynPairs = rops
+    let rePhraSynPairs = Set.fromList [(u, v) | (re1, re2) <- Set.toList reps, u <- re1, v <- re2]   -- Set (PhraSyn, PhraSyn)
+
+    let phraSynPairSet = Set.union (Set.union (Set.union lePhraSynPairs loPhraSynPairs) roPhraSynPairs) rePhraSynPairs   -- Set (PhraSyn, PhraSyn)
+    let phraSynPairs = filter (\(ps1, ps2) -> ps1 <= ps2) $ Set.toList phraSynPairSet     -- [(PhraSyn, PhraSyn)], where Set.toList is in not-descending order.
+
     phraSynPairSimTuple <- getPhraSynPairSim distAlgo phraSynPairs
     return $ Map.fromList (thd3 phraSynPairSimTuple)
 
@@ -2084,10 +2135,10 @@ getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
  -}
 toPhraSynPair2Sim :: Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
 toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) = case (Map.lookup (ps1, ps2) phraSynPair2SimMap) of
-      Just x -> ((ps1, ps2), x)
-      Nothing -> case (Map.lookup (ps2, ps1) phraSynPair2SimMap) of
-                   Just x -> ((ps1, ps2), x)
-                   Nothing -> error $ "toPhraSynPair2Sim: Key (" ++ show ps1 ++ ", " ++ show ps2 ++ ") does not exist."
+    Just x -> ((ps1, ps2), x)
+    Nothing -> case (Map.lookup (ps2, ps1) phraSynPair2SimMap) of
+                 Just x -> ((ps1, ps2), x)
+                 Nothing -> error $ "toPhraSynPair2Sim: Key (" ++ show ps1 ++ ", " ++ show ps2 ++ ") does not exist."
 
 -- Types for calculating similarity degree of phrasal overlapping types.
 type NumOfContextOfOT = Int       -- ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
@@ -2355,6 +2406,113 @@ getContext2ClauTagPriorBase startIdx endIdx = do
         putStrLn "getContext2ClauTagPriorBase: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
         return []
 
+{- Reading SIdx and ContextOfSG from the sample database of a certain syntax_ambig_resol_model, such as 'stru_gene_202408'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
+ -}
+getSIdx2ContextOfSGBase :: SIdx -> SIdx -> IO [(SIdx, ContextOfSG)]
+getSIdx2ContextOfSGBase startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    case syntax_ambig_resol_model of
+      x | elem x ["stru_gene_202408", "stru_gene_202412", "stru_gene_202501"] -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "SELECT COUNT(*) FROM " ++ syntax_ambig_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of SIdx and ContextOfSG is set as: " ++ syntax_ambig_resol_model     -- Display the source of SIdx and ContextOfSG
+          let sqlstat = DS.fromString $ "SELECT id, leftExtend, leftOver, rightOver, rightExtend, overType FROM " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          sIdx2ContextOfSGListFromDB <- readStreamByInt32UTextTextTextTextInt8 [] is          -- [(Int, (String, String, String, String, Int))]
+          let sIdx2ContextOfSGList = map (\(sIdx, (leStr, loStr, roStr, reStr, ot))
+                                          -> (sIdx, (readPhraSynListFromStr leStr
+                                                  , readPhraSynFromStr loStr
+                                                  , readPhraSynFromStr roStr
+                                                  , readPhraSynListFromStr reStr
+                                                  , ot))) sIdx2ContextOfSGListFromDB          -- [(SIdx, ContextOfSG)]
+          let contextOfSGSampleNum = length sIdx2ContextOfSGList                              -- The number of ContextOfSG samples.
+          putStrLn $ "getSIdx2ContextOfSGBase: Num. of ContextOfSG Samples = " ++ show contextOfSGSampleNum
+          return sIdx2ContextOfSGList
+      _ -> do
+        putStrLn "getSIdx2ContextOfSGBase: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
+        return []
+
+{- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
+ - sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where
+ -     leSim is similarity degree between two LeftExtends, namely two PhraSyn sets.
+ -     loSim is similarity degree between two LeftOvers, namely two PhraSyns.
+ -     roSim is similarity degree between two RightOvers, namely two PhraSyns.
+ -     reSim is similarity degree between two RightExtends, namely two PhraSyn sets.
+ -     otSim is similarity degree between two OverTypes, namely two values among [1..5].
+ - If LeftExtend, LeftOver, RightOver, RightExtend and OverType are independent with each other,
+ - namely columns of matrix [[leSim, loSim, roSim, reSim, otSim]] are orthogonal columns.
+ - Function f shoule be Root Mean Square of (leSim, loSim, roSim, reSim, otSim). Otherwise, f should be arithmetic mean.
+ -
+ - contextOfSGPairList: List of (ContextOfSG, ContextOfSG), in every element of which first ContextOfSG value is less than or equal to the second.
+ - origSimList: List of (leSim, loSim, roSim, reSim, otSim), in which every quintuple (leSim, loSim, roSim, reSim, otSim) is corresponding to one tuple (contextOfSG1, contextOfSG2) in contextOfSGPairList.
+ -}
+getContextOfSGPairSim :: Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
+getContextOfSGPairSim context2ClauTagPriorBase = do
+    let contextOfSGList = nub $ map fst context2ClauTagPriorBase                -- [ContextOfSG], here there is no repetitive ContextOfSG values.
+    putStrLn $ "Num. of repetitive ContextOfSG values = " ++ show (length context2ClauTagPriorBase - (length contextOfSGList))
+
+    confInfo <- readFile "Configuration"
+    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo    -- Distance algorithm for phrasal grammar aspects
+    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo    -- Distance algorithm for StruGene contexts
+
+    let contextOfOTList = nub $ map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) contextOfSGList    -- [ContextOfOT]
+    phraSynPair2SimMap <- getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList      -- Map (PhraSyn, PhraSyn) SimDeg
+
+    let leftExtendList = map fst5 contextOfSGList                               -- [LeftExtend]
+    let lePair2SimList = getPhraSynSetPair2Sim leftExtendList phraSynPair2SimMap       -- [((LeftExtend, LeftExtend), SimDeg)]
+    let leftOverList = map snd5 contextOfSGList                                 -- [LeftOver]
+    let loPair2SimList = getPhraSynPair2Sim leftOverList phraSynPair2SimMap            -- [((LeftOver, LeftOver), SimDeg)]
+    let rightOverList = map thd5 contextOfSGList                                -- [RightOver]
+    let roPair2SimList = getPhraSynPair2Sim rightOverList phraSynPair2SimMap           -- [((RightOver, RightOver), SimDeg)]
+    let rightExtendList = map fth5 contextOfSGList                              -- [RightExtend]
+    let rePair2SimList = getPhraSynSetPair2Sim rightExtendList phraSynPair2SimMap      -- [((RightExtend, RightExtend), SimDeg)]
+
+    let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
+    let contexts4OT1 = [fst x | x <- context2OverTypeBase, snd x == 1]          -- [ContextOfOT]
+    let contexts4OT2 = [fst x | x <- context2OverTypeBase, snd x == 2]          -- [ContextOfOT]
+    let contexts4OT3 = [fst x | x <- context2OverTypeBase, snd x == 3]          -- [ContextOfOT]
+    let contexts4OT4 = [fst x | x <- context2OverTypeBase, snd x == 4]          -- [ContextOfOT]
+    let contexts4OT5 = [fst x | x <- context2OverTypeBase, snd x == 5]          -- [ContextOfOT]
+    let overType2ContextList = [(1,contexts4OT1),(2,contexts4OT2),(3,contexts4OT3),(4,contexts4OT4),(5,contexts4OT5)]  -- [(OverType, [ContextOfOT])]
+    putStrLn $ "getContextOfSGPairSim: Num. of samples per overType: " ++ show (map (\x -> (fst x, length (snd x))) overType2ContextList)
+    contextOfOTPairSimTuple <- getContextOfOTPairSim context2OverTypeBase
+    let contextOfOTPairSimList = snd contextOfOTPairSimTuple                    -- [((ContextOfOT, ContextOfOT), OverType)]
+    let otPair2SimList = [((fst o1, fst o2), getContextOfOTSetSim (snd o1) (snd o2) contextOfOTPairSimList)
+                          | o1 <- overType2ContextList, o2 <- overType2ContextList, fst o1 <= fst o2]      -- [((OverType, OverType), SimDeg)]
+    putStrLn $ "otPair2SimList: " ++ show otPair2SimList
+    let contextOfSGPairList = [(x, y) | x <- contextOfSGList, y <- contextOfSGList, x <= y]   -- [(ContextOfSG, ContextOfSG)]
+                                                      -- Ord definition is exhaustive, here there is no repetitive pairs.
+    let numOfContextOfSGPair = length contextOfSGPairList
+    let origSimList = [(getSimDegFromAttPair2Sim (fst5 x) (fst5 y) lePair2SimList
+                      , getSimDegFromAttPair2Sim (snd5 x) (snd5 y) loPair2SimList
+                      , getSimDegFromAttPair2Sim (thd5 x) (thd5 y) roPair2SimList
+                      , getSimDegFromAttPair2Sim (fth5 x) (fth5 y) rePair2SimList
+                      , getSimDegFromAttPair2Sim (fif5 x) (fif5 y) otPair2SimList
+                       ) | (x, y) <- contextOfSGPairList]
+
+
+    let simList = case strugene_context_dist_algo of
+                    "Euclidean" -> [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]
+                    "Manhattan" -> [sum [les, los, ros, res, ots] / 5.0 | (les,los,ros,res,ots) <- origSimList]
+    let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
+    return (origSimList, contextOfSGPair2SimList)
+
 {- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
  - sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where
  -     leSim is similarity degree between two LeftExtends, namely two PhraSyn sets.
@@ -2426,70 +2584,59 @@ getContextOfSGPairSimBySVD context2ClauTagPriorBase = do
 
     return (contextOfSGPairList, origSimMatrix, orthSimMatrix, contextOfSGPair2SimList)
 
-{- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
+{- Get similarity degree between two ContextOfSG samples, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
  - sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where
  -     leSim is similarity degree between two LeftExtends, namely two PhraSyn sets.
  -     loSim is similarity degree between two LeftOvers, namely two PhraSyns.
  -     roSim is similarity degree between two RightOvers, namely two PhraSyns.
  -     reSim is similarity degree between two RightExtends, namely two PhraSyn sets.
  -     otSim is similarity degree between two OverTypes, namely two values among [1..5].
- - Suppose LeftExtend, LeftOver, RightOver, RightExtend and OverType are independent with each other,
- - namely columns of matrix [[leSim, loSim, roSim, reSim, otSim]] are orthogonal columns.
- - Thus, sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where f is Root Mean Square of (leSim, loSim, roSim, reSim, otSim)
- -
- - contextOfSGPairList: List of (ContextOfSG, ContextOfSG), in every element of which first ContextOfSG value is less than or equal to the second.
- - origSimList: List of (leSim, loSim, roSim, reSim, otSim), in which every quintuple (leSim, loSim, roSim, reSim, otSim) is corresponding to one tuple (contextOfSG1, contextOfSG2) in contextOfSGPairList.
+ - Where f can be Root Mean Square of (leSim, loSim, roSim, reSim, otSim) or their arithmetic mean.
+ - Similarity degrees between any pair of PhraSyn values are required for calculating similarity between two given ContextOfSG samples.
  -}
-getContextOfSGPairSim :: Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
-getContextOfSGPairSim context2ClauTagPriorBase = do
-    let contextOfSGList = nub $ map fst context2ClauTagPriorBase                -- [ContextOfSG], here there is no repetitive ContextOfSG values.
-    putStrLn $ "Num. of repetitive ContextOfSG values = " ++ show (length context2ClauTagPriorBase - (length contextOfSGList))
-
+getOneContextOfSGPairSim :: ContextOfSG -> ContextOfSG -> Map (PhraSyn, PhraSyn) SimDeg -> IO SimDeg
+getOneContextOfSGPairSim csg1 csg2 phraSynPair2SimMap = do
     confInfo <- readFile "Configuration"
-    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo    -- Distance algorithm for phrasal grammar aspects
-    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo    -- Distance algorithm for StruGene contexts
+    let strugene_context_dist_algo = getConfProperty "strugene_context_dist_algo" confInfo
+        overlap_type_dist_algo = getConfProperty "overlap_type_dist_algo" confInfo
 
-    let contextOfOTList = nub $ map (\x -> (fst5 x, snd5 x, thd5 x, fth5 x)) contextOfSGList    -- [ContextOfOT]
-    phraSynPair2SimMap <- getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList      -- Map (PhraSyn, PhraSyn) SimDeg
+        otPair2SimList = case overlap_type_dist_algo of
+                           "Euclidean" -> [((1,1),1.0),((1,2),7.3351553900482406e-3),((1,3),4.8666647227816856e-2),((1,4),3.3917793725912755e-2),((1,5),0.4247127394531829)
+                                          ,((2,2),1.0),((2,3),0.11777246281776142),((2,4),0.1761503383674159),((2,5),1.0017916991325765e-2)
+                                          ,((3,3),1.0),((3,4),0.5887136000291061),((3,5),7.134132733982824e-2)
+                                          ,((4,4),1.0),((4,5),5.1362972267575656e-2)
+                                          ,((5,5),1.0)]
+                           "Manhattan" -> [((1,1),1.0),((1,2),4.470173439533701e-2),((1,3),0.20418481026327456),((1,4),0.16004358484296605),((1,5),0.12951425063877822)
+                                          ,((2,2),1.0),((2,3),0.14760105015849836),((2,4),0.21749622640726418),((2,5),9.390008726364139e-3)
+                                          ,((3,3),1.0),((3,4),0.5220146998431232),((3,5),5.141417139299777e-2)
+                                          ,((4,4),1.0),((4,5),4.3757227872407406e-2)
+                                          ,((5,5),1.0)]
 
-    let leftExtendList = map fst5 contextOfSGList                               -- [LeftExtend]
-    let lePair2SimList = getPhraSynSetPair2Sim leftExtendList phraSynPair2SimMap       -- [((LeftExtend, LeftExtend), SimDeg)]
-    let leftOverList = map snd5 contextOfSGList                                 -- [LeftOver]
-    let loPair2SimList = getPhraSynPair2Sim leftOverList phraSynPair2SimMap            -- [((LeftOver, LeftOver), SimDeg)]
-    let rightOverList = map thd5 contextOfSGList                                -- [RightOver]
-    let roPair2SimList = getPhraSynPair2Sim rightOverList phraSynPair2SimMap           -- [((RightOver, RightOver), SimDeg)]
-    let rightExtendList = map fth5 contextOfSGList                              -- [RightExtend]
-    let rePair2SimList = getPhraSynSetPair2Sim rightExtendList phraSynPair2SimMap      -- [((RightExtend, RightExtend), SimDeg)]
+    putStrLn $ "getOneContextOfSGPairSim: (csg1, csg2): " ++ show (csg1, csg2)
+    let les = getPhraSynSetSim (fst5 csg1) (fst5 csg2) phraSynPair2SimMap           -- LeftExtend SimDeg
+        los = case (Map.lookup (snd5 csg1, snd5 csg2) phraSynPair2SimMap) of        -- LeftOver SimDeg
+                Just x -> x
+                Nothing -> case (Map.lookup (snd5 csg2, snd5 csg1) phraSynPair2SimMap) of
+                             Just y -> y
+                             Nothing -> error $ "getOneContextOfSGPairSim: Failed to lookup (" ++ (show . snd5) csg1 ++ ", " ++ (show . snd5) csg2 ++ ")."
+        ros = case (Map.lookup (thd5 csg1, thd5 csg2) phraSynPair2SimMap) of        -- RightOver SimDeg
+                Just x -> x
+                Nothing -> case (Map.lookup (thd5 csg2, thd5 csg1) phraSynPair2SimMap) of
+                             Just y -> y
+                             Nothing -> error $ "getOneContextOfSGPairSim: Failed to lookup (" ++ (show . thd5) csg1 ++ ", " ++ (show . thd5) csg2 ++ ")."
+        res = getPhraSynSetSim (fth5 csg1) (fth5 csg2) phraSynPair2SimMap           -- RightExtend SimDeg
+        ots = getSimDegFromAttPair2Sim (fif5 csg1) (fif5 csg2) otPair2SimList       -- OverType SimDeg
 
-    let context2OverTypeBase = map ((\x -> ((fst5 x, snd5 x, thd5 x, fth5 x), fif5 x)) . fst) context2ClauTagPriorBase   -- [(ContextOfOT, OverType)]
-    let contexts4OT1 = [fst x | x <- context2OverTypeBase, snd x == 1]          -- [ContextOfOT]
-    let contexts4OT2 = [fst x | x <- context2OverTypeBase, snd x == 2]          -- [ContextOfOT]
-    let contexts4OT3 = [fst x | x <- context2OverTypeBase, snd x == 3]          -- [ContextOfOT]
-    let contexts4OT4 = [fst x | x <- context2OverTypeBase, snd x == 4]          -- [ContextOfOT]
-    let contexts4OT5 = [fst x | x <- context2OverTypeBase, snd x == 5]          -- [ContextOfOT]
-    let overType2ContextList = [(1,contexts4OT1),(2,contexts4OT2),(3,contexts4OT3),(4,contexts4OT4),(5,contexts4OT5)]  -- [(OverType, [ContextOfOT])]
-    putStrLn $ "getContextOfSGPairSim: Num. of samples per overType: " ++ show (map (\x -> (fst x, length (snd x))) overType2ContextList)
-    contextOfOTPairSimTuple <- getContextOfOTPairSim context2OverTypeBase
-    let contextOfOTPairSimList = snd contextOfOTPairSimTuple                    -- [((ContextOfOT, ContextOfOT), OverType)]
-    let otPair2SimList = [((fst o1, fst o2), getContextOfOTSetSim (snd o1) (snd o2) contextOfOTPairSimList)
-                          | o1 <- overType2ContextList, o2 <- overType2ContextList, fst o1 <= fst o2]      -- [((OverType, OverType), SimDeg)]
-    putStrLn $ "otPair2SimList: " ++ show otPair2SimList
-    let contextOfSGPairList = [(x, y) | x <- contextOfSGList, y <- contextOfSGList, x <= y]   -- [(ContextOfSG, ContextOfSG)]
-                                                      -- Ord definition is exhaustive, here there is no repetitive pairs.
-    let numOfContextOfSGPair = length contextOfSGPairList
-    let origSimList = [(getSimDegFromAttPair2Sim (fst5 x) (fst5 y) lePair2SimList
-                      , getSimDegFromAttPair2Sim (snd5 x) (snd5 y) loPair2SimList
-                      , getSimDegFromAttPair2Sim (thd5 x) (thd5 y) roPair2SimList
-                      , getSimDegFromAttPair2Sim (fth5 x) (fth5 y) rePair2SimList
-                      , getSimDegFromAttPair2Sim (fif5 x) (fif5 y) otPair2SimList
-                       ) | (x, y) <- contextOfSGPairList]
-
-
-    let simList = case strugene_context_dist_algo of
-                    "Euclidean" -> [sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0) | (les,los,ros,res,ots) <- origSimList]
-                    "Manhattan" -> [sum [les, los, ros, res, ots] / 5.0 | (les,los,ros,res,ots) <- origSimList]
-    let contextOfSGPair2SimList = zip contextOfSGPairList simList     -- [((ContextOfSG, ContextOfSG), SimDeg)]
-    return (origSimList, contextOfSGPair2SimList)
+        sim = case strugene_context_dist_algo of
+                "Euclidean" -> sqrt (sum [les * les, los * los, ros * ros, res * res, ots * ots] / 5.0)
+                "Manhattan" -> sum [les, los, ros, res, ots] / 5.0
+    putStrLn $ "getOneContextOfSGPairSim: sim(leSim, loSim, roSim, reSim, otSim) = sim(" ++ printf "%.04f" les ++ ", "
+                                                                                         ++ printf "%.04f" los ++ ", "
+                                                                                         ++ printf "%.04f" ros ++ ", "
+                                                                                         ++ printf "%.04f" res ++ ", "
+                                                                                         ++ printf "%.04f" ots ++ ") = "
+                                                                                         ++ printf "%.04f" sim
+    return sim
 
 {- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
  - This is particular version for 'getContextOfSGPairSim', in which similarity degrees on grammtic attributes are precalculated and stored into global cache.
@@ -2566,22 +2713,19 @@ getContextOfSGPairSimWithStaticOT context2ClauTagPriorBase = do
 getOneToAllContextOfSGSim :: ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
 getOneToAllContextOfSGSim contextOfSG context2ClauTagPriorBase = do
     let contextOfSGList = nub $ map fst context2ClauTagPriorBase                -- [ContextOfSG], here there is no repetitive ContextOfSG values.
---    putStrLn $ "contextOfSG: " ++ show contextOfSG
---    putStrLn $ "contextOfSGList: " ++ show contextOfSGList
-
     let (les, los, ros, res, _) = unzip5 contextOfSGList                        -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
     let leps = [(fst5 contextOfSG, y) | y <- les]                               -- [(LeftExtend, LeftExtend)]
     let lops = [(snd5 contextOfSG, y) | y <- los]                               -- [(LeftOver, LeftOver)]
     let rops = [(thd5 contextOfSG, y) | y <- ros]                               -- [(RightOver, RightOVer)]
     let reps = [(fth5 contextOfSG, y) | y <- res]                               -- [(RightExtend, RightExtend)]
 
-    let lePhraSynPairs = nub $ [(u, v) | lep <- leps, u <- fst lep, v <- snd lep]   -- [(PhraSyn, PhraSyn)]
-    let loPhraSynPairs = nub $ lops
-    let roPhraSynPairs = nub $ rops
-    let rePhraSynPairs = nub $ [(u, v) | rep <- reps, u <- fst rep, v <- snd rep]   -- [(PhraSyn, PhraSyn)]
+    let lePhraSynPairs = Set.fromList $ [(u, v) | lep <- leps, u <- fst lep, v <- snd lep]   -- Set (PhraSyn, PhraSyn)
+    let loPhraSynPairs = Set.fromList lops
+    let roPhraSynPairs = Set.fromList rops
+    let rePhraSynPairs = Set.fromList $ [(u, v) | rep <- reps, u <- fst rep, v <- snd rep]   -- Set (PhraSyn, PhraSyn)
 
-    let phraSynPairs = map (\(x,y) -> if (x<=y) then (x,y) else (y,x))
-                           $ nubBy (\x y -> x == swap y) $ lePhraSynPairs ++ loPhraSynPairs ++ roPhraSynPairs ++ rePhraSynPairs
+    let phraSynPairSet = Set.union (Set.union (Set.union lePhraSynPairs loPhraSynPairs) roPhraSynPairs) rePhraSynPairs
+    let phraSynPairs = nub $ map (\(x,y) -> if (x<=y) then (x,y) else (y,x)) $ Set.toList phraSynPairSet         -- [(PhraSyn, PhraSyn)]
                                                                                 -- PhraSyn order in every pair was rectified.
     confInfo <- readFile "Configuration"
     let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
@@ -2824,3 +2968,18 @@ readStaticSpanPair2Sim = do
     rows <- S.toList is
     let spanPair2Sim = map (\x -> ((fromMySQLInt8 (x!!1), fromMySQLInt8 (x!!2)),  fromMySQLDouble (x!!3))) rows
     return spanPair2Sim
+
+-- Read similarity degrees between PhraSyn values.
+readStaticPhraSynPair2Sim :: IO [((PhraSyn, PhraSyn), SimDeg)]
+readStaticPhraSynPair2Sim = do
+    confInfo <- readFile "Configuration"
+    let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+    conn <- getConn
+    let sqlStr = "SELECT * FROM " ++ phrasyn_sim_tbl
+    (_, is) <- query_ conn (DS.fromString sqlStr)
+    rows <- S.toList is
+    let phrasynPair2Sim = map (\x -> (((readPhraSynFromStr . fromMySQLText) (x!!1)
+                                     , (readPhraSynFromStr . fromMySQLText) (x!!2))
+                                     ,  fromMySQLDouble (x!!3))
+                              ) rows
+    return phrasynPair2Sim

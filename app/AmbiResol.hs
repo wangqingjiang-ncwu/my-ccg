@@ -387,13 +387,21 @@ readAmbiResol1FromStr str = (lp, rp, ct, ot, pr)
     ot = read (fth5 fiveTupleStr) :: Int
     pr = readPriorFromStr (fif5 fiveTupleStr)
 
+{- Get an instance of PhraSyn from a string, where PhraSyn :: (Category, Tag, PhraStru, Span).
+ - Both Tag and PhraStru are aliases of type String.
+ - Here, if exist, symbol '"' in two ends of a string literal are removed.
+ -}
 readPhraSynFromStr :: String -> PhraSyn
 readPhraSynFromStr str = (ca, ta, ps, sp)
     where
     (caStr, taStr, psStr, spStr)  = stringToQuadruple str
     ca = getCateFromString caStr
-    ta = read taStr :: Tag                        -- Sometime, It is necessary of changing from String to Tag.
-    ps = read psStr :: PhraStru
+    ta = case (head taStr == '"' && last taStr == '"') of
+           True -> read taStr :: Tag             -- taStr is a string literal (enclosed in quotes, with proper escaping), such as "\">\"".
+           False -> taStr
+    ps = case (head psStr == '"' && last psStr == '"') of
+           True -> read psStr :: PhraStru        -- psStr is a string literal (enclosed in quotes, with proper escaping), such as "\"AHn\"".
+           False -> psStr
     sp = read spStr :: Span
 
 readPhraSynListFromStr :: String -> [PhraSyn]

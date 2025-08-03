@@ -30,11 +30,11 @@ spec = do
       let pc2 = createPhraCate 1 0 [(c2,"Desig","loves'","DE",True)] 1
       pclt pc1 pc2 `shouldBe` (True :: Bool)
 
-    it "The result of applying func pclt to ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0) and ((1,1),[(s/.np,\">\",\"loves' Mary'\",\"VO\",True)],0) is False" $ do
+    it "The result of applying func pclt to ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0) and ((1,1),[(s/.np,\">\",\"(loves' Mary')\",\"VO\",True)],0) is False" $ do
       let c1 = npCate
       let c2 = getCateFromString "s/.np"
       let pc1 = createPhraCate 0 0 [(c1,"Desig","Frank'","DE",True)] 0
-      let pc2 = createPhraCate 1 1 [(c2,">","loves' Mary'","VO",True)] 1
+      let pc2 = createPhraCate 1 1 [(c2,">","(loves' Mary')","VO",True)] 1
       pclt pc2 pc1 `shouldBe` (False :: Bool)
 
     it "The result of ctspaOfCate ((1,0),[((s\\.np)/.np, \"Desig\", \"likes'\",\"DE\",True),(s/.np, \"Desig\", \"likes'\",\"DE\",True)],1) is [\"(s\\.np)/.np\", \"Desig\", \"likes'\", True),(\"s/.np\", \"Desig\", \"likes'\", True)]" $ do
@@ -105,24 +105,24 @@ spec = do
       let pc = createPhraCate 1 0 [(c,"Desig","smiles'","DE",True)] 1
       caOfCate pc `shouldBe` [c]
 
-    it "The result of cateComb \"[]\" ((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0) ((1,0),[(s\\.np, \"Desig\", \"smiles\",\"DE\",True)],1) is ((0,1),[(s, \"<\", \"smiles' Frank'\",\"SP\",True)],1)" $ do
+    it "The result of cateComb \"[]\" ((0,0),[(np, \"Desig\", \"Frank'\",\"DE\",True)],0) ((1,0),[(s\\.np, \"Desig\", \"smiles\",\"DE\",True)],1) is ((0,1),[(s, \"<\", \"(smiles' Frank')\",\"SP\",True)],1)" $ do
       let c1 = npCate
       let c2 = getCateFromString "s\\.np"
       let c3 = sCate
       let pc1 = createPhraCate 0 0 [(c1, "Desig", "Frank'", "DE", True)] 0
       let pc2 = createPhraCate 1 0 [(c2, "Desig", "smiles'", "DE", True)] 1
-      let pc3 = createPhraCate 0 1 [(c3, "<", "smiles' Frank'", "SP", True)] 1
+      let pc3 = createPhraCate 0 1 [(c3, "<", "(smiles' Frank')", "SP", True)] 1
       cateComb [] pc1 pc2 `shouldBe` pc3
 
-    it "The result of atomizePhraCateList [cateComb [Sv,Ov] ((0,0),[((s\\.np)/.np,\"Desig\",\"loving'\",\"DE\",True)],0) ((1,0),[(s\\.np,\"Desig\",\"is_forever'\",\"DE\",True)],1)] is [((0,1),[(s,\"S/v-<\",\"is_forever' loving'\",\"SP\",True),(s\\.np,\"O/v->\",\"loving' is_forever'\",\"VO\",True)],1)]" $ do
+    it "The result of atomizePhraCateList [cateComb [Sv,Ov] ((0,0),[((s\\.np)/.np,\"Desig\",\"loving'\",\"DE\",True)],0) ((1,0),[(s\\.np,\"Desig\",\"is_forever'\",\"DE\",True)],1)] is [((0,1),[(s,\"S/v-<\",\"(is_forever' loving')\",\"SP\",True),(s\\.np,\"O/v->\",\"(loving' is_forever')\",\"VO\",True)],1)]" $ do
       let c1 = getCateFromString "(s\\.np)/.np"
       let c2 = getCateFromString "s\\.np"
       let c3 = sCate
       let c4 = getCateFromString "s\\.np"
       let pc1 = createPhraCate 0 0 [(c1,"Desig","loving'","DE",True)] 0
       let pc2 = createPhraCate 1 0 [(c2,"Desig","is_forever'","DE",True)] 1
-      let pc3 = createPhraCate 0 1 [(c3,"S/v-<","is_forever' loving'","SP",True)] 1
-      let pc4 = createPhraCate 0 1 [(c4,"O/v->","loving' is_forever'","VO",True)] 1
+      let pc3 = createPhraCate 0 1 [(c3,"S/v-<","(is_forever' loving')","SP",True)] 1
+      let pc4 = createPhraCate 0 1 [(c4,"O/v->","(loving' is_forever')","VO",True)] 1
       atomizePhraCateList [cateComb [Sv,Ov] pc1 pc2] `shouldBe` [pc3,pc4]
 
     it "The result of deactOnePC ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0) is ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0)" $ do
@@ -137,7 +137,7 @@ spec = do
       let pc2 = createPhraCate 0 0 [(c1,"Desig","Frank'", "DE", True)] 0
       actOnePC pc1 `shouldBe` pc2
 
-    it "The result of findSplitCate ((0,1),[(s\\.np,\">T->B\",\"loves' Frank'\",\"DE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary', True)],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\")],1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\")],2) is ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True],1), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1)]" $ do
+    it "The result of findSplitCate ((0,1),[(s\\.np,\">T->B\",\"loves' Frank'\",\"DE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary', True)],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\")],1), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\")],2) is ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True],1), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1)]" $ do
       let c01 = getCateFromString "np"
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = getCateFromString "np"
@@ -147,7 +147,7 @@ spec = do
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", True)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", True)] 2
       let pc11 = createPhraCate 0 1 [(c11, ">T->B", "loves' Frank'", "OE", True)] 1
-      let pc12 = createPhraCate 1 1 [(c12, ">", "loves' Mary'", "VO", True)] 2
+      let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12]
       findSplitCate pc11 pcClo `shouldBe` [(pc01,pc02)]
@@ -159,7 +159,7 @@ spec = do
       let pc22 = createPhraCate 1 1 [(getCateFromString "s/.np", ">T->B", "Tom' loves'", "DE", True)] 2
       atomizePhraCateList [pc1,pc2] `shouldBe` [pc1,pc21,pc22]
 
-    it "The result of getPhraBySpan 1 [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\"],2), ((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2), ((0,2),[np,\"Np/s->\",\"Brave' (wins' Frank')\"],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\")],2)] is [((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2)]" $ do
+    it "The result of getPhraBySpan 1 [((0,0),[(np/.np,\"Desig\",\"Brave'\")],0), ((1,0),[(np,\"Desig\",\"Frank'\")],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\"],2), ((0,1),[(np,\">\",\"(Brave' Frank')\")],1), ((1,1),[(s,\"<\",\"(wins' Frank')\")],2), ((0,2),[np,\"Np/s->\",\"Brave' (wins' Frank')\"],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\")],2)] is [((0,1),[(np,\">\",\"Brave' Frank'\")],1), ((1,1),[(s,\"<\",\"wins' Frank'\")],2)]" $ do
       let c01 = getCateFromString "np/.np"
       let c02 = npCate
       let c03 = getCateFromString "s\\*np"
@@ -178,7 +178,7 @@ spec = do
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       getPhraBySpan 1 pcClo `shouldBe` [pc11,pc12]
 
-    it "The result of divPhraCateBySpan [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\",\"DE\",True)],2), ((0,1),[(np,\">\",\"Brave' Frank'\",\"DE\",True)],1), ((0,2),[(s,\"<\",\"wins' (Brave' Frank')\",\"DE\",True)],2)] is [[((0,0),[(np/.np, \"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((2,0),[(s\\*np, \"Desig\",\"wins'\",\"DE\",True)],2)], [((0,1),[(np, \">\",\"Brave' Frank'\",\"DE\",True)],1)], [((0,2),[(s,\"<\",\"wins' (Brave' Frank')\",\"DE\",True)],2)]]" $ do
+    it "The result of divPhraCateBySpan [((0,0),[(np/.np,\"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((2,0),[(s\\*np,\"Desig\"),\"wins'\",\"DE\",True)],2), ((0,1),[(np,\">\",\"(Brave' Frank')\",\"DE\",True)],1), ((0,2),[(s,\"<\",\"(wins' (Brave' Frank'))\",\"DE\",True)],2)] is [[((0,0),[(np/.np, \"Desig\",\"Brave'\",\"DE\",True)],0), ((1,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],1), ((2,0),[(s\\*np, \"Desig\",\"wins'\",\"DE\",True)],2)], [((0,1),[(np, \">\",\"(Brave' Frank')\",\"DE\",True)],1)], [((0,2),[(s,\"<\",\"(wins' (Brave' Frank'))\",\"DE\",True)],2)]]" $ do
       let c01 = getCateFromString "np/.np"
       let c02 = npCate
       let c03 = getCateFromString "s\\*np"
@@ -189,10 +189,10 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Brave'", "DE", True)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "Frank'", "DE", True)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "wins'", "DE", True)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">", "Brave' Frank'", "AHn", True)] 1
-      let pc12 = createPhraCate 1 1 [(c12, "<", "wins' Frank'", "SP", True)] 2
-      let pc21 = createPhraCate 0 2 [(c21, "Np/s->", "Brave' (wins' Frank')", "AHn", True)] 1
-      let pc22 = createPhraCate 0 2 [(c22, "<", "wins' (Brave' Frank')", "SP", True)] 2
+      let pc11 = createPhraCate 0 1 [(c11, ">", "(Brave' Frank')", "AHn", True)] 1
+      let pc12 = createPhraCate 1 1 [(c12, "<", "(wins' Frank')", "SP", True)] 2
+      let pc21 = createPhraCate 0 2 [(c21, "Np/s->", "(Brave' (wins' Frank'))", "AHn", True)] 1
+      let pc22 = createPhraCate 0 2 [(c22, "<", "(wins' (Brave' Frank'))", "SP", True)] 2
       let pcClo = [pc01,pc02,pc03,pc11,pc22]
       divPhraCateBySpan pcClo `shouldBe` [[pc01,pc02,pc03],[pc11],[pc22]]
 

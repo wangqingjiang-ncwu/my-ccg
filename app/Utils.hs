@@ -86,7 +86,10 @@ module Utils (
     RowIdx,        -- Int
     ColIdx,        -- Int
     getMatchedElemPair2SimList,   -- (Eq a, Ord b, Num b) => [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))] -> [((RowIdx, ColIdx), ((a, a), b))]
-    formatDoubleAList, -- Show a => [(Double, a)] -> Int -> [(String, a)]
+    formatDoubleAList,            -- Show a => [(Double, a)] -> Int -> [(String, a)]
+    chunk,         -- Int -> [a] -> [[a]]
+    indexOfMin',   -- Ord a => [a] -> Maybe Int
+    indexOfMax',   -- Ord a => [a] -> Maybe Int
     ) where
 
 import Data.Tuple
@@ -729,3 +732,27 @@ getMatchedElemPair2SimList matchedElemPair2SimList elemPair2SimMatrix = getMatch
  -}
 formatDoubleAList :: Show a => [(Double, a)] -> Int -> [(String, a)]       -- 'a' may be any showable type, Polymorphism!
 formatDoubleAList doubleAList n = map (\x -> (printf ("%." ++ show n ++"f") (fst x), snd x)) doubleAList
+
+-- Divide a list into some sublists with same number of elements.
+chunk :: Int -> [a] -> [[a]]
+chunk _ [] = []
+chunk n xs = let (group, rest) = splitAt n xs
+             in group : chunk n rest
+
+-- One efficient function to find the index of one element which is the smallest in a list.
+indexOfMin' :: Ord a => [a] -> Maybe Int
+indexOfMin' [] = Nothing
+indexOfMin' xs = Just (snd (foldl1 comparePair (zip xs [0..])))
+  where
+    comparePair (x1, i1) (x2, i2)
+      | x1 < x2    = (x1, i1)
+      | otherwise  = (x2, i2)
+
+-- One efficient function to find the index of one element which is the bigest in a list.
+indexOfMax' :: Ord a => [a] -> Maybe Int
+indexOfMax' [] = Nothing
+indexOfMax' xs = Just (snd (foldl1 comparePair (zip xs [0..])))
+  where
+    comparePair (x1, i1) (x2, i2)
+      | x1 < x2    = (x2, i2)
+      | otherwise  = (x1, i1)

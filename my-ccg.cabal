@@ -36,6 +36,7 @@ library
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , cassava
     , containers
     , directory
     , hmatrix
@@ -61,6 +62,7 @@ executable my-ccg-exe
       ContextOfSGSim
       Corpus
       Database
+      KMeans
       Maintain
       NeuralNetwork
       Output
@@ -80,6 +82,7 @@ executable my-ccg-exe
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , cassava
     , containers
     , directory
     , hmatrix
@@ -106,6 +109,7 @@ test-suite my-ccg-test
       ClusteringSpec
       CorpusSpec
       DatabaseSpec
+      KMeansSpec
       MaintainSpec
       OutputSpec
       ParseSpec
@@ -119,6 +123,7 @@ test-suite my-ccg-test
       ContextOfSGSim
       Corpus
       Database
+      KMeans
       Main
       Maintain
       NeuralNetwork
@@ -140,6 +145,7 @@ test-suite my-ccg-test
       MissingH
     , base >=4.7 && <5
     , bytestring
+    , cassava
     , containers
     , directory
     , hmatrix

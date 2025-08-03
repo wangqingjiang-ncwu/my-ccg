@@ -171,12 +171,27 @@ span_sim_tbl:span_sim_18782
 phrasyn_sim_tbl:phrasyn_sim_18782
 
 # Table names of storing similarity degrees between ContextOfSG samples.
-csg_sim_tbl:csg_sim_202506
+csg_sim_tbl:csg_sim_202507
 
 # Whether storing similarity degrees between ContextOfSG samples.
 store_csg_sim:True
+
+# Chunk, namely a batch of rows which are written into MySQL table every SQL writing operation.
+csg_sim_rows_chunk:80000
 
 # How to get similarity degrees on basic grammatic attributes.
 # dynamic: Collect PhraSyn values, then calculate similarity degrees on grammatic attributes.
 # static: Precalculate similarity degrees on grammatic attributes, and store them in database.
 howToGetGramAttrSim:static
+
+# Name of directory for storing clustering result.
+cluster_logs_dir:cluster_logs
+
+# Name of file of clustering results
+clus_res_file:clus_res_k20.csv
+
+# Name of file storing change trace of mean similarity degrees of all clusters.
+mean_sim_trace:mean_sim_trace_k20.csv
+
+# Name of file storing change trace of all clusters.
+clusters_trace:clusters_trace_k20.csv

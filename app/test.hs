@@ -9,6 +9,7 @@ import Data.Map
 import Data.List
 import Numeric.LinearAlgebra as LA
 import Data.Time.Clock
+import Data.CSV as CSV
 
 testCase :: Int -> IO ()
 testCase i = case i of

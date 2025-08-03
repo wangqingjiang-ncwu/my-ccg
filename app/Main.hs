@@ -26,6 +26,7 @@ import Statistics
 import Utils
 import AmbiResol
 import Clustering
+import KMeans
 import Maintain
 import Output (showSnScript2List)
 import Text.Printf
@@ -991,8 +992,9 @@ doClustering username = do
     putStrLn " C -> Among StruGene samples, calculate similarity degrees from one to all contexts"
     putStrLn " D -> Get similarity degrees between one ClauTagPrior context to every context of StruGene samples"
     putStrLn " E -> Among StruGene samples, calculate similarity degree between every pair of contexts"
+    putStrLn " F -> Run K-Means clustering using DB similarity and analyze Prior distribution"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1014,6 +1016,7 @@ doClustering username = do
                "C" -> clusteringAnalysis 12
                "D" -> clusteringAnalysis 13
                "E" -> clusteringAnalysis 14
+               "F" -> kMeansClusteringOnStruGene2Samples
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数
@@ -1040,7 +1043,7 @@ doTestfunctionOfMaxminPoint = do
     conn <- getConn
     stmt <- prepareStmt conn "select id, leftExtend, leftOver, rightOver, rightExtend, overType, prior from stru_gene where id >= ? and id <= ?"
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 startId, toMySQLInt32 endId]
-    struGeneSampleList <- readStreamByInt324TextInt8Text [] is
+    struGeneSampleList <- readStreamByStruGene [] is
     putStrLn $ "doTestfunctionOfMaxminPoint: " ++ show (length struGeneSampleList)
     let m1 = head struGeneSampleList
     let sgs = tail struGeneSampleList
@@ -1174,6 +1177,41 @@ storeAmbiResolAccuracy4AllClustRes = do
 
     putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
     autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum
+
+{- D_F. K-Means clustering on StruGene2 samples.
+ -}
+kMeansClusteringOnStruGene2Samples :: IO ()
+kMeansClusteringOnStruGene2Samples = do
+    confInfo <- readFile "Configuration"
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let clus_res_file = getConfProperty "clus_res_20250801" confInfo
+    putStrLn $ "syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ "clus_res_file: " ++ clus_res_file
+
+    putStr "Please input: K = "
+    line <- getLine
+    putStrLn $ "K = " ++ line
+    let k = read line :: Int
+
+    putStr "Please input: maxIterNum = "
+    line <- getLine
+    putStrLn $ "maxIterNum = " ++ line
+    let maxIterNum = read line :: IterNum
+
+    putStr "Please input start value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let startId = read line :: SIdx
+    putStr "Please input end value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let endId = read line :: SIdx
+
+    cOrN <- getLineUntil "Continue or Not? [y]/n" ["y","n"] True
+    if cOrN == "y" || cOrN == ""
+      then do
+        clus_res <- kMeansClustering k maxIterNum startId endId
+        exportClustersToCSV clus_res
+        putStrLn "[INFO] Clustering end."
+      else putStrLn "Task D->F was cancelled."
 
 -- 0. Quit from this program.
 doQuit :: IO ()

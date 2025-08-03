@@ -16,6 +16,7 @@ module AmbiResol (
     nullContextOfOT,     -- ContextOfOT
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
+    SIdxPrior,           -- (SIdx, Prior)
     ContextOfSG,         -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
     ClauTag,             -- (Int, Int), actually is (SentIdx, ClauIdx)
     ClauTagPrior,        -- (ClauTag, Prior)
@@ -79,6 +80,7 @@ module AmbiResol (
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text,   -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
+
     SynAmbiResolMethod,  -- String
     rmNullCTPRecordsFromDB,       -- IO ()
 
@@ -147,6 +149,9 @@ instance Ord Prior where
     Noth <= Noth = True
     Noth <= Lp = False
     Noth <= Rp = False
+
+-- Using for K-Means clustering.
+type SIdxPrior = (SIdx, Prior)
 
 -- Overtype context 'ContextOfOT', overtype and its context 'Context2OverType', and sample base of 'Context2OverType'.
 type ContextOfOT = (LeftExtend, LeftOver, RightOver, RightExtend)

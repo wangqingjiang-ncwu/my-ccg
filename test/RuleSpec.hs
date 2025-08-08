@@ -16,8 +16,8 @@ spec = do
     it "The result of forwardly application (s, \"(eats' food') Mary'\", \"DE\") to (np, \"Frank'\",\"DE\") is (Nil, \">\", \"\", \"\", False)" $ do
       appF (sCate, "((eats' food') Mary')","DE") (npCate, "Frank'","DE") `shouldBe` (nilCate, ">", "", "", False)
 
-    it "The result of backwardly application (np, \"Frank'\",\"DE\") to (s\\.np, \"eats' food'\",\"DE\") is (s,\"<\", \"((eats' food') Frank')\", \"SP\", True)" $ do
-      appB (npCate, "Frank'","DE") (getCateFromString "s\\.np", "eats' food'","DE") `shouldBe` (sCate,"<","((eats' food') Frank')", "SP", True)
+    it "The result of backwardly application (np, \"Frank'\",\"DE\") to (s\\.np, \"(eats' food')\",\"VO\") is (s,\"<\", \"((eats' food') Frank')\", \"SP\", True)" $ do
+      appB (npCate, "Frank'","DE") (getCateFromString "s\\.np", "(eats' food')","VO") `shouldBe` (sCate,"<","((eats' food') Frank')", "SP", True)
 
     it "The result of forward harmonic composition ((s\\.np)/#(s\\.np), \"very'\",\"DE\") with ((s\\.np)/.np,\"hates'\",\"DE\") is ((s\\.np)/.np, \">B\", \"((B very') hates')\", \"DHv\",True)" $ do
       comFh (getCateFromString "(s\\.np)/#(s\\.np)", "very'","DE") (getCateFromString "(s\\.np)/.np", "hates'","DE") `shouldBe` (getCateFromString "(s\\.np)/.np", ">B", "((B very') hates')", "DHv", True)

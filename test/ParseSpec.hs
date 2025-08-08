@@ -49,7 +49,7 @@ spec = do
       let pc3 = createPhraCate 0 1 [(c3, "S/s-<", "(is_bad' Frank_cries')", "SP", True)] 1
       cateComb [Ss] pc1 pc2 `shouldBe` pc3
 
-    it "The result of cateComb [Os] ((0,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],0) ((1,0),[(s,\"Desig\",\"Frank_does_it'\",\"DE\",True)],1) is ((0,1),[(s\\.np,\"O/s->\",\"loves' Frank_does_it'\",\"VO\",True)],1)" $ do
+    it "The result of cateComb [Os] ((0,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],0) ((1,0),[(s,\"Desig\",\"Frank_does_it'\",\"DE\",True)],1) is ((0,1),[(s\\.np,\"O/s->\",\"(loves' Frank_does_it')\",\"VO\",True)],1)" $ do
       let c1 = getCateFromString "(s\\.np)/.np"
       let c2 = sCate
       let c3 = getCateFromString "s\\.np"
@@ -58,23 +58,21 @@ spec = do
       let pc3 = createPhraCate 0 1 [(c3, "O/s->", "(loves' Frank_does_it')", "VO", True)] 1
       cateComb [Os] pc1 pc2 `shouldBe` pc3
 
-    it "The result of cateComb [] ((0,0),[(np/.np,\"Desig\",\"Good'\",\"DE\",True)],0) ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\",\"DE\",True)],2) is ((0,2),[],1)" $ do
+    it "The result of cateComb [] ((0,0),[(np/.np,\"Desig\",\"Good'\",\"DE\",True)],0) ((1,1),[((s\\.np)/.np,\">B\",\"((B is_better_than') bad')\",\"DE\",True)],2) is ((0,2),[],1)" $ do
       let c1 = getCateFromString "np/.np"
       let c2 = getCateFromString "(s\\.np)/.np"
       let c31 = getCateFromString "s/.np"
       let pc1 = createPhraCate 0 0 [(c1, "Desig", "Good'", "DE", True)] 0
-      let pc2 = createPhraCate 1 1 [(c2, ">B", "is_better_than' bad'", "DE", True)] 2
-      let pc3 = createPhraCate 0 2 [(sCate,"S/a-<","(is_better_than' bad') Good'","SP",True),(c31,"S/a->T->B","Good' (is_better_than' bad')","OE",True)] 1
+      let pc2 = createPhraCate 1 1 [(c2, ">B", "((B is_better_than') bad')", "DE", True)] 2
       cateComb [] pc1 pc2 `shouldBe` ((0,2),[],1)
 
-    it "The result of cateComb [Sa] ((0,0),[(np/.np,\"Desig\",\"Good'\",\"DE\",True)],0) ((1,1),[((s\\.np)/.np,\">B\",\"is_better_than' bad'\",\"DE\",True), (s\\.np,\"O/a->\",\"is_better_than' bad'\",\"VO\",True)],2) is ((0,2),[(s/.np,\"<Bx\",\"(is_better_than' bad') Good'\",\"DE\",True),(s,\"Np/a-<\",\"(is_better_than' bad') Good'\",\"DE\",True),(s/.np,\"Np/a->T->B\",\"Good' (bad' is_better_than')\",\"DE\",True)],1)" $ do
+    it "The result of cateComb [Sa] ((0,0),[(np/.np,\"Desig\",\"Good'\",\"DE\",True)],0) ((1,1),[((s\\.np)/.np,\">B\",\"((B is_better_than') bad')\",\"DE\",True)],2) is ((0,2),[(s/.np,\"S/a->T->B\",\"((R ((B is_better_than') bad')) Good')\",\"OE\",True)],1)" $ do
       let c1 = getCateFromString "np/.np"
       let c21 = getCateFromString "(s\\.np)/.np"
-      let c22 = getCateFromString "s\\.np"
       let c31 = getCateFromString "s/.np"
       let pc1 = createPhraCate 0 0 [(c1, "Desig", "Good'", "DE", True)] 0
-      let pc2 = createPhraCate 1 1 [(c21, ">B", "is_better_than' bad'", "DE", True), (c22, "O/a->", "is_better_than' bad'", "VO", True)] 2
-      let pc3 = createPhraCate 0 2 [(sCate,"S/a-<","(is_better_than' bad') Good'","SP",True),(c31,"S/a->T->B","(is_better_than' bad') Good'","OE",True)] 1
+      let pc2 = createPhraCate 1 1 [(c21, ">B", "((B is_better_than') bad')", "DE", True)] 2
+      let pc3 = createPhraCate 0 2 [(c31,"S/a->T->B","((R Good') ((B is_better_than') bad'))","OE",True)] 1
       cateComb [Sa] pc1 pc2 `shouldBe` pc3
 
     it "The result of [cateComb \"[]\" pc1 pc2 | pc1 <- trans, pc2 <- trans, pc1 /= pc2, (acOfCate pc1)!!0, (acOfCate pc2)!!0, pclt pc1 pc2] is [((0,1),[(s/.np,\">T->B\",\"loves' Mary'\",\"DE\",True)],1)，((-1,-1),[],-1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"DE\",True)],2)]" $ do
@@ -113,7 +111,7 @@ spec = do
       let pc2 = createPhraCate 11 3 [(npCate,"N/v-<","(或' (以上' 及格')) 及格'","XX",True)] 12
       getOverlap [pc1, pc2] `shouldBe` []
 
-    it "The result of findSplitCate ((0,1),[(s\\.np,\">T->B\",\"loves' Frank'\",\"DE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary', True)],2), ((0,1),[(s/.np,\">T->B\",\"loves' Frank'\")],1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\")],2) is ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True],1), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1)]" $ do
+    it "The result of findSplitCate ((0,1),[(s\\.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\")],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1), ((2,0),[(np,\"Desig\",\"Mary', True)],2), ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\")],1), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\")],2) is ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\")],1)]" $ do
       let c01 = getCateFromString "np"
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = getCateFromString "np"
@@ -122,8 +120,8 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Frank'", "DE", True)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", True)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", True)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "loves' Frank'", "OE", True)] 1
-      let pc12 = createPhraCate 1 1 [(c12, ">", "loves' Mary'", "VO", True)] 2
+      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "((R Frank') loves')", "OE", True)] 1
+      let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12]
       findSplitCate pc11 pcClo `shouldBe` [(pc01,pc02)]
@@ -136,7 +134,7 @@ spec = do
       let pcs = [pc01,pc02]
       updateAct pcs `shouldBe` pcs
 
-    it "The result of updateAct [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",True)],2), ((0,1),[(s/.np,\">T->B\",\"loves' Frank'\",\"OE\",True)],1), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"DE\",True)],2)] is [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,1),[(s/.np,\">T->B\",\"loves' Frank'\",\"OE\",True)],2), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"DE\",True)],2)]" $ do
+    it "The result of updateAct [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",True)],2), ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],1), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"DE\",True)],2)] is [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],2), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"DE\",True)],2)]" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
@@ -145,7 +143,7 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Frank'", "DE", True)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", True)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", True)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "(loves' Frank')", "OE", True)] 1
+      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "((R Frank') loves')", "OE", True)] 1
       let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
       let pc010 = deactOnePC pc01
       let pc020 = deactOnePC pc02
@@ -162,8 +160,8 @@ spec = do
       let c4 = getCateFromString "s\\.np"
       let pc1 = createPhraCate 0 0 [(c1, "Desig", "Frank'", "DE", True)] 0
       let pc2 = createPhraCate 1 0 [(c2, "Desig", "loves'", "DE", True)] 1
-      let pc3 = createPhraCate 0 1 [(c3, ">T->B", "loves' Frank'", "OE", True)] 1
-      let pc4 = createPhraCate 1 1 [(c4, ">", "loves' Mary'", "VO", True)] 2
+      let pc3 = createPhraCate 0 1 [(c3, ">T->B", "((R Frank') loves')", "OE", True)] 1
+      let pc4 = createPhraCate 1 1 [(c4, ">", "(loves' Mary')", "VO", True)] 2
       let pcs = [pc1,pc2]
       let pcClo = pcs ++ [pc3,pc4]
       getOverlap pcClo `shouldBe` [(pc3,pc4)]
@@ -173,7 +171,7 @@ spec = do
         let pc2 = createPhraCate 0 0 [(npCate, "Desig", "Frank'", "DE", True)] 0
         getOverlap [pc1,pc2] `shouldBe` []
 
-    it "The result of findDescen ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\",\"OE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2)，((0,1),[(s/.np,\">T->B\",\"Frank' loves'\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"VO\",True)],2),((0,2),[(s,\">\",\"(Frank' loves') Mary'\",\"NR\",True)],2),((0,2),[(s,\">\",\"(loves' Mary') Frank'\",\"SP\",True)],1)] is []" $ do
+    it "The result of findDescen ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],1) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2)，((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"NR\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is []" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
@@ -183,15 +181,15 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Frank'", "DE", False)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", False)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", False)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "loves' Frank'", "OE", True)] 1
-      let pc12 = createPhraCate 1 1 [(c12, ">", "loves' Mary'", "VO", True)] 2
-      let pc21 = createPhraCate 0 2 [(c21, ">", "(Frank' loves') Mary'", "NR", True)] 2
-      let pc22 = createPhraCate 0 2 [(c21, "<", "(loves' Mary') Frank'", "SP", True)] 1
+      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "((R Frank') loves')", "OE", True)] 1
+      let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
+      let pc21 = createPhraCate 0 2 [(c21, ">", "((loves' Mary') Frank')", "NR", True)] 2
+      let pc22 = createPhraCate 0 2 [(c21, "<", "((loves' Mary') Frank')", "SP", True)] 1
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       findDescen pc11 pcClo `shouldBe` []                                       -- Not recognized phrases, namely with syntactic structure 'NR', are not descendants of any phrase.
 
-    it "The result of findDescen ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2)，((0,1),[(s/.np,\">T->B\",\"Frank' loves'\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"VO\",True)],2),((0,2),[(s,\">\",\"(Frank' loves') Mary'\",\"NR\",True)],2),((0,2),[(s,\">\",\"(loves' Mary') Frank'\",\"SP\",True)],1)] is [((0,1),[(s/.np,\">T->B\",\"Frank' loves'\",\"OE\",True), ((0,2),[(s,\"<\",\"(loves' Mary') Frank'\",\"SP\",True)],2)]" $ do
+    it "The result of findDescen ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2)，((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"NR\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is [((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((0,2),[(s,\"<\",\"((loves' Mary') Frank')\",\"SP\",True)],2)]" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
@@ -201,16 +199,16 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Frank'", "DE", False)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", False)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", False)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "loves' Frank'", "OE", True)] 1
-      let pc12 = createPhraCate 1 1 [(c12, ">", "loves' Mary'", "VO", True)] 2
-      let pc21 = createPhraCate 0 2 [(c21, ">", "(Frank' loves') Mary'", "NR", True)] 2
-      let pc22 = createPhraCate 0 2 [(c21, "<", "(loves' Mary') Frank'", "SP", True)] 1
+      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "((R Frank') loves')", "OE", True)] 1
+      let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
+      let pc21 = createPhraCate 0 2 [(c21, ">", "((loves' Mary') Frank')", "NR", True)] 2
+      let pc22 = createPhraCate 0 2 [(c21, "<", "((loves' Mary') Frank')", "SP", True)] 1
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       let pcClo0 = [pc21]
       findDescen pc01 pcClo `shouldBe` [pc11,pc22]                              -- Phrase pc21 has syntactic structure 'NR', which is not a descendant of any phrase.
 
-    it "The result of removeOnePC ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,1),[(s/.np,\">T->B\",\"Frank' loves'\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2), ((0,2),[(s,\">\",\"(loves' Mary') Frank'\",\"SP\",True)],1)] is [((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2)]" $ do
+    it "The result of removeOnePC ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2), ((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is [((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2)]" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
@@ -220,15 +218,15 @@ spec = do
       let pc01 = createPhraCate 0 0 [(c01, "Desig", "Frank'", "DE", False)] 0
       let pc02 = createPhraCate 1 0 [(c02, "Desig", "loves'", "DE", False)] 1
       let pc03 = createPhraCate 2 0 [(c03, "Desig", "Mary'", "DE", False)] 2
-      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "loves' Frank'", "OE", True)] 1
+      let pc11 = createPhraCate 0 1 [(c11, ">T->B", "((R Frank') loves')", "OE", True)] 1
       let pc12 = createPhraCate 1 1 [(c12, ">", "(loves' Mary')", "VO", True)] 2
-      let pc21 = createPhraCate 0 2 [(c21, "<", "(loves' Mary') Frank'", "SP", True)] 1
+      let pc21 = createPhraCate 0 2 [(c21, "<", "((loves' Mary') Frank')", "SP", True)] 1
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21]
       let pcClo0 = [pc02,pc03,pc12]
       removeOnePC pc01 pcClo [] `shouldBe` pcClo0
 
-    it "The result of trans [] [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",True)],2)] [] is [((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,1),[(s\\.np,\">\",\"loves' Mary'\",\"DE\",True)],2)]" $ do
+    it "The result of trans [] [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",True)],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",True)],2)] [] is [((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",True)],0), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"DE\",True)],2)]" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate

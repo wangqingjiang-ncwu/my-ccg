@@ -188,10 +188,10 @@ howToGetGramAttrSim:static
 cluster_logs_dir:cluster_logs
 
 # Name of file of clustering results
-clus_res_file:clus_res_k20.csv
+clus_res_file:clus_res.csv
 
 # Name of file storing change trace of mean similarity degrees of all clusters.
-mean_sim_trace:mean_sim_trace_k20.csv
+mean_sim_trace_file:mean_sim_trace.csv
 
 # Name of file storing change trace of all clusters.
-clusters_trace:clusters_trace_k20.csv
+clusters_trace_file:clusters_trace.csv

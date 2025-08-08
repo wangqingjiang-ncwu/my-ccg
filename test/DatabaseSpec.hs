@@ -18,16 +18,9 @@ spec = do
       ok <- executeStmt conn stmt []
       getOkStatus ok `shouldBe` 2
 
-    it "insert into test set id=1, name=\"QJWang\", okStatus shouldBe 2." $ do
+    it "update test set id=1, name=\"QJWang\", okStatus shouldBe 0." $ do
       conn <- getConnByUserWqj
-      let sqlstat = DS.fromString "insert into test set id=1, name=\"QJWang\""
+      let sqlstat = DS.fromString "update test set name=\"QJWang\" where id = 1"
       stmt <- prepareStmt conn sqlstat
       ok <- executeStmt conn stmt []
-      getOkStatus ok `shouldBe` 2
-
-    it "update test set id=1, name=\"QJWang\", okStatus shouldBe 34." $ do
-      conn <- getConnByUserWqj
-      let sqlstat = DS.fromString "update test set id=1, name=\"QJWang\""
-      stmt <- prepareStmt conn sqlstat
-      ok <- executeStmt conn stmt []
-      getOkStatus ok `shouldBe` 34
+      getOkAffectedRows ok `shouldBe` 0

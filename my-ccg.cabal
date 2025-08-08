@@ -62,8 +62,9 @@ executable my-ccg-exe
       ContextOfSGSim
       Corpus
       Database
-      KMeans
+      KMedoids
       Maintain
+      MyTest
       NeuralNetwork
       Output
       OutputTest
@@ -72,7 +73,6 @@ executable my-ccg-exe
       Rule
       SentParse
       Statistics
-      Test
       Utils
       Paths_my_ccg
   hs-source-dirs:
@@ -109,8 +109,9 @@ test-suite my-ccg-test
       ClusteringSpec
       CorpusSpec
       DatabaseSpec
-      KMeansSpec
+      KMedoidsSpec
       MaintainSpec
+      MyTestSpec
       OutputSpec
       ParseSpec
       PhraseSpec
@@ -123,9 +124,10 @@ test-suite my-ccg-test
       ContextOfSGSim
       Corpus
       Database
-      KMeans
+      KMedoids
       Main
       Maintain
+      MyTest
       NeuralNetwork
       Output
       OutputTest
@@ -134,7 +136,6 @@ test-suite my-ccg-test
       Rule
       SentParse
       Statistics
-      Test
       Utils
       Paths_my_ccg
   hs-source-dirs:

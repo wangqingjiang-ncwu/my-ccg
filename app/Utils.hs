@@ -90,6 +90,8 @@ module Utils (
     chunk,         -- Int -> [a] -> [[a]]
     indexOfMin',   -- Ord a => [a] -> Maybe Int
     indexOfMax',   -- Ord a => [a] -> Maybe Int
+    fromMaybe',    -- Maybe a -> a
+    var,           -- Integral a => [a] -> Float
     ) where
 
 import Data.Tuple
@@ -756,3 +758,17 @@ indexOfMax' xs = Just (snd (foldl1 comparePair (zip xs [0..])))
     comparePair (x1, i1) (x2, i2)
       | x1 < x2    = (x2, i2)
       | otherwise  = (x1, i1)
+
+-- Extract the inner value from a Maybe box.
+fromMaybe' :: Maybe a -> a
+fromMaybe' x = case x of
+                 Just v -> v
+                 Nothing -> error "fromMaybe': Exception."
+
+-- Population variance of integer samples.
+var :: [Int] -> Float
+var as = variance
+  where
+    num = length as
+    mean = fromIntegral (sum as) / fromIntegral num :: Float
+    variance = sum (map (\x -> (fromIntegral x - mean) ^ 2) as) / fromIntegral num

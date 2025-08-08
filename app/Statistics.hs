@@ -97,6 +97,12 @@ type Sents = [Sent]
 
  - The following functions read Table 'tree', then search all clauses according the input index.
  - 1. Get serial_num list indicating those parsing trees which include given CCG tags;
+ - 2 -> Get serial_num list indicating those parsing trees which include given phrasal structure
+ - 3 -> Get serial_num list indicating those parsing trees which include given syntactic category
+ - 4 -> Display parsing trees of all clauses of all sentences.
+ - 5 -> Display parsing trees in which include given grammatic rule.
+ - 6 -> Display parsing trees in which include given phrasal structure.
+ - 7 -> Display parsing trees in which include given syntactic category.
 
  -}
 

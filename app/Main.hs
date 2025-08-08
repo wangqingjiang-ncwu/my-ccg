@@ -26,7 +26,7 @@ import Statistics
 import Utils
 import AmbiResol
 import Clustering
-import KMeans
+import KMedoids
 import Maintain
 import Output (showSnScript2List)
 import Text.Printf
@@ -992,9 +992,11 @@ doClustering username = do
     putStrLn " C -> Among StruGene samples, calculate similarity degrees from one to all contexts"
     putStrLn " D -> Get similarity degrees between one ClauTagPrior context to every context of StruGene samples"
     putStrLn " E -> Among StruGene samples, calculate similarity degree between every pair of contexts"
-    putStrLn " F -> Run K-Means clustering using DB similarity and analyze Prior distribution"
+    putStrLn " F -> Run K-Medoids clustering using DB similarity and analyze Prior distribution"
+    putStrLn " G -> Batch running of K-Medoids clustering on StruGene2 samples."
+    putStrLn " H -> Calculate probability of that two closest samples has same Prior value in StruGene2 samples"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1016,7 +1018,9 @@ doClustering username = do
                "C" -> clusteringAnalysis 12
                "D" -> clusteringAnalysis 13
                "E" -> clusteringAnalysis 14
-               "F" -> kMeansClusteringOnStruGene2Samples
+               "F" -> kMedoidsClusteringOnStruGene2Samples
+               "G" -> batchKMedoidsOnStruGene2Samples
+               "H" -> doCalProbOfClosestSampleHasSamePrior
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数
@@ -1178,17 +1182,23 @@ storeAmbiResolAccuracy4AllClustRes = do
     putStrLn $ "doClustering4DiffKValSNum: arm = " ++ arm ++ ", df = " ++ df
     autoRunGetAmbiResolAccuracyOfAllClustRes arm df bottomKVal bottomKVal deltaKVal topKVal bottomSNum deltaSNum topSNum
 
-{- D_F. K-Means clustering on StruGene2 samples.
+{- D_F. K-Medoids clustering on StruGene2 samples.
  -}
-kMeansClusteringOnStruGene2Samples :: IO ()
-kMeansClusteringOnStruGene2Samples = do
+kMedoidsClusteringOnStruGene2Samples :: IO ()
+kMedoidsClusteringOnStruGene2Samples = do
     confInfo <- readFile "Configuration"
     let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
-    let clus_res_file = getConfProperty "clus_res_20250801" confInfo
+    let cluster_logs_dir = getConfProperty "cluster_logs_dir" confInfo
+    let clus_res_file = getConfProperty "clus_res_file" confInfo
+    let clusters_trace_file = getConfProperty "clusters_trace_file" confInfo
+    let mean_sim_trace_file = getConfProperty "mean_sim_trace_file" confInfo
     putStrLn $ "syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ "cluster_logs_dir: " ++ cluster_logs_dir
     putStrLn $ "clus_res_file: " ++ clus_res_file
+    putStrLn $ "clusters_trace_file: " ++ clusters_trace_file
+    putStrLn $ "mean_sim_trace_file: " ++ mean_sim_trace_file
 
-    putStr "Please input: K = "
+    putStr "Please input K = "
     line <- getLine
     putStrLn $ "K = " ++ line
     let k = read line :: Int
@@ -1208,10 +1218,83 @@ kMeansClusteringOnStruGene2Samples = do
     cOrN <- getLineUntil "Continue or Not? [y]/n" ["y","n"] True
     if cOrN == "y" || cOrN == ""
       then do
-        clus_res <- kMeansClustering k maxIterNum startId endId
-        exportClustersToCSV clus_res
+        (_, clus_res) <- kMedoidsClustering k maxIterNum startId endId
+        exportClustersToCSV k clus_res
         putStrLn "[INFO] Clustering end."
       else putStrLn "Task D->F was cancelled."
+
+{- D_G. Batch running of K-Medoids clustering on StruGene2 samples.
+ -}
+batchKMedoidsOnStruGene2Samples :: IO ()
+batchKMedoidsOnStruGene2Samples = do
+    confInfo <- readFile "Configuration"
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let cluster_logs_dir = getConfProperty "cluster_logs_dir" confInfo
+    let clus_res_file = getConfProperty "clus_res_file" confInfo
+    let clusters_trace_file = getConfProperty "clusters_trace_file" confInfo
+    let mean_sim_trace_file = getConfProperty "mean_sim_trace_file" confInfo
+    putStrLn $ "syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ "cluster_logs_dir: " ++ cluster_logs_dir
+    putStrLn $ "clus_res_file: " ++ clus_res_file
+    putStrLn $ "clusters_trace_file: " ++ clusters_trace_file
+    putStrLn $ "mean_sim_trace_file: " ++ mean_sim_trace_file
+
+    putStr "Please input initial K = "
+    line <- getLine
+    putStrLn $ "Initial K = " ++ line
+    let k = read line :: Int
+
+    putStr "Please input: maxIterNum = "
+    line <- getLine
+    putStrLn $ "maxIterNum = " ++ line
+    let maxIterNum = read line :: IterNum
+
+    putStr "Please input start value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let startId = read line :: SIdx
+    putStr "Please input end value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let endId = read line :: SIdx
+
+    cOrN <- getLineUntil "Continue or Not? [y]/n" ["y","n"] True
+    if cOrN == "y" || cOrN == ""
+      then loop k maxIterNum startId endId
+      else putStrLn "Task D->G was cancelled."
+    where
+      loop :: Int -> IterNum -> SIdx -> SIdx -> IO ()
+      loop k maxIterNum startId endId = do
+        (flag, clus_res) <- kMedoidsClustering k maxIterNum startId endId
+        exportClustersToCSV k clus_res
+        if flag == 1                                           -- All cluster purities reach threshhold.
+          then putStrLn "[INFO] Batch Clustering ends."
+          else if (2*k > endId - startId + 1)
+                 then putStrLn "[INFO] K too big."
+                 else loop (2*k) maxIterNum startId endId
+
+{- D_H. Calculate probability of that one sample has same major Prior value with its closest sample in StruGene2 database.
+ - The closest sample means it has highest similarity degree with the compared sample.
+ -}
+doCalProbOfClosestSampleHasSamePrior :: IO ()
+doCalProbOfClosestSampleHasSamePrior = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    let csg_sim_tbl = getConfProperty "csg_sim_tbl" confInfo
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
+    putStrLn $ " csg_sim_tbl: " ++ csg_sim_tbl
+
+    putStr "Please input start value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let startId = read line :: SIdx
+    putStr "Please input end value of 'id' in StruGene2 sample base: "
+    line <- getLine
+    let endId = read line :: SIdx
+
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "c"
+      then do
+        prob <- calProbOfClosestSampleHasSamePrior csg_sim_tbl startId endId
+        putStrLn $ " Probability: " ++ show prob
+      else putStrLn "doCalProbOfClosestSampleHasSamePrior: Operation was cancelled."
 
 -- 0. Quit from this program.
 doQuit :: IO ()

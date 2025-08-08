@@ -122,7 +122,6 @@ import Numeric.LinearAlgebra.Data hiding (find)
 import Numeric.LinearAlgebra as LA hiding (find)
 import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Time.Clock
 
 {- The distance between two phrases, where only grammatical factors are considered,
  - and the correlations between different values of an identical factor and between different factors are both neglected.
@@ -158,7 +157,10 @@ distPhraSynByIdentity (ca1, ta1, ps1, sp1) (ca2, ta2, ps2, sp2) = sum [v1, v2, v
 distPhraSynSetByIdentity :: [PhraSyn] -> [PhraSyn] -> Double
 distPhraSynSetByIdentity ps qs = 1 - (getPhraSynSetSim ps qs phraSynPair2SimMap)
     where
-    phraSynPair2SimMap = Map.fromList [((pi, qj), 1 - (distPhraSynByIdentity pi qj)) | pi <- ps, qj <- qs]  -- [((pi,qj),sim(pi,qj))]
+    phraSynPair2SimMap = Map.fromList [(case (pi <= qj) of                      -- Map (pi, qj) Sim, where pi <= qj.
+                                          True -> (pi, qj)
+                                          False -> (qj, pi)
+                                        , 1 - (distPhraSynByIdentity pi qj)) | pi <- ps, qj <- qs]  -- [((pi,qj),sim(pi,qj))]
 
 {- The distance vector between two samples of model StruGene.
  - For ambiguity model StruGene = (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior), the distance vector is obtained by following function.

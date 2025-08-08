@@ -25,24 +25,24 @@ spec = do
       distPhraSynByIdentity (c1,t1,p1,s1) (c2,t2,p2,s2) `shouldBe` (0.75 :: Double)
 
 -- sim(p1,q1) = 0.5, sim(p1,q2) = 0.25, sim(p2,q1) = 0.0, sim(p2,q2) = 0.25. So sim([p1,p2],[q1,q2]) = (sim(p1,q1) + sim(p2,q2)) / 2.
-    it "The result of distPhraSynSetByIdentity [(np, \">\", \"AHn\", 2), (s, \">\", \"DHv\", 3)] [(s\\.np, \"<B\", \"AHn\", 2) (np, \">B\", \"DHv\", 4)] is 0.375" $ do
+    it "The result of distPhraSynSetByIdentity [(np, \">\", \"AHn\", 2), (s, \">\", \"DHv\", 3)] [(s\\.np, \"<B\", \"AHn\", 2) (np, \">B\", \"DHv\", 4)] is 0.625" $ do
       let p1 = (npCate, ">", "AHn", 2)
       let p2 = (sCate, ">", "DHv", 3)
       let q1 = (predCate, "<B", "AHn", 2)
       let q2 = (npCate, ">B", "DHv", 4)
-      distPhraSynSetByIdentity [p1,p2] [q1,q2] `shouldBe` (0.375 :: Double)
+      distPhraSynSetByIdentity [p1,p2] [q1,q2] `shouldBe` (0.625 :: Double)
 
     it "The result of distPhraSynSetByIdentity nPCs1 nPCs2 is 0.0" $ do
-      let nPCs1 = getPhraCateListFromString $ "[((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2),((3,0),[(np,Desig,届',DE,False)],3),((4,0),[(np,Desig,学生',DE,True)],4),((0,1),[(s/.np,>T->B,是' 丁伟',OE,True)],1),((2,1),[(np,>,七二' 届',AHn,True)],3)]"
-      let nPCs2 = getPhraCateListFromString $ "[((3,0),[(np,Desig,届',DE,False)],3),((0,1),[(s/.np,>T->B,是' 丁伟',OE,True)],1),((4,0),[(np,Desig,学生',DE,True)],4),((2,1),[(np,>,七二' 届',AHn,True)],3),((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2)]"
+      let nPCs1 = getPhraCateListFromString $ "[((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2),((3,0),[(np,Desig,届',DE,False)],3),((4,0),[(np,Desig,学生',DE,True)],4),((0,1),[(s/.np,>T->B,((R 丁伟') 是'),OE,True)],1),((2,1),[(np,>,(七二' 届'),AHn,True)],3)]"
+      let nPCs2 = getPhraCateListFromString $ "[((3,0),[(np,Desig,届',DE,False)],3),((0,1),[(s/.np,>T->B,((R 丁伟') 是'),OE,True)],1),((4,0),[(np,Desig,学生',DE,True)],4),((2,1),[(np,>,(七二' 届'),AHn,True)],3),((0,0),[(np,Desig,丁伟',DE,False)],0),((1,0),[((s\\.np)/.np,Desig,是',DE,False)],1),((2,0),[(np/*np,Desig,七二',DE,False)],2)]"
       let ctpsOfnPCs1 = ctpsOfCateList' nPCs1
       let ctpsOfnPCs2 = ctpsOfCateList' nPCs2
       distPhraSynSetByIdentity ctpsOfnPCs1 ctpsOfnPCs2 `shouldBe` (0.0 :: Double)
 
-    it "The result of distPhraSynSetByIdentity sStub nPCs is 7.5 / 8.0" $ do
-      let sStub = [(numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, ">", "AHn", 1), (numeralCate, "Desig", "DE", 0), (verbCate, "Desig", "DE", 0), (npCate, "A/n->", "AHn", 2)]
-      let nPCs = [(verbCate, "Desig", "DE", 0), (numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (numeralCate, "Desig", "DE", 0), (npCate, "Desig", "DE", 0), (npCate, ">", "AHn", 1), (npCate, ">", "AHn", 1)]
-      abs (distPhraSynSetByIdentity sStub nPCs - (7.5 / 8.0 :: Double)) < 1e-10 `shouldBe` True
+    it "The result of distPhraSynSetByIdentity sStub nPCs is 0.5 / 3.0" $ do
+      let sStub = [(numeralCate, "Desig", "DE", 0), (verbCate, "Desig", "DE", 0), (npCate, "A/n->", "AHn", 2)]
+      let nPCs = [(verbCate, "Desig", "DE", 0), (numeralCate, "Desig", "DE", 0), (npCate, ">", "AHn", 1)]
+      abs (distPhraSynSetByIdentity sStub nPCs - (0.5 / 3.0 :: Double)) < 1e-5 `shouldBe` True
 
     it "The result of distVect4StruGeneByIdentity ([(np, \">\", \"HnC\", 2)], (s, \">B\", \"DHv\", 2), (np, \"<B\", \"AHn\", 2), [(np, \">B\", \"SP\", 2)]) ([(s/.np, \"<\", \"AHn\", 3)], (np, \">\", \"AHn\", 3), (np, \"<B\", \"AHn\", 2), [(s\\.np, \"<B\", \"AHn\", 3)], 2, Lp) is [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]" $ do
       let sg1 = ([(getCateFromString "np", ">", "HnC", 2)], (getCateFromString "s", ">B", "DHv", 2), (getCateFromString "np","<B","AHn",2), [(getCateFromString "np",">B","SP",2)], 1, Lp)

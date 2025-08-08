@@ -12,7 +12,7 @@ module AmbiResol (
     RightExtend,         -- [(Category, Tag, PhraStru, Span)]
     ContextOfOT,         -- (LeftExtend, LeftOver, RightOver, RightExtend)
     Context2OverType,    -- (ContextOfOT, OverType)
-    Context2OverTypeBase, -- [Context2OverType]
+    Context2OverTypeBase,       -- [Context2OverType]
     nullContextOfOT,     -- ContextOfOT
     OverType,            -- Int
     Prior(..),           -- Prior and its all Constructors
@@ -80,7 +80,7 @@ module AmbiResol (
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text,   -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
-
+    readStreamByInt16UInt16UFloat,     -- [((SIdx,SIdx),Float)] -> S.InputStream [MySQLValue] -> IO [((SIdx,SIdx),Float)]
     SynAmbiResolMethod,  -- String
     rmNullCTPRecordsFromDB,       -- IO ()
 
@@ -626,6 +626,21 @@ readStreamByInt32U3TextInt8Text es is = do
                                                     getPhraCateListFromString (fromMySQLText (x!!3)),
                                                     fromMySQLInt8 (x!!4),
                                                     readPriorFromStr (fromMySQLText (x!!5)))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a CSG2Sim value, append it
+ - to existed CSG2Sim list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt16U,MySQLInt16U, MySQLFloat], CSG2Sim :: ((SIdx,SIdx),SimDeg), SimDeg :: Float.
+ - Functions like 'readStreamByXXX' are very ineffient because their Implementations are recursive.
+ -}
+readStreamByInt16UInt16UFloat :: [((SIdx, SIdx), Float)] -> S.InputStream [MySQLValue] -> IO [((SIdx,SIdx),Float)]
+readStreamByInt16UInt16UFloat es is = do
+    let num = length es
+    if (num `mod` 1000 == 0)
+      then putStr $ " " ++ show num
+      else putStr ""
+    S.read is >>= \x -> case x of                             -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt16UInt16UFloat (es ++ [((fromMySQLInt16U (x!!0),fromMySQLInt16U (x!!1)), fromMySQLFloat (x!!2))]) is
         Nothing -> return es
 
 {- For every syntactic ambiguity resolution model, there might be multiple methods of using samples to resolve syntactic ambiguity.

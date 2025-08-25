@@ -92,6 +92,17 @@ module Utils (
     indexOfMax',   -- Ord a => [a] -> Maybe Int
     fromMaybe',    -- Maybe a -> a
     var,           -- Integral a => [a] -> Float
+    BiTree(..),    -- BiTree and its all Constructors
+    emptyBiTree,   -- BiTree a
+    isEmptyBiTree, -- BiTree a -> Bool
+    isNodeBiTree,  -- BiTree a -> Bool
+    getLeftSub,    -- BiTree a -> BiTree a
+    getRightSub,   -- BiTree a -> BiTree a
+    getRoot,       -- BiTree a -> a
+    setLeftSub,    -- BiTree a -> BiTree a -> BiTree a
+    setRightSub,   -- BiTree a -> BiTree a -> BiTree a
+    setRoot,       -- a -> BiTree a -> BiTree a
+
     ) where
 
 import Data.Tuple
@@ -772,3 +783,70 @@ var as = variance
     num = length as
     mean = fromIntegral (sum as) / fromIntegral num :: Float
     variance = sum (map (\x -> (fromIntegral x - mean) ^ 2) as) / fromIntegral num
+
+-- Binary tree
+data BiTree a = Empty | Node a (BiTree a) (BiTree a) deriving (Eq)
+
+-- Empty binary tree
+emptyBiTree :: BiTree a
+emptyBiTree = Empty
+
+-- isEmptyBiTree :: BiTree a -> Bool
+isEmptyBiTree Empty = True
+isEmptyBiTree _ = False
+
+-- isNodeBiTree :: BiTree a -> Bool
+isNodeBiTree Empty = False
+isNodeBiTree _ = True
+
+-- Get left subtree of a binary tree.
+getLeftSub :: BiTree a -> BiTree a
+getLeftSub Empty = error "getLeftSub: Empty"
+getLeftSub (Node _ t1 _) = t1
+
+-- Get right subtree of a binary tree.
+getRightSub :: BiTree a -> BiTree a
+getRightSub Empty = error "getRightSub: Empty"
+getRightSub (Node _ _ t2) = t2
+
+-- Get root value of a binary tree.
+getRoot :: BiTree a -> a
+getRoot Empty = error "getRoot: Empty"
+getRoot (Node r _ _) = r
+
+-- Set left subtree of a binary tree.
+setLeftSub :: BiTree a -> BiTree a -> BiTree a
+setLeftSub _ Empty = error "setLeftSub: Empty"
+setLeftSub t1 (Node r _ t2) = (Node r t1 t2)
+
+-- Set right subtree of a binary tree.
+setRightSub :: BiTree a -> BiTree a -> BiTree a
+setRightSub _ Empty = error "setRightSub: Empty"
+setRightSub t2 (Node r t1 _) = (Node r t1 t2)
+
+-- Set root value of a binary tree.
+setRoot :: a -> BiTree a -> BiTree a
+setRoot _ Empty = error "setRoot: Empty"
+setRoot r (Node _ t1 t2) = (Node r t1 t2)
+
+-- Define relation Ord between two BiTree values.
+instance Ord a => Ord (BiTree a) where
+    compare Empty Empty = EQ
+    compare Empty _ = LT
+    compare _ Empty = GT
+    compare (Node r1 t11 t12) (Node r2 t21 t22) =
+      case compare r1 r2 of
+        EQ -> case compare t11 t21 of
+                EQ -> case compare t12 t22 of
+                        EQ -> EQ
+                        LT -> LT
+                        GT -> GT
+                LT -> LT
+                GT -> GT
+        LT -> LT
+        GT -> GT
+
+-- Define how a BiTree value shows.
+instance Show a => Show (BiTree a) where
+    show Empty = "()"
+    show (Node r t1 t2) = "(" ++ show r ++ "," ++ show t1 ++ "," ++ show t2 ++ ")"

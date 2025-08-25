@@ -14,11 +14,13 @@ module Parse (
     findPhraWithLowestPrio,  -- [(PhraCate,PhraCate)] -> [(PhraCate,PhraCate)] -> [OverPair] -> IO (PhraCate, PhraCate)
     getPrior,          -- [PhraCate] -> PhraCate -> PhraCate -> IO Prior
     getPrior',         -- [OverPair] -> PhraCate -> PhraCate -> Maybe Prior
-    getOverType,       -- [PhraCate] -> PhraCate -> PhraCate -> Int
+    getOverType,       -- [PhraCate] -> PhraCate -> PhraCate -> OverType
     removeOnePC,       -- PhraCate -> [PhraCate] -> [PhraCate]
     updateAct,         -- [PhraCate] -> [PhraCate]
     findSplitCate,     -- PhraCate -> [PhraCate] -> [(PhraCate,PhraCate)]
     findDescen,        -- PhraCate -> [PhraCate] -> [PhraCate]
+    findAnces,         -- PhraCate -> [PhraCate] -> [PhraCate]
+    findSubTree,       -- PhraCate -> [PhraCate] -> BiTree PhraCate
     growForest,        -- OnOff -> [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
     growTree,          -- OnOff -> [PhraCate] -> [PhraCate] -> [[PhraCate]]
     findTipsOfTree,    -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
@@ -35,7 +37,7 @@ import Data.List
 import Category
 import Phrase
 import Rule
-import AmbiResol (OverPair,Prior(..))
+import AmbiResol (OverType, OverPair, Prior(..))
 import Utils
 
 {- Function cateComb combines two input (phrasal) categories into resultant one.
@@ -1270,7 +1272,7 @@ getPrior' (op:ops) pc1 pc2 = do
    Note: There is no blood relation between <pc1> and <pc2>.
  -}
 
-getOverType :: [PhraCate] -> PhraCate -> PhraCate -> Int
+getOverType :: [PhraCate] -> PhraCate -> PhraCate -> OverType
 getOverType pcs pc1 pc2
     | st1 == st2 && sp1 == sp2 = 1                                                     -- Equal overlap
     | st1 < st2  && st2 <= (st1 + sp1) && (st1 + sp1) < (st2 + sp2) = 2                -- Cross overlap
@@ -1339,10 +1341,37 @@ findDescen :: PhraCate -> [PhraCate] -> [PhraCate]
 findDescen pc clo
     | children == [] = []
     | otherwise = children ++ (foldr (++) [] (map (\x -> findDescen x clo) children))
-      where
+    where
         children = [x| x <- clo, (taOfCate x)!!0 /= "Desig", y <- findSplitCate x clo, pcBelong' pc (fst y) || pcBelong' pc (snd y)]
          -- There is only one child of 'pc' if lower-priority combinations are removed timely.
          -- Apparently, initial word categories are not children of any other category.
+
+{- Find ancestors of a given phrasal category from the transitive closure of phrasal categories.
+ - Here, phrase B is one parent of phrase A only if A can be obtained from B and anthor phrase via Function "cateComb".
+ - Probably, A is not a real child of B instead generated from other phrases.
+ -}
+findAnces :: PhraCate -> [PhraCate] -> [PhraCate]
+findAnces pc clo
+    | parent == [] = []                  -- Initial word categories have no parents.
+    | otherwise = parent ++ (foldr (++) [] (map (\x -> findAnces x clo) parent))
+    where
+        parent = [x | y <- findSplitCate pc clo, x <- [fst y, snd y]]
+        -- There is only one pair of parents for 'pc'.
+
+{- Find syntactic tree with a given phrasal category as its root from the transitive closure of phrasal categories.
+ - The rootTree is defined as (Node r Empty Empty), where r is the root, and left and right subtrees wait for growing.
+ -}
+findSubTree :: PhraCate -> [PhraCate] -> BiTree PhraCate
+findSubTree root clo
+    | root == nilPhra = Empty           -- Empty tree has no root from which a tree can grow.
+    | otherwise = Node root (findSubTree father clo) (findSubTree mother clo)
+      where
+        parents = findSplitCate root clo           -- [(PhraCate, PhraCate)]
+        parent = case parents of
+                   [] -> (nilPhra, nilPhra)
+                   _ -> parents!!0                 -- Suppose the root has only one pair of parents.
+        father = fst parent
+        mother = snd parent
 
 {- Generate syntactic trees (forest) from the closure of phrase categories which has been atomized.
    Here is a recursived forest-growing algorithm: For the input forest,

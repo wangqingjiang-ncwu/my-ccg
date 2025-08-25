@@ -1,0 +1,3 @@
+cIdx,spList,medoid,prior,purity
+0,"[(1,Rp),(3,Noth)]",1,Rp,0.5
+1,"[(2,Lp),(4,Rp)]",4,Lp,0.5

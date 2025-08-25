@@ -84,10 +84,16 @@ module AmbiResol (
     SynAmbiResolMethod,  -- String
     rmNullCTPRecordsFromDB,       -- IO ()
 
+    LeftOverTree,        -- BiTree PhraSyn
+    RightOverTree,       -- BiTree PhraSyn
+    StruGene3,           -- (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+    StruGene3Sample,     -- (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+    phraCateTree2PhraSynTree,     -- BiTree PhraCate -> BiTree PhraSyn
+
     ) where
 
 import Category
-import Phrase (Span, Tag, PhraStru, PhraCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
+import Phrase (Span, Tag, PhraStru, PhraCate, ctpsOfCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Rule (Rule)
 import Utils
 import Data.List (nub)
@@ -662,3 +668,18 @@ rmNullCTPRecordsFromDB = do
     let rn = getOkAffectedRows ok
     putStrLn $ "rmNullCTPRecordsFromDB: " ++ show rn ++ " row(s) were deleted from " ++ syntax_ambig_resol_model ++ "."
     close conn
+
+{- Model StruGene3
+ -}
+type LeftOverTree = BiTree PhraCate
+type RightOverTree = BiTree PhraCate
+type StruGene3 = (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+type StruGene3Sample = (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+
+{- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structures.
+ - Suppose all phrasal categories are atomic, namely only one element in list [(Category,Tag,Seman,PhraStru,Act)].
+ -}
+phraCateTree2PhraSynTree :: BiTree PhraCate -> BiTree PhraSyn
+phraCateTree2PhraSynTree pcTree
+    | pcTree == Empty = Empty
+    | otherwise = Node (((ctpsOfCate . getRoot) pcTree)!!0) (phraCateTree2PhraSynTree (getLeftSub pcTree)) (phraCateTree2PhraSynTree (getRightSub pcTree))

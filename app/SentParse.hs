@@ -538,28 +538,33 @@ updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
     newOverPairs <- updateStruGene' clauTag contextOfSG overPairs       -- Update structural gene in Table stru_gene
     updateStruGene clauTag nPCs newOverPairs pcps
     where
-      lop = fst pcp
-      rop = snd pcp
-      ot = getOverType nPCs lop rop                      -- Get overlapping type
-      leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- Get all left-extend phrases
-      reps = getPhraByStart (enOfCate rop + 1) nPCs      -- Get all right-entend phrases
-      contextOfSG = (leps,lop,rop,reps,ot)
+      lop = fst pcp                                      -- PhraCate
+      rop = snd pcp                                      -- PhraCate
+      ot = getOverType nPCs lop rop                      -- Overlapping type
+      lopt = findSubTree lop nPCs                        -- Left overlapping phrase tree :: BiTree PhraCate
+      ropt = findSubTree rop nPCs                        -- Right overlapping phrase tree :: BiTree PhraCate
+      leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- All left-extend phrases
+      reps = getPhraByStart (enOfCate rop + 1) nPCs      -- All right-entend phrases
+      contextOfSG = (leps,lop,rop,reps,ot,lopt,ropt)
 
 {- Update structural genes related with a certain pair of overlapping phrases, add the overlapping pair to the input
  - list of OverPair(s), then return the new OverPair list.
  - Model Stru_Gene :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, Prior, HitCount, PriorExCount)
  - Model stru_gene_202408 :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
+ - Model stru_gene3_202508 :: (LeftExtend, LeftOverTree, RightOverTree, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
  -}
-updateStruGene' :: ClauTag -> ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType) -> [OverPair] -> IO [OverPair]
+updateStruGene' :: ClauTag -> ([PhraCate],PhraCate,PhraCate,[PhraCate],OverType,BiTree PhraCate,BiTree PhraCate) -> [OverPair] -> IO [OverPair]
 updateStruGene' clauTag contextOfSG overPairs = do
     confInfo <- readFile "Configuration"
     let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo          -- Find ambiguity resolution model, namely table name in MySQL.
 
-    let leftExtend = fst5 contextOfSG
-    let leftOver = snd5 contextOfSG
-    let rightOver = thd5 contextOfSG
-    let rightExtend = fth5 contextOfSG
-    let overType = fif5 contextOfSG
+    let leftExtend = fst7 contextOfSG
+    let leftOver = snd7 contextOfSG
+    let rightOver = thd7 contextOfSG
+    let rightExtend = fth7 contextOfSG
+    let overType = fif7 contextOfSG
+    let leftOverTree = sth7 contextOfSG
+    let rightOverTree = svt7 contextOfSG
 
     putStr "Find structural fragment: "
     showStruFrag leftExtend leftOver rightOver rightExtend overType
@@ -731,6 +736,90 @@ updateStruGene' clauTag contextOfSG overPairs = do
             close conn                                   -- Close MySQL connection.
             return ((leftOver, rightOver, prior):overPairs)
 
+      x | elem x ["stru_gene3_202508"] -> do              -- Multimodel
+        let le = map ((!!0) . ctpsOfCate) leftExtend      -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+        let lo = (ctpsOfCate leftOver)!!0                 -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+        let ro = (ctpsOfCate rightOver)!!0                -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+        let re = map ((!!0) . ctpsOfCate) rightExtend     -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
+        let ot = overType                                 -- Overlap type
+        let lot = phraCateTree2PhraSynTree leftOverTree   -- BiTree PhraSyn
+        let rot = phraCateTree2PhraSynTree rightOverTree  -- BiTree PhraSyn
+
+        let lev = doubleBackSlash (show le)               -- Get values to insert them into MySql Table
+        let lotv = doubleBackSlash (show lot)
+        let rotv = doubleBackSlash (show rot)
+        let rev = doubleBackSlash (show re)
+        let otv = show ot
+
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "
+                                  ++ syntax_ambig_resol_model
+                                  ++ " where leftExtend = '" ++ lev ++ "' && "
+                                  ++ "leftOverTree = '" ++ lotv ++ "' && "
+                                  ++ "rightOver = '" ++ rotv ++ "' && "
+                                  ++ "rightExtend = '" ++ rev ++ "' && "
+                                  ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                           -- Close MySQL connection.
+                error "updateStruGene': Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "updateStruGene': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
+                let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
+                priorFlag <- getLineUntil "please select priority from [Lp/Rp/Noth] ('1' or RETURN for Lp, '2' for Rp, '3' for Noth): " ["1","2","3"] True
+                let prior = case priorFlag of
+                              "1" -> Lp :: Prior
+                              "2" -> Rp :: Prior
+                              "3" -> Noth :: Prior
+
+                if notElem prior priorList
+                  then do
+                    resetStmt conn stmt
+                    let sqlstat = case prior of
+                                    Lp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Rp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Noth -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    let newClauTagPriorList = (clauTag, prior):clauTagPriorList     -- Add with one ClauTagPrior value.
+                    oks <- case prior of
+                             Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount + 1)]       -- Add 'lpHitCount' by 1.
+                             Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount + 1)]       -- Add 'rpHitCount' by 1.
+                             Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount + 1)]   -- Add 'nothHitCount' by 1.
+--                  putStrLn $ "updateStruGene': getOkLastInsertID = " ++ show (getOkLastInsertID oks)
+                    putStrLn $ "updateStruGene': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
+                  else putStrLn $ "updateStruGene': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
+                close conn                       -- Close MySQL connection.
+                return ((leftOver, rightOver, prior):overPairs)
+          else do
+            putStrLn "Inquire failed."
+            priorFlag <- getLineUntil "please select priority from [Lp/Rp/Noth] ('1' or RETURN for 'Lp', '2' for 'Rp', '3' for 'Noth'): " ["1","2","3"] True
+            let prior = case priorFlag of
+                          "1" -> Lp :: Prior
+                          "2" -> Rp :: Prior
+                          "3" -> Noth :: Prior
+            let clauTagPrior = (clauTag, prior)
+            let sqlstat = case prior of
+                            Lp -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,lpHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Rp -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,rpHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Noth -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,nothHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateStruGene': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            close conn                                   -- Close MySQL connection.
+            return ((leftOver, rightOver, prior):overPairs)
+
       _ -> error $ "updateStruGene': syntax_ambig_resol_model " ++ syntax_ambig_resol_model ++ " is undefined."
 
 {- Rollback the operations of function updateStruGene on database, and recursively create overlapping pairs.
@@ -738,6 +827,7 @@ updateStruGene' clauTag contextOfSG overPairs = do
  - of phrases.
  - Model Stru_Gene does NOT need rollbacks, because its field 'prior' is always overwritten.
  - Model stru_gene_202501 :: (LeftExtend, LeftOver, RightOver, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
+ - Model stru_gene3_202508 :: (LeftExtend, LeftOverTree, RightOverTree, RightExtend, Overtype, ClauTagPrior, LpHitCount, RpHitCount, NothHitCount)
  -}
 rollbackStruGene :: ClauTag -> [PhraCate] -> [OverPair] -> IO ()
 rollbackStruGene _ _ [] = putStrLn "rollbackStruGene: End."                     -- To make output easy to read.
@@ -751,25 +841,33 @@ rollbackStruGene clauTag nPCs (op:ops) = do
     let overType = getOverType nPCs leftOver rightOver                          -- Get overlapping type
     let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs                  -- Get all left-extend phrases
     let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs              -- Get all right-entend phrases
+    let leftOverTree = findSubTree leftOver nPCs                                -- BiTree PhraCate
+    let rightOverTree = findSubTree rightOver nPCs                              -- BiTree PhraCate
 
     let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
     let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
     let ro = (ctpsOfCate rightOver)!!0                   -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
     let re = map ((!!0) . ctpsOfCate) rightExtend        -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
     let ot = overType                                    -- Overlap type
+    let lot = phraCateTree2PhraSynTree leftOverTree      -- BiTree PhraSyn
+    let rot = phraCateTree2PhraSynTree rightOverTree     -- BiTree PhraSyn
 
     let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
     let lov = doubleBackSlash (show lo)
     let rov = doubleBackSlash (show ro)
     let rev = doubleBackSlash (show re)
     let otv = show ot
-
---    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
---                                          "leftOver = '" ++ show lo ++ "' && " ++
---                                         "rightOver = '" ++ show ro ++ "' && " ++
---                                       "rightExtend = '" ++ show re ++ "' && " ++
---                                          "overType = "  ++ show ot
-
+    let lotv = show lot
+    let rotv = show rot
+{-
+    putStrLn $ "Inquire structural gene: leftExtend = '" ++ show le ++ "' && " ++
+                                          "leftOver = '" ++ show lo ++ "' && " ++
+                                          "rightOver = '" ++ show ro ++ "' && " ++
+                                          "rightExtend = '" ++ show re ++ "' && " ++
+                                          "overType = "  ++ otv ++ " && " ++
+                                          "leftOverTree = '" ++ lotv ++ "' && " ++
+                                          "rightOverTree = '" ++ rotv ++ "'"
+-}
     case syntax_ambig_resol_model of
       "stru_gene" -> putStrLn "rollbackStruGene: Model StruGene does not need rollbacking."
 
@@ -781,6 +879,51 @@ rollbackStruGene clauTag nPCs (op:ops) = do
                                    ++ "rightOver = '" ++ rov ++ "' && "
                                    ++ "rightExtend = '" ++ rev ++ "' && "
                                    ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                close conn                           -- Close MySQL connection.
+                error "rollbackStruGene: Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "rollbackStruGene: (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
+                let newClauTagPriorList = [x | x <- clauTagPriorList, x /= (clauTag, prior)]     -- Remove one ClauTagPrior value.
+
+                resetStmt conn stmt
+                let sqlstat = case prior of
+                                Lp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                Rp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                Noth -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                stmt <- prepareStmt conn sqlstat
+                oks <- case prior of
+                         Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount - 1)]       -- 1 subtracted from 'lpHitCount'
+                         Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount - 1)]       -- 1 subtracted from 'rpHitCount'
+                         Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount - 1)]   -- 1 subtracted from 'nothHitCount'
+                putStrLn $ "rollbackStruGene: " ++ show (clauTag, prior) ++ " was removed from row " ++ show id
+                close conn                       -- Close MySQL connection.
+          else do
+            putStrLn "rollbackStruGene: Inquire failed. It is impossible!"
+            close conn                           -- Close MySQL connection.
+
+      x | elem x ["stru_gene3_202508"] -> do      -- Multimodel
+        conn <- getConn
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "
+                                  ++ syntax_ambig_resol_model ++ " where leftExtend = '" ++ lev ++ "' && "
+                                  ++ "leftOverTree = '" ++ lotv ++ "' && "
+                                  ++ "rightOverTree = '" ++ rotv ++ "' && "
+                                  ++ "rightExtend = '" ++ rev ++ "' && "
+                                  ++ "overType = " ++ otv)) :: Query
         stmt <- prepareStmt conn sqlstat
         (defs, is) <- queryStmt conn stmt []
 
@@ -2608,8 +2751,91 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
     let rightOver = snd3 overPair                                   -- Get right overlapping phrase.
     let overType = getOverType nPCs leftOver rightOver              -- Get overlapping type
     let prior = thd3 overPair                                       -- Get prior selection of the two overlapping phrases.
+    let leftOverTree = findSubTree leftOver nPCs                    -- BiTree PhraCate
+    let rightOverTree = findSubTree rightOver nPCs                  -- BiTree PhraCate
 
     case syntax_ambig_resol_model of
+      x | elem x ["stru_gene3_202508"] -> do                 -- Multimodel
+        let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs          -- Get all left-extend phrases
+        let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs      -- Get all right-entend phrases
+
+        let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
+        let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
+        let ro = (ctpsOfCate rightOver)!!0                   -- (Category,Tag,PhraStru,Span) of right-overlapping phrase
+        let re = map ((!!0) . ctpsOfCate) rightExtend        -- [(Category,Tag,PhraStru,Span)] of right-extended phrases
+        let ot = overType                                    -- Overlap type
+        let lot = phraCateTree2PhraSynTree leftOverTree      -- BiTree PhraSyn
+        let rot = phraCateTree2PhraSynTree rightOverTree     -- BiTree PhraSyn
+
+        let lev = doubleBackSlash (show le)                 -- Get values to insert them into MySql Table
+        let lov = doubleBackSlash (show lo)
+        let rov = doubleBackSlash (show ro)
+        let rev = doubleBackSlash (show re)
+        let otv = show overType
+        let lotv = show lot
+        let rotv = show rot
+
+        conn <- getConn
+        let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "
+                                   ++ syntax_ambig_resol_model
+                                   ++ " where leftExtend = '" ++ lev ++ "' && "
+                                   ++ "leftOverTree = '" ++ lotv ++ "' && "
+                                   ++ "rightOverTree = '" ++ rotv ++ "' && "
+                                   ++ "rightExtend = '" ++ rev ++ "' && "
+                                   ++ "overType = " ++ otv)) :: Query
+        stmt <- prepareStmt conn sqlstat
+        (defs, is) <- queryStmt conn stmt []
+
+        rows <- S.toList is
+        if rows /= []
+          then
+            if length rows > 1
+              then do
+                closeStmt conn stmt
+                close conn                           -- Close MySQL connection.
+                error "updateSyntaxAmbiResolSample': Find duplicate structural genes."
+              else do
+                let id = fromMySQLInt32U ((rows!!0)!!0)
+                let clauTagPriorListStr = fromMySQLText ((rows!!0)!!1)
+                let lpHitCount = fromMySQLInt16U ((rows!!0)!!2)
+                let rpHitCount = fromMySQLInt16U ((rows!!0)!!3)
+                let nothHitCount = fromMySQLInt16U ((rows!!0)!!4)
+
+                putStrLn $ "updateSyntaxAmbiResolSample': (" ++ show id ++ ") clauTagPrior: " ++ clauTagPriorListStr ++ ", lpHitCount: " ++ show lpHitCount ++ ", rpHitCount: " ++ show rpHitCount ++ ", nothHitCount: " ++ show nothHitCount
+                let clauTagPriorList = stringToCTPList clauTagPriorListStr
+                let priorList = map snd $ filter ((== clauTag) . fst) clauTagPriorList          -- The selected priorities
+
+                if elem prior priorList
+                  then putStrLn $ "updateSyntaxAmbiResolSample': " ++ show (clauTag, prior) ++ " was hit in row " ++ show id
+                  else do
+                    resetStmt conn stmt
+                    let sqlstat = case prior of
+                                    Lp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, lpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Rp -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, rpHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                                    Noth -> read (show ("update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, nothHitCount = ? where id = '" ++ show id ++ "'")) :: Query
+                    stmt <- prepareStmt conn sqlstat
+                    let newClauTagPriorList = (clauTag, prior):clauTagPriorList     -- Add with one ClauTagPrior value.
+                    case prior of
+                      Lp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (lpHitCount + 1)]    -- Add 'lpHitCount' by 1.
+                      Rp -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (rpHitCount + 1)]    -- Add 'rpHitCount' by 1.
+                      Noth -> executeStmt conn stmt [toMySQLText (show newClauTagPriorList), toMySQLInt16U (nothHitCount + 1)]   -- Add 'nothHitCount' by 1.
+                    putStrLn $ "updateSyntaxAmbiResolSample': " ++ show (clauTag, prior) ++ " was inserted into row " ++ show id
+                closeStmt conn stmt
+                close conn                       -- Close MySQL connection.
+
+          else do
+            putStrLn "Inquire failed."
+            let clauTagPrior = (clauTag, prior)
+            let sqlstat = case prior of
+                            Lp -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,lpHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Rp -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,rpHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+                            Noth -> read (show ("insert " ++ syntax_ambig_resol_model ++ " (leftExtend,leftOverTree,rightOverTree,rightExtend,overType,clauTagPrior,nothHitCount) values ('" ++ lev ++ "','" ++ lotv ++ "','" ++ rotv ++ "','" ++ rev ++ "'," ++ otv ++ ",'[" ++ show clauTagPrior ++ "]',1)")) :: Query
+            stmt1 <- prepareStmt conn sqlstat
+            oks <- executeStmt conn stmt1 []             -- Insert the described structural gene.
+            putStrLn $ "updateSyntaxAmbiResolSample': Last inserted row with ID " ++ show (getOkLastInsertID oks)
+            closeStmt conn stmt1
+            close conn
+
       x | elem x ["stru_gene_202408" , "stru_gene_202412", "stru_gene_202501"] -> do      -- Multimodel
         let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs          -- Get all left-extend phrases
         let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs      -- Get all right-entend phrases

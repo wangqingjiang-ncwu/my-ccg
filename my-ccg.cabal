@@ -117,6 +117,7 @@ test-suite my-ccg-test
       PhraseSpec
       RuleSpec
       StatisticsSpec
+      UtilsSpec
       AmbiResol
       Category
       CL

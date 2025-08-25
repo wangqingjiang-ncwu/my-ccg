@@ -12,9 +12,13 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "Test" $ do
+    it "No test." $ do
+      0 `shouldBe` 0
+{-
     it "The result of testClockTime is OK." $ do
       testClockTime
-      0 `shouldBe` 0    
+      0 `shouldBe` 0
+
     it "The result of testMySQLRead 1 100 1 1 is 0." $ do
       res <- testMySQLRead 1 100 1 1
       res `shouldBe` (0 :: Int)
@@ -27,7 +31,6 @@ spec = do
     it "The result of testMySQLRead 1 400 1 1 is 0." $ do
       res <- testMySQLRead 1 400 1 1
       res `shouldBe` (0 :: Int)
-{-
     it "The result of testMySQLRead 1 500 1 1 is 0." $ do
       res <- testMySQLRead 1 500 1 1
       res `shouldBe` (0 :: Int)

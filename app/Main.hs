@@ -905,7 +905,7 @@ doRearrangeIdinCertainTable username =
         putStr "Please input the name of a table: "
         tblName <- getLine
         conn <- getConn
-        let sqlstat = DS.fromString $ "create table " ++ tblName ++ "_bak like " ++ tblName      -- Copy table structure to new table.
+        let sqlstat = DS.fromString $ "create table if not exists " ++ tblName ++ "_bak like " ++ tblName      -- Copy table structure to new table.
         stmt' <- prepareStmt conn sqlstat
         executeStmt conn stmt' []
         putStrLn $ "Table " ++ tblName ++ "_bak was created."
@@ -929,6 +929,26 @@ doRearrangeIdinCertainTable username =
             executeStmt conn stmt' []
             putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
             close conn
+
+          x | elem x ["stru_gene3_202508"] -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (leftExtend, leftOverTree, rightOverTree, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftExtend, leftOverTree, rightOverTree, rightExtend, overtype, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
           _ -> putStrLn $ "Table name was not recognized."
 
 -- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.

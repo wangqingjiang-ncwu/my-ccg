@@ -6,7 +6,7 @@
 module Statistics (
     countInTree,                    -- Int -> Int -> Int -> IO ()
     countInScript,                  -- Int -> Int -> Int -> IO ()
-    countInStruGene,                -- Int -> IO ()
+    countInStruGene,                -- String -> Int -> Int -> Int -> IO ()
     searchInTree,                   -- Int -> Int -> Int -> IO ()
     searchInScript,                 -- Int -> Int -> Int -> IO ()
     toTypeTagStru2FreqMap',         -- [[[PhraCate]]] -> Map PhraSyn0 Int -> Map PhraSyn0 Int
@@ -52,7 +52,7 @@ import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
 import Output (showScripts, showScripts', showCatePair2SimList, showTagPair2SimList, showStruPair2SimList, showSpanPair2SimList)
-import AmbiResol (phraSynToString)
+import AmbiResol (phraSynToString, stringToCTPList, purityOfMajorPrior)
 
 type Clau = [PhraCate]
 type Sent = [Clau]
@@ -540,12 +540,8 @@ countInScript bottomSn topSn funcIndex = do
 
 {- Get statistics in table 'stru_gene', here 'funcIndex' indicates which statistics will be done.
  -}
-countInStruGene :: Int -> Int -> Int -> IO ()
-countInStruGene startIdx endIdx funcIndex = do
-    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
-    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
-    putStrLn $ "The syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model           -- Display the ambiguity resolution model
-
+countInStruGene :: String -> Int -> Int -> Int -> IO ()
+countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     -- 1. Get total number of structural genes.
     if funcIndex == 1
        then do
@@ -876,6 +872,29 @@ countInStruGene startIdx endIdx funcIndex = do
                         closeStmt conn stmt
                       else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
          close conn
+       else putStr ""
+
+    -- 11. Get the mean purity of sample Prior values.
+    if funcIndex == 11
+       then
+         case syntax_ambig_resol_model of
+           x | elem x ["stru_gene3a_202508", "stru_gene3_202508", "stru_gene_202501"] -> do                 -- Multimodel
+             conn <- getConn
+             let sqlstat = DS.fromString $ "select clauTagPrior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             rows <- S.toList is             -- [[MySqlText]]
+             if rows == []
+                then putStrLn "countInStruGene: Func. 11: ClauTagPrior list is empty."
+                else do
+                  let clauTagPriorList = map (\row -> (stringToCTPList . fromMySQLText) (row!!0)) rows     -- [[ClauTagPrior]]
+                  let priorsList = map (\ctpList -> map snd ctpList) clauTagPriorList                      -- [[Prior]]
+                  let purityList = map (snd . purityOfMajorPrior) priorsList                               -- [Purity]
+                  let meanPurity = foldl (+) 0.0 purityList / fromIntegral (length purityList)             -- Float
+                  putStrLn $ "countInStruGene: Func 11: Mean purity of sample Prior values = " ++ show meanPurity
+           _ -> putStrLn "countInStruGene: Func. 11: syntax_ambig_resol_model is not recognized."
+
        else putStr ""
 
 {- Get search result in field 'tree' in Table <tree_source> whose serial numbers are less than 'topSn' and

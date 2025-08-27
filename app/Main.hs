@@ -366,13 +366,15 @@ doParseSentByScript username = do
     confInfo <- readFile "Configuration"
     let script_source = getConfProperty "script_source" confInfo                     -- Script source
     let tree_source = getConfProperty "tree_source" confInfo                         -- Tree source
-    let tree_target = getConfProperty "tree_target" confInfo        -- SLR sample target.
+    let tree_target = getConfProperty "tree_target" confInfo                         -- Tree target
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
     let syntax_ambig_resol_sample_update_switch = getConfProperty "syntax_ambig_resol_sample_update_switch" confInfo
     let category_ambig_resol_sample_update_switch = getConfProperty "category_ambig_resol_sample_update_switch" confInfo
 
     putStrLn $ " script_source: " ++ script_source
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " tree_target: " ++ tree_target
+    putStrLn $ " syntax_ambig_resol_model: " ++ syntax_ambig_resol_model
     putStrLn $ " syntax_ambig_resol_sample_update_switch: " ++ syntax_ambig_resol_sample_update_switch
     putStrLn $ " category_ambig_resol_sample_update_switch: " ++ category_ambig_resol_sample_update_switch
 
@@ -492,7 +494,7 @@ doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Count in treebank"
-    putStrLn " 2 -> Count in table 'stru_gene'"
+    putStrLn " 2 -> Count in syntax_ambig_resol_model samples table 'stru_gene', 'stru_gene3', 'stru_gene3a', and so on"
     putStrLn " 3 -> Search in treebank"
     putStrLn " 4 -> Evaluate an experimental treebank"
     putStrLn " 0 -> Go back to the upper layer"
@@ -624,9 +626,10 @@ doCountInStruGene username = do
     putStrLn " 8 -> Get similarity degree between every pair of phrasal structures"
     putStrLn " 9 -> Get similarity degree between every pair of phrasal spans"
     putStrLn " A -> Get similarity degree between every pair of PhraSyn values"
+    putStrLn " B -> Get the mean purity of sample Prior values"
     putStrLn " 0 -> Go back to the upper layer."
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -642,11 +645,16 @@ doCountInStruGene username = do
                "8" -> doCountInStruGene' username 8
                "9" -> doCountInStruGene' username 9
                "A" -> doCountInStruGene' username 10
+               "B" -> doCountInStruGene' username 11
              doCountInStruGene username                        -- Rear recursion
 
 -- A2_1. Display statistical results from a certain StruGene sample base, such as table 'stru_gene_202501'.
 doCountInStruGene' :: String -> Int -> IO ()
 doCountInStruGene' username funcIndex = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
+    putStrLn $ "The syntax_ambig_resol_model is set as: " ++ syntax_ambig_resol_model     -- Display the ambiguity resolution model
+
     putStr "Please input the value of 'id' of start sample: "
     startIdxStr <- getLine
     let startIdx = read startIdxStr :: Int
@@ -658,7 +666,7 @@ doCountInStruGene' username funcIndex = do
     answer <- getLineUntil prompt ["y","n"] True
     if answer == "n"
       then putStrLn "doCountInStruGene: cancelled."
-      else countInStruGene startIdx endIdx funcIndex
+      else countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex
 
 -- A3. Display search result in treebank. 't' means from field 'tree', and 's' means from 'script'.
 doSearchInTreebank :: String -> IO ()

@@ -7,8 +7,6 @@
 module KMedoids (
     readSIdxPriorFromDB,  -- SIdx -> SIdx -> IO [SIdxPrior]
     CIdx,    -- Int
-    Purity,  -- Float
-    purityOfMajorPrior,   -- [Prior] -> (Prior, Purity)
     Cluster, -- (CIdx, [SIdxPrior], SIdx, Prior, Purity)
     SimDeg,  -- Float
     IterNum, -- Int
@@ -72,30 +70,6 @@ readSIdxPriorFromDB startId endId = do
 
 -- Type of cluster index, actually is [0 .. K-1] where K is the number of clusters.
 type CIdx = Int
-
-{- Prior value purity.
- - Purity is the ratio of occurrence number of Prior value with highest occurrence ratio to total occurrence number of all Prior values.
- - If multiple Prior values occur with same frequency, consider first value according to order of Lp, Rp, to Noth.
- -}
-type Purity = Float
-
-{- Find Prior value with highest occurrence ratio in all Prior value occorrences, and compute its purity.
- - The Prior value is called major Prior value.
- -}
-purityOfMajorPrior :: [Prior] -> (Prior, Purity)
-purityOfMajorPrior priors = (majorPrior, purity)
-  where
-    lpNum = length $ filter (== Lp) priors          -- Int
-    rpNum = length $ filter (== Rp) priors          -- Int
-    nothNum = length $ filter (== Noth) priors      -- Int
-    maxFreq = maximum [lpNum, rpNum, nothNum]    -- Int
-    majorPrior = case (elemIndex maxFreq [lpNum, rpNum, nothNum]) of
-                   Just idx -> case idx of
-                                 0 -> Lp
-                                 1 -> Rp
-                                 2 -> Noth
-                   Nothing -> error "computePurityOfACluster: Impossible"
-    purity = fromIntegral maxFreq / fromIntegral (length priors) :: Float
 
 {- One cluster is described by its index, inner samples, medoid, sample Prior value with highest frequency and its purity.
  -}

@@ -29,12 +29,16 @@ module AmbiResol (
     hasDupClauTagInCTPList,     -- [ClauTagPrior] -> Bool
     filterInCTPListByClauTag,   -- ClauTag -> [ClauTagPrior] -> [ClauTagPrior]
     hasSentIdxInCTPList,        -- SentIdx -> [ClauTagPrior] -> Bool
-    getSentRangeByStruGeneSamples,  -- [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
+
     countPriorInCTPList,        -- Prior -> [ClauTagPrior] -> Int
     priorWithHighestFreq,       -- [ClauTagPrior] -> Prior
     isPriorAmbiInClauTagPriorList,  -- [ClauTagPrior] -> Bool
     fromMaybePrior,             -- Maybe Prior -> Prior
     hasClauTagInSynAmbiResol,   -- ClauTag -> IO Bool
+    Purity,                     -- Float
+    purityOfMajorPrior,         -- [Prior] -> (Prior, Purity)
+
+    getSentRangeByStruGeneSamples,  -- [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
     hasSentSampleInSynAmbiResol,    -- SentIdx -> ClauIdx -> ClauIdx -> IO Bool
     removeClauTagPriorFromSynAmbiResol,     -- SentIdx -> ClauIdx -> ClauIdx -> IO ()
     Context2ClauTagPrior,       -- (ContextOfSG, [ClauTagPrior])
@@ -88,6 +92,8 @@ module AmbiResol (
     RightOverTree,       -- BiTree PhraSyn
     StruGene3,           -- (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
     StruGene3Sample,     -- (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+    StruGene3a,           -- (LeftOverTree, RightOverTree, [ClauTagPrior])
+    StruGene3aSample,     -- (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
     phraCateTree2PhraSynTree,     -- BiTree PhraCate -> BiTree PhraSyn
 
     ) where
@@ -96,7 +102,7 @@ import Category
 import Phrase (Span, Tag, PhraStru, PhraCate, ctpsOfCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Rule (Rule)
 import Utils
-import Data.List (nub)
+import Data.List (nub, elemIndex)
 import Data.Tuple.Utils
 import Text.Printf
 import Corpus
@@ -191,7 +197,7 @@ removeFromCTPListByClauTag clauTag cTPList = filter (\ctp -> fst ctp /= clauTag)
 removeFromCTPListBySentIdxRange :: [ClauTagPrior] -> SentIdx -> SentIdx -> [ClauTagPrior]
 removeFromCTPListBySentIdxRange cTPList startSn endSn = filter (\ctp -> elem ((fst . fst) ctp) [startSn .. endSn]) cTPList
 
--- count Prior values in [ClauTagPrior].
+-- Count occurence number of a given Prior value in [ClauTagPrior].
 countPriorInCTPList :: Prior -> [ClauTagPrior] -> Int
 countPriorInCTPList _ [] = 0
 countPriorInCTPList prior (ctp:ctps)
@@ -241,6 +247,40 @@ hasClauTagInSynAmbiResol clauTag = do
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
     close conn
     return $ elem True $ map (hasClauTagInCTPList clauTag) $ map stringToCTPList $ map snd idAndCTPStrList       -- [[ClauTagPrior]]
+
+{- Prior value purity.
+ - Purity is the ratio of occurrence number of Prior value with highest occurrence ratio to total occurrence number of all Prior values.
+ - If multiple Prior values occur with same frequency, consider first value according to order of Lp, Rp, to Noth.
+ -}
+type Purity = Float
+
+{- Find Prior value with highest occurrence ratio in all Prior value occorrences, and compute its purity.
+ - The Prior value is called major Prior value.
+ -}
+purityOfMajorPrior :: [Prior] -> (Prior, Purity)
+purityOfMajorPrior priors = (majorPrior, purity)
+  where
+    lpNum = length $ filter (== Lp) priors          -- Int
+    rpNum = length $ filter (== Rp) priors          -- Int
+    nothNum = length $ filter (== Noth) priors      -- Int
+    maxFreq = maximum [lpNum, rpNum, nothNum]    -- Int
+    majorPrior = case (elemIndex maxFreq [lpNum, rpNum, nothNum]) of
+                   Just idx -> case idx of
+                                 0 -> Lp
+                                 1 -> Rp
+                                 2 -> Noth
+                   Nothing -> error "computePurityOfACluster: Impossible"
+    purity = fromIntegral maxFreq / fromIntegral (length priors) :: Float
+
+-- Sentence serial number range from which StruGene samples were generated.
+getSentRangeByStruGeneSamples :: [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
+getSentRangeByStruGeneSamples [] origRange = origRange
+getSentRangeByStruGeneSamples (x:xs) origRange = getSentRangeByStruGeneSamples xs newRange
+    where
+    sentSnList = nub $ map (fst . fst) (svt7 x)
+    minSentSn = minimum sentSnList
+    maxSentSn = maximum sentSnList
+    newRange = (minimum [fst origRange, minSentSn], maximum [snd origRange, maxSentSn])
 
 -- Remove ClauTagPrior tuples from syntax ambiguity resolution samples database.
 removeClauTagPriorFromSynAmbiResol :: SentIdx -> ClauIdx -> ClauIdx -> IO ()
@@ -326,16 +366,6 @@ hasSentIdxInCTPList _ [] = False
 hasSentIdxInCTPList sentIdx (x:xs)
     | sentIdx == fst (fst x) = True
     | otherwise = hasSentIdxInCTPList sentIdx xs
-
--- Sentence serial number range from which StruGene samples were generated.
-getSentRangeByStruGeneSamples :: [StruGene2Sample] -> (SentIdx, SentIdx) -> (SentIdx, SentIdx)
-getSentRangeByStruGeneSamples [] origRange = origRange
-getSentRangeByStruGeneSamples (x:xs) origRange = getSentRangeByStruGeneSamples xs newRange
-    where
-    sentSnList = nub $ map (fst . fst) (svt7 x)
-    minSentSn = minimum sentSnList
-    maxSentSn = maximum sentSnList
-    newRange = (minimum [fst origRange, minSentSn], maximum [snd origRange, maxSentSn])
 
 -- Overtype context 'ContextOfSG', clause-tagged prior and its context 'Context2ClauTagPrior', and sample base of 'Context2ClauTagPrior'.
 type ContextOfSG = (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
@@ -675,6 +705,8 @@ type LeftOverTree = BiTree PhraCate
 type RightOverTree = BiTree PhraCate
 type StruGene3 = (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
 type StruGene3Sample = (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+type StruGene3a = (LeftOverTree, RightOverTree, [ClauTagPrior])
+type StruGene3aSample = (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
 
 {- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structures.
  - Suppose all phrasal categories are atomic, namely only one element in list [(Category,Tag,Seman,PhraStru,Act)].

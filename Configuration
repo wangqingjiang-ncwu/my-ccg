@@ -37,8 +37,9 @@ tree_field:tree
 #   - treebank_by_SLR_identity_ph_euc_ot_euc_sg_euc_Sn001_200
 #   - treebank_by_identity_ph_euc_ot_euc_sg_euc_Sn301_400_prod
 #   - tree_target:treebank_including_SLR_CL_seman
-#   - tree_target:treebank_by_script_for_creating_strugene3
-tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
+#   - tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
+#   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
+tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -51,6 +52,7 @@ tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 #   - stru_gene_202501
 #   - treebank_clust_res_k200_s18000_sg_aa
 #   - stru_gene3_202508
+#   - stru_gene3a_202508
 syntax_ambig_resol_model:stru_gene3_202508
 
 # Switch of updating syntax or category ambiguity resolution samples in database.

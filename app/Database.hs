@@ -49,6 +49,7 @@ module Database (
   readStreamByInt32UText,          -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
   readStreamByTextTextTextText,    -- [(String, String, String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String, String, String)]
+  readStreamByInt32UTextText,      -- [(Int, (String, String))] -> S.InputStream [MySQLValue] -> IO [(Int, (String, String))]
   readStreamByInt32UTextTextTextTextInt8,    -- [(Int, (String, String, String, String, Int))] -> S.InputStream [MySQLValue] -> IO [(Int, (String, String, String, String, Int))]
   readStreamByTextTextInt8,        -- [String] -> S.InputStream [MySQLValue] -> IO [String]
   readStreamByTextTextInt8Text,    -- [(String, String, Double)] -> S.InputStream [MySQLValue] -> IO [(String, String, Double)]
@@ -278,6 +279,16 @@ readStreamByTextTextTextText :: [(String, String, String, String)] -> S.InputStr
 readStreamByTextTextTextText es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByTextTextTextText (es ++ [(fromMySQLText (x!!0), fromMySQLText (x!!1), fromMySQLText (x!!2), fromMySQLText (x!!3))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed list [(Int, (String, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText, MySQLText].
+ -}
+readStreamByInt32UTextText :: [(Int, (String, String))] -> S.InputStream [MySQLValue] -> IO [(Int, (String, String))]
+readStreamByInt32UTextText es is =
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt32UTextText (es ++ [(fromMySQLInt32U (x!!0), (fromMySQLText (x!!1), fromMySQLText (x!!2)))]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], append it to existed list [(Int, (String, String, String, String, Int)], then read the next,

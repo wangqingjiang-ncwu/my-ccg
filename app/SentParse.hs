@@ -2876,8 +2876,8 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
 
         let lot = phraCateTree2PhraSynTree leftOverTree      -- BiTree PhraSyn
         let rot = phraCateTree2PhraSynTree rightOverTree     -- BiTree PhraSyn
-        let lotv = show lot
-        let rotv = show rot
+        let lotv = doubleBackSlash (show lot)                -- Convert BiTree Syntax into String, and double backward slashes.
+        let rotv = doubleBackSlash (show rot)                -- Convert BiTree Syntax into String, and double backward slashes.
 
         conn <- getConn
         let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "
@@ -2954,8 +2954,8 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
         let rov = doubleBackSlash (show ro)
         let rev = doubleBackSlash (show re)
         let otv = show overType
-        let lotv = show lot
-        let rotv = show rot
+        let lotv = doubleBackSlash (show lot)
+        let rotv = doubleBackSlash (show rot)
 
         conn <- getConn
         let sqlstat = read (show ("select id, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from "

@@ -102,7 +102,8 @@ module Utils (
     setLeftSub,    -- BiTree a -> BiTree a -> BiTree a
     setRightSub,   -- BiTree a -> BiTree a -> BiTree a
     setRoot,       -- a -> BiTree a -> BiTree a
-
+    traverseBiTree,     -- BiTree a -> [a]
+    nodePairsBetwTwOBiTree,   -- BiTree a -> BiTree a -> [(a,a)]
     ) where
 
 import Data.Tuple
@@ -850,3 +851,14 @@ instance Ord a => Ord (BiTree a) where
 instance Show a => Show (BiTree a) where
     show Empty = "()"
     show (Node r t1 t2) = "(" ++ show r ++ "," ++ show t1 ++ "," ++ show t2 ++ ")"
+
+-- Traverse a BiTree instance to get node list.
+traverseBiTree :: BiTree a -> [a]
+traverseBiTree Empty = []
+traverseBiTree (Node root leftSub rightSub) = root : traverseBiTree leftSub ++ traverseBiTree rightSub
+
+-- Get node pairs between two BiTree instances.
+nodePairsBetwTwOBiTree :: BiTree a -> BiTree a -> [(a,a)]
+nodePairsBetwTwOBiTree Empty _ = []
+nodePairsBetwTwOBiTree _ Empty = []
+nodePairsBetwTwOBiTree (Node r1 lst1 rst1) (Node r2 lst2 rst2) = (r1,r2) : (nodePairsBetwTwOBiTree lst1 lst2) ++ nodePairsBetwTwOBiTree rst1 rst2

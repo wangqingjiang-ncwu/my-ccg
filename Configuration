@@ -39,7 +39,7 @@ tree_field:tree
 #   - tree_target:treebank_including_SLR_CL_seman
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
-tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
+tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -53,7 +53,7 @@ tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
 #   - treebank_clust_res_k200_s18000_sg_aa
 #   - stru_gene3_202508
 #   - stru_gene3a_202508
-syntax_ambig_resol_model:stru_gene3_202508
+syntax_ambig_resol_model:stru_gene3a_202508
 
 # Switch of updating syntax or category ambiguity resolution samples in database.
 # For grammar inconsistancy, parsing by scripts sometimes includes manually ambiguity resolution, using new category conversion rules or syntax rules.
@@ -62,10 +62,10 @@ syntax_ambig_resol_model:stru_gene3_202508
 # When NOT hope to update syntax or category ambiguity resolution samples in database, set this switch as Off.
 # Now, category ambiguity resolution model SLR samples are stored with treebank created by parsing with scripts.
 # Switch category_ambig_resol_sample_update_switch is NOT used at present.
-syntax_ambig_resol_sample_update_switch:On
+syntax_ambig_resol_sample_update_switch:Off
 category_ambig_resol_sample_update_switch:Off
 
-# Distance Algo. for phrasal grammar aspects, overlapping types and StruGene contexts.
+# Distance Algo. for phrasal grammar aspects, overlapping types, and StruGene contexts.
 # Possible values:
 #   - Euclidean
 #   - Manhattan
@@ -73,6 +73,9 @@ category_ambig_resol_sample_update_switch:Off
 phra_gram_dist_algo:Manhattan
 overlap_type_dist_algo:Manhattan
 strugene_context_dist_algo:Manhattan
+
+# Decay of Subtree kernel (algorithm)
+decay_subtree_kernel:0.8
 
 # Range of serial numbers of sentences from which the used syntax ambiguity resolution model samples are.
 syntax_resol_sample_startsn:1
@@ -158,22 +161,24 @@ defaultEndIdx:200
 #defaultEndIdx:400
 
 # Table names of storing similarity degrees between syntactic categories.
-type_sim_tbl:type_sim_18782
+# '18782' is for stru_gene_202501
+# '19464' is for stru_gene3_202508
+type_sim_tbl:type_sim_19464
 
 # Table names of storing similarity degrees between grammatic rules.
-tag_sim_tbl:tag_sim_18782
+tag_sim_tbl:tag_sim_19464
 
 # Table names of storing similarity degrees between phrasal structures.
-stru_sim_tbl:stru_sim_18782
+stru_sim_tbl:stru_sim_19464
 
 # Table names of storing similarity degrees between phrasal spans.
-span_sim_tbl:span_sim_18782
+span_sim_tbl:span_sim_19464
 
 # Table names of storing similarity degrees between PhraSyn samples.
-phrasyn_sim_tbl:phrasyn_sim_18782
+phrasyn_sim_tbl:phrasyn_sim_19464
 
-# Table names of storing similarity degrees between ContextOfSG samples.
-csg_sim_tbl:csg_sim_202507
+# Table names of storing similarity degrees between samples of ContextOfSG, ContextOfSG3a, or other StruGene context model.
+csg_sim_tbl:csg3a_sim_202508
 
 # Whether storing similarity degrees between ContextOfSG samples.
 store_csg_sim:True

@@ -494,7 +494,7 @@ doStatisticalAnalysis :: String -> IO ()
 doStatisticalAnalysis username = do
     putStrLn " ? -> Display command list"
     putStrLn " 1 -> Count in treebank"
-    putStrLn " 2 -> Count in syntax_ambig_resol_model samples table 'stru_gene', 'stru_gene3', 'stru_gene3a', and so on"
+    putStrLn " 2 -> Count in syntax_ambig_resol_model samples"
     putStrLn " 3 -> Search in treebank"
     putStrLn " 4 -> Evaluate an experimental treebank"
     putStrLn " 0 -> Go back to the upper layer"
@@ -957,6 +957,25 @@ doRearrangeIdinCertainTable username =
             putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
             close conn
 
+          x | elem x ["stru_gene3a_202508"] -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (leftOverTree, rightOverTree, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftOverTree, rightOverTree, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
           _ -> putStrLn $ "Table name was not recognized."
 
 -- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.
@@ -1023,8 +1042,9 @@ doClustering username = do
     putStrLn " F -> Run K-Medoids clustering using DB similarity and analyze Prior distribution"
     putStrLn " G -> Batch running of K-Medoids clustering on StruGene2 samples."
     putStrLn " H -> Calculate probability of that two closest samples has same Prior value in StruGene2 samples"
+    putStrLn " I -> Among StruGene3a samples, calculate similarity degree between every pair of contexts"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1049,6 +1069,7 @@ doClustering username = do
                "F" -> kMedoidsClusteringOnStruGene2Samples
                "G" -> batchKMedoidsOnStruGene2Samples
                "H" -> doCalProbOfClosestSampleHasSamePrior
+               "I" -> clusteringAnalysis 18
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数

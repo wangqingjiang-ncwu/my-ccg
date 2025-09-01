@@ -18,7 +18,7 @@ module AmbiResol (
     Prior(..),           -- Prior and its all Constructors
     SIdxPrior,           -- (SIdx, Prior)
     ContextOfSG,         -- (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
-    ClauTag,             -- (Int, Int), actually is (SentIdx, ClauIdx)
+    ClauTag,             -- (SentIdx, ClauIdx)
     ClauTagPrior,        -- (ClauTag, Prior)
     stringToCTPListList,        -- String -> [[ClauTagPrior]]
     stringToCTPList,            -- String -> [ClauTagPrior]
@@ -59,6 +59,7 @@ module AmbiResol (
     readAmbiResol1FromStr,   -- String -> AmbiResol1
     readPhraSynFromStr,      -- String -> PhraSyn
     readPhraSynListFromStr,       -- String -> [PhraSyn]
+    readBiTreePhraSynFromStr,     -- String -> BiTree PhraSyn
     readContextOfSGFromStr,       -- String -> ContextOfSG
     readStruGeneFromStr,          -- String -> StruGene
     readStruGeneListFromStr,      -- String -> [StruGene]
@@ -92,9 +93,14 @@ module AmbiResol (
     RightOverTree,       -- BiTree PhraSyn
     StruGene3,           -- (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
     StruGene3Sample,     -- (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
-    StruGene3a,           -- (LeftOverTree, RightOverTree, [ClauTagPrior])
-    StruGene3aSample,     -- (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
+    ContextOfOT3a,       -- (LeftExtend, LeftOverTree, RightOverTree, RightExtend)
+    StruGene3a,          -- (LeftOverTree, RightOverTree, [ClauTagPrior])
+    StruGene3aSample,    -- (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
+    ContextOfSG3a,       -- (LeftOverTree, RightOverTree)
+    Context3a2ClauTagPrior,       -- (ContextOfSG3a, [ClauTagPrior])
+    Context3a2ClauTagPriorBase,   -- [Context3a2ClauTagPrior]
     phraCateTree2PhraSynTree,     -- BiTree PhraCate -> BiTree PhraSyn
+    readStreamByContext3a2ClauTagPrior,  -- [Context3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context3a2ClauTagPrior]
 
     ) where
 
@@ -234,7 +240,9 @@ fromMaybePrior :: Maybe Prior -> Prior
 fromMaybePrior (Just x) = x
 fromMaybePrior Nothing = Noth                 -- Default value of Prior
 
--- Decide whether there is any sample for given ClauTag value in syntax ambiguity resolution samples database.
+{- Decide whether there is any sample for given ClauTag value in syntax ambiguity resolution samples database.
+ - ClauTag :: (SentIdx, ClauIdx)
+ -}
 hasClauTagInSynAmbiResol :: ClauTag -> IO Bool
 hasClauTagInSynAmbiResol clauTag = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
@@ -306,10 +314,10 @@ removeClauTagPriorFromSynAmbiResol' clauTag = do
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt []
     idAndCTPStrList <- readStreamByInt32UText [] is                             -- [(Int, ClauTagPriorStr)]
---    putStrLn $"removeClauTagPriorFromSynAmbiResol': idAndCTPStrList: " ++ show idAndCTPStrList
+    putStrLn $"removeClauTagPriorFromSynAmbiResol': idAndCTPStrList: " ++ show idAndCTPStrList
 
     let cTPList2 = map (removeFromCTPListByClauTag clauTag) $ map stringToCTPList $ map snd idAndCTPStrList       -- [[ClauTagPrior]]
---    putStrLn $ "removeClauTagPriorFromSynAmbiResol': cTPList2: " ++ show cTPList2
+    putStrLn $ "removeClauTagPriorFromSynAmbiResol': cTPList2: " ++ show cTPList2
 
     let lpHitCounts = map toMySQLInt16U $ map (countPriorInCTPList Lp) cTPList2
     let rpHitCounts = map toMySQLInt16U $ map (countPriorInCTPList Rp) cTPList2
@@ -317,8 +325,8 @@ removeClauTagPriorFromSynAmbiResol' clauTag = do
 
     let cTPList2' = map (toMySQLText . show) cTPList2                           -- [MySqlText]
     let ids = map toMySQLInt32U $ map fst idAndCTPStrList                       -- [MySQLInt32U]
-    let rows = compFiveLists cTPList2' lpHitCounts rpHitCounts nothHitCounts ids               -- [[MySQLText, MySqlInt32U]]
---    putStrLn $ "removeClauTagPriorFromSynAmbiResol': rows: " ++ show rows
+    let rows = compFiveLists cTPList2' lpHitCounts rpHitCounts nothHitCounts ids     -- [[MySQLText,MySQLInt16U, MySQLInt16U,MySQLInt16U,MySqlInt32U]]
+    putStrLn $ "removeClauTagPriorFromSynAmbiResol': rows: " ++ show rows
     let sqlstat' = DS.fromString $ "update " ++ syntax_ambig_resol_model ++ " set clauTagPrior = ?, lpHitCount = ?, rpHitCount = ?, nothHitCount = ? where id = ?"
     oks <- executeMany conn sqlstat' rows
     putStrLn $ "removeClauTagPriorFromSynAmbiResol': " ++ show (length oks) ++ " rows have been updated."
@@ -452,6 +460,14 @@ readPhraSynListFromStr str = readPhraSynListFromStrList (stringToList str)
 readPhraSynListFromStrList :: [String] -> [PhraSyn]
 readPhraSynListFromStrList [] = []
 readPhraSynListFromStrList (s:ss) = readPhraSynFromStr s : (readPhraSynListFromStrList ss)
+
+{- Get an instance of BiTree PhraSyn from a string, where BiTree PhraSyn :: Empty | Node PhraSyn (BiTree PhraSyn) (BiTree PhraSyn)
+ -}
+readBiTreePhraSynFromStr :: String -> BiTree PhraSyn
+readBiTreePhraSynFromStr "()" = Empty
+readBiTreePhraSynFromStr str = Node (readPhraSynFromStr rootStr) (readBiTreePhraSynFromStr leftSubStr) (readBiTreePhraSynFromStr rightSubStr)
+    where
+    (rootStr, leftSubStr, rightSubStr) = stringToTriple str
 
 {- ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - LeftExtend :: [PhraSyn]
@@ -630,6 +646,21 @@ readStreamByContext2ClauTagPrior es is = do
                                                           ]) is
         Nothing -> return es
 
+{- Read a value from input stream [MySQLValue], change it into a Context3a2ClauTagPrior value, append it
+ - to existed Context3a2ClauTagPrior list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText],
+ - and Context3a2ClauTagPrior is ((LeftOverTree, RightOverTree), ClauTagPrior).
+ -}
+readStreamByContext3a2ClauTagPrior :: [Context3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context3a2ClauTagPrior]
+readStreamByContext3a2ClauTagPrior es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByContext3a2ClauTagPrior (es ++ [((readBiTreePhraSynFromStr (fromMySQLText (x!!0)),
+                                                               readBiTreePhraSynFromStr (fromMySQLText (x!!1))
+                                                              ),
+                                                              stringToCTPList (fromMySQLText (x!!2)))
+                                                            ]) is
+        Nothing -> return es
+
 {- Read a value from input stream [MySQLValue], change it into a StruGene2Sample value, append it
  - to existed StruGene2Sample list, then read the next until read Nothing.
  - Here [MySQLValue] is [MySQLInt32U, MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText],
@@ -699,14 +730,18 @@ rmNullCTPRecordsFromDB = do
     putStrLn $ "rmNullCTPRecordsFromDB: " ++ show rn ++ " row(s) were deleted from " ++ syntax_ambig_resol_model ++ "."
     close conn
 
-{- Model StruGene3
+{- Model StruGene3 and Model StruGene3a.
  -}
-type LeftOverTree = BiTree PhraCate
-type RightOverTree = BiTree PhraCate
+type LeftOverTree = BiTree PhraSyn
+type RightOverTree = BiTree PhraSyn
 type StruGene3 = (LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
 type StruGene3Sample = (SIdx, LeftExtend, LeftOverTree, RightOverTree, RightExtend, OverType, [ClauTagPrior])
+type ContextOfOT3a = (LeftExtend, LeftOverTree, RightOverTree, RightExtend)
 type StruGene3a = (LeftOverTree, RightOverTree, [ClauTagPrior])
 type StruGene3aSample = (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
+type ContextOfSG3a = (LeftOverTree, RightOverTree)
+type Context3a2ClauTagPrior = (ContextOfSG3a, [ClauTagPrior])
+type Context3a2ClauTagPriorBase = [Context3a2ClauTagPrior]
 
 {- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structures.
  - Suppose all phrasal categories are atomic, namely only one element in list [(Category,Tag,Seman,PhraStru,Act)].

@@ -22,3 +22,7 @@ spec = do
       getLeftSub (Node 1 (Node 2 Empty Empty) Empty) `shouldBe` (Node 2 Empty Empty)
     it "The result of setRightSub Empty (Node 1 Empty (Node 2 Empty Empty)) is (Node 1 Empty Empty)" $ do
       setRightSub Empty (Node 1 Empty (Node 2 Empty Empty)) `shouldBe` (Node 1 Empty Empty)
+    it "The result of traverseBiTree (Empty :: BiTree Int) is []" $ do
+      traverseBiTree (Empty :: BiTree Int) `shouldBe` []
+    it "The result of traverseBiTree ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) is [1,2] :: [Int]" $ do
+      traverseBiTree ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) `shouldBe` [1,2]

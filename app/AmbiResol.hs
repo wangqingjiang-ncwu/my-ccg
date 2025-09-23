@@ -57,15 +57,20 @@ module AmbiResol (
     AmbiResol1Sample,    -- (SIdx, LeftPhra, RightPhra, Context, OverType, Prior)
     readPriorFromStr,    -- String -> Prior
     readAmbiResol1FromStr,   -- String -> AmbiResol1
+    readPhraSyn0FromStr,     -- String -> PhraSyn0
     readPhraSynFromStr,      -- String -> PhraSyn
+    readPhraSyn0ListFromStr,       -- String -> [PhraSyn0]
     readPhraSynListFromStr,       -- String -> [PhraSyn]
+    readBiTreePhraSyn0FromStr,     -- String -> BiTree PhraSyn0
     readBiTreePhraSynFromStr,     -- String -> BiTree PhraSyn
     readContextOfSGFromStr,       -- String -> ContextOfSG
+    readContextOfSG3a0FromStr,    -- String -> ContextOfSG3a0
     readStruGeneFromStr,          -- String -> StruGene
     readStruGeneListFromStr,      -- String -> [StruGene]
     Scd,                 -- (SIdx, CIdx, DMin)
     scdToString,         -- Scd -> String
     nScdToString,        -- [Scd] -> String
+    phraSyn0ToString,    -- PhraSyn0 -> String
     phraSynToString,     -- PhraSyn -> String
     nPhraSynToString,    -- [PhraSyn] -> String
     contextOfSGToString, -- ContextOfSG -> String
@@ -83,6 +88,8 @@ module AmbiResol (
     getContextFromStruGene2Sample,     -- StruGene2Sample -> ContextOfSG
     fromStruGene2ByHighestFreqPrior,   -- StruGene2 -> StruGene
     readStreamByContext2ClauTagPrior,  -- [Context2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context2ClauTagPrior]
+    readStreamByContextOfSG3a02ClauTagPrior,  -- [ContextOfSG3a02ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [ContextOfSG3a02ClauTagPrior]
+    readStreamByContextOfSG3a2ClauTagPrior,   -- [ContextOfSG3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [ContextOfSG3a2ClauTagPrior]
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text,   -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     readStreamByInt16UInt16UFloat,     -- [((SIdx,SIdx),Float)] -> S.InputStream [MySQLValue] -> IO [((SIdx,SIdx),Float)]
@@ -97,15 +104,24 @@ module AmbiResol (
     StruGene3a,          -- (LeftOverTree, RightOverTree, [ClauTagPrior])
     StruGene3aSample,    -- (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
     ContextOfSG3a,       -- (LeftOverTree, RightOverTree)
-    Context3a2ClauTagPrior,       -- (ContextOfSG3a, [ClauTagPrior])
-    Context3a2ClauTagPriorBase,   -- [Context3a2ClauTagPrior]
+
+    LeftOverTree0,       -- BiTree PhraSyn0
+    RightOverTree0,      -- BiTree PhraSyn0
+    StruGene3a0,         -- (LeftOverTree0, RightOverTree0, [ClauTagPrior])
+    StruGene3a0Sample,   -- (SIdx, LeftOverTree0, RightOverTree0, [ClauTagPrior])
+    ContextOfSG3a0,      -- (LeftOverTree0, RightOverTree0)
+
+    ContextOfSG3a2ClauTagPrior,       -- (ContextOfSG3a, [ClauTagPrior])
+    ContextOfSG3a2ClauTagPriorBase,   -- [ContextOfSG3a2ClauTagPrior]
+    ContextOfSG3a02ClauTagPrior,       -- (ContextOfSG3a0, [ClauTagPrior])
+    ContextOfSG3a02ClauTagPriorBase,   -- [ContextOfSG3a02ClauTagPrior]
     phraCateTree2PhraSynTree,     -- BiTree PhraCate -> BiTree PhraSyn
-    readStreamByContext3a2ClauTagPrior,  -- [Context3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context3a2ClauTagPrior]
+    phraCateTree2PhraSyn0Tree,    -- BiTree PhraCate -> BiTree PhraSyn0
 
     ) where
 
 import Category
-import Phrase (Span, Tag, PhraStru, PhraCate, ctpsOfCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
+import Phrase (Span, Tag, PhraStru, PhraCate, ctpsOfCate, ctpOfCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
 import Rule (Rule)
 import Utils
 import Data.List (nub, elemIndex)
@@ -453,13 +469,45 @@ readPhraSynFromStr str = (ca, ta, ps, sp)
            False -> psStr
     sp = read spStr :: Span
 
+{- Get an instance of PhraSyn0 from a string, where PhraSyn0 :: (Category, Tag, PhraStru).
+ - Both Tag and PhraStru are aliases of type String.
+ - Here, if exist, symbol '"' in two ends of a string literal are removed.
+ -}
+readPhraSyn0FromStr :: String -> PhraSyn0
+readPhraSyn0FromStr str = (ca, ta, ps)
+    where
+    (caStr, taStr, psStr)  = stringToTriple str
+    ca = getCateFromString caStr
+    ta = case (head taStr == '"' && last taStr == '"') of
+           True -> read taStr :: Tag             -- taStr is a string literal (enclosed in quotes, with proper escaping), such as "\">\"".
+           False -> taStr
+    ps = case (head psStr == '"' && last psStr == '"') of
+           True -> read psStr :: PhraStru        -- psStr is a string literal (enclosed in quotes, with proper escaping), such as "\"AHn\"".
+           False -> psStr
+
+readPhraSyn0ListFromStr :: String -> [PhraSyn0]
+readPhraSyn0ListFromStr "[]" = []
+readPhraSyn0ListFromStr str = readPhraSyn0ListFromStrList (stringToList str)
+
 readPhraSynListFromStr :: String -> [PhraSyn]
 readPhraSynListFromStr "[]" = []
 readPhraSynListFromStr str = readPhraSynListFromStrList (stringToList str)
 
+readPhraSyn0ListFromStrList :: [String] -> [PhraSyn0]
+readPhraSyn0ListFromStrList [] = []
+readPhraSyn0ListFromStrList (s:ss) = readPhraSyn0FromStr s : (readPhraSyn0ListFromStrList ss)
+
 readPhraSynListFromStrList :: [String] -> [PhraSyn]
 readPhraSynListFromStrList [] = []
 readPhraSynListFromStrList (s:ss) = readPhraSynFromStr s : (readPhraSynListFromStrList ss)
+
+{- Get an instance of BiTree PhraSyn0 from a string, where BiTree PhraSyn0 :: Empty | Node PhraSyn0 (BiTree PhraSyn0) (BiTree PhraSyn0)
+ -}
+readBiTreePhraSyn0FromStr :: String -> BiTree PhraSyn0
+readBiTreePhraSyn0FromStr "()" = Empty
+readBiTreePhraSyn0FromStr str = Node (readPhraSyn0FromStr rootStr) (readBiTreePhraSyn0FromStr leftSubStr) (readBiTreePhraSyn0FromStr rightSubStr)
+    where
+    (rootStr, leftSubStr, rightSubStr) = stringToTriple str
 
 {- Get an instance of BiTree PhraSyn from a string, where BiTree PhraSyn :: Empty | Node PhraSyn (BiTree PhraSyn) (BiTree PhraSyn)
  -}
@@ -482,6 +530,16 @@ readContextOfSGFromStr str = (le, lo, ro, re, ot)
     ro = readPhraSynFromStr (thd5 quinTupleStr)
     re = readPhraSynListFromStr (fth5 quinTupleStr)
     ot = read (fif5 quinTupleStr) :: Int
+
+{- ContextOfSG3a0 :: (LeftOverTree0, RightOverTree0)
+ - LeftOverTree0, RightOverTree0 :: BiTree PhraSyn0
+ -}
+readContextOfSG3a0FromStr :: String -> ContextOfSG3a0
+readContextOfSG3a0FromStr str = (lot, rot)
+    where
+    tupleStr = stringToTuple str
+    lot = readBiTreePhraSyn0FromStr (fst tupleStr)
+    rot = readBiTreePhraSyn0FromStr (snd tupleStr)
 
 {- StruGene :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType, Prior)
  - LeftExtend :: [PhraSyn]
@@ -516,6 +574,14 @@ scdToString scd = "(" ++ sIdx ++ "," ++ cIdx ++ "," ++ dMin ++")"
 -- Get the string of [scd]
 nScdToString :: [Scd] -> String
 nScdToString scds = listToString (map scdToString scds)
+
+-- Get the string of a PhraSyn0
+phraSyn0ToString :: PhraSyn0 -> String
+phraSyn0ToString phs0 = "(" ++ ca ++ "," ++ ta ++ "," ++ ps ++ ")"
+    where
+      ca = show (fst3 phs0)
+      ta = snd3 phs0
+      ps = thd3 phs0
 
 -- Get the string of a PhraSyn
 phraSynToString :: PhraSyn -> String
@@ -646,15 +712,30 @@ readStreamByContext2ClauTagPrior es is = do
                                                           ]) is
         Nothing -> return es
 
-{- Read a value from input stream [MySQLValue], change it into a Context3a2ClauTagPrior value, append it
- - to existed Context3a2ClauTagPrior list, then read the next until read Nothing.
+{- Read a value from input stream [MySQLValue], change it into a ContextOfSG3a02ClauTagPrior value, append it
+ - to existed ContextOfSG3a02ClauTagPrior list, then read the next until read Nothing.
  - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText],
- - and Context3a2ClauTagPrior is ((LeftOverTree, RightOverTree), ClauTagPrior).
+ - and ContextOfSG3a02ClauTagPrior is ((LeftOverTree0, RightOverTree0), ClauTagPrior).
  -}
-readStreamByContext3a2ClauTagPrior :: [Context3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [Context3a2ClauTagPrior]
-readStreamByContext3a2ClauTagPrior es is = do
+readStreamByContextOfSG3a02ClauTagPrior :: [ContextOfSG3a02ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [ContextOfSG3a02ClauTagPrior]
+readStreamByContextOfSG3a02ClauTagPrior es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
-        Just x -> readStreamByContext3a2ClauTagPrior (es ++ [((readBiTreePhraSynFromStr (fromMySQLText (x!!0)),
+        Just x -> readStreamByContextOfSG3a02ClauTagPrior (es ++ [((readBiTreePhraSyn0FromStr (fromMySQLText (x!!0)),
+                                                                    readBiTreePhraSyn0FromStr (fromMySQLText (x!!1))
+                                                                   ),
+                                                                   stringToCTPList (fromMySQLText (x!!2)))
+                                                                  ]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a ContextOfSG3a2ClauTagPrior value, append it
+ - to existed ContextOfSG3a2ClauTagPrior list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText],
+ - and ContextOfSG3a2ClauTagPrior is ((LeftOverTree, RightOverTree), ClauTagPrior).
+ -}
+readStreamByContextOfSG3a2ClauTagPrior :: [ContextOfSG3a2ClauTagPrior] -> S.InputStream [MySQLValue] -> IO [ContextOfSG3a2ClauTagPrior]
+readStreamByContextOfSG3a2ClauTagPrior es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByContextOfSG3a2ClauTagPrior (es ++ [((readBiTreePhraSynFromStr (fromMySQLText (x!!0)),
                                                                readBiTreePhraSynFromStr (fromMySQLText (x!!1))
                                                               ),
                                                               stringToCTPList (fromMySQLText (x!!2)))
@@ -740,13 +821,30 @@ type ContextOfOT3a = (LeftExtend, LeftOverTree, RightOverTree, RightExtend)
 type StruGene3a = (LeftOverTree, RightOverTree, [ClauTagPrior])
 type StruGene3aSample = (SIdx, LeftOverTree, RightOverTree, [ClauTagPrior])
 type ContextOfSG3a = (LeftOverTree, RightOverTree)
-type Context3a2ClauTagPrior = (ContextOfSG3a, [ClauTagPrior])
-type Context3a2ClauTagPriorBase = [Context3a2ClauTagPrior]
+type ContextOfSG3a2ClauTagPrior = (ContextOfSG3a, [ClauTagPrior])
+type ContextOfSG3a2ClauTagPriorBase = [ContextOfSG3a2ClauTagPrior]
+type ContextOfSG3a02ClauTagPrior = (ContextOfSG3a0, [ClauTagPrior])
+type ContextOfSG3a02ClauTagPriorBase = [ContextOfSG3a02ClauTagPrior]
+type LeftOverTree0 = BiTree PhraSyn0
+type RightOverTree0 = BiTree PhraSyn0
+type StruGene3a0 = (LeftOverTree0, RightOverTree0, [ClauTagPrior])
+type StruGene3a0Sample = (SIdx, LeftOverTree0, RightOverTree0, [ClauTagPrior])
+type ContextOfSG3a0 = (LeftOverTree0, RightOverTree0)
 
-{- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structures.
+{- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structure PhraSyn.
+ - PhraSyn :: (Category, Tag, PhraStru, Span)
  - Suppose all phrasal categories are atomic, namely only one element in list [(Category,Tag,Seman,PhraStru,Act)].
  -}
 phraCateTree2PhraSynTree :: BiTree PhraCate -> BiTree PhraSyn
 phraCateTree2PhraSynTree pcTree
     | pcTree == Empty = Empty
     | otherwise = Node (((ctpsOfCate . getRoot) pcTree)!!0) (phraCateTree2PhraSynTree (getLeftSub pcTree)) (phraCateTree2PhraSynTree (getRightSub pcTree))
+
+{- Convert a binary tree of phrasal categories to a binary tree of phrasal syntactic structure PhraSyn0.
+ - PhraSyn0 :: (Category, Tag, PhraStru)
+ - Suppose all phrasal categories are atomic, namely only one element in list [(Category,Tag,Seman,PhraStru,Act)].
+ -}
+phraCateTree2PhraSyn0Tree :: BiTree PhraCate -> BiTree PhraSyn0
+phraCateTree2PhraSyn0Tree pcTree
+    | pcTree == Empty = Empty
+    | otherwise = Node (((ctpOfCate . getRoot) pcTree)!!0) (phraCateTree2PhraSyn0Tree (getLeftSub pcTree)) (phraCateTree2PhraSyn0Tree (getRightSub pcTree))

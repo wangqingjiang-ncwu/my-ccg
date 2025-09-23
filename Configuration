@@ -39,7 +39,13 @@ tree_field:tree
 #   - tree_target:treebank_including_SLR_CL_seman
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
-tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
+#   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_phrasyn0_202509
+tree_target:treebank_including_SLR_for_creating_stru_gene3a_phrasyn0_202509
+
+# Model of phrasal Syntax. Now two models are available: phrasyn0 and phrasyn
+# phrasyn0: (Category, Tag, PhraStru)
+# phrasyn: (Category, Tag, PhraStru, Span)
+phrasyn:phrasyn0
 
 # Syntax ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Model 'stru_gene_202412' is the newest one in StruGene series.
@@ -53,7 +59,8 @@ tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 #   - treebank_clust_res_k200_s18000_sg_aa
 #   - stru_gene3_202508
 #   - stru_gene3a_202508
-syntax_ambig_resol_model:stru_gene3a_202508
+#   - stru_gene3a_phrasyn0_202509
+syntax_ambig_resol_model:stru_gene3a_phrasyn0_202509
 
 # Switch of updating syntax or category ambiguity resolution samples in database.
 # For grammar inconsistancy, parsing by scripts sometimes includes manually ambiguity resolution, using new category conversion rules or syntax rules.
@@ -163,22 +170,23 @@ defaultEndIdx:200
 # Table names of storing similarity degrees between syntactic categories.
 # '18782' is for stru_gene_202501
 # '19464' is for stru_gene3_202508
-type_sim_tbl:type_sim_19464
+# '14699' is for stru_gene3a_phrasyn0_202509
+type_sim_tbl:type_sim_14699
 
 # Table names of storing similarity degrees between grammatic rules.
-tag_sim_tbl:tag_sim_19464
+tag_sim_tbl:tag_sim_14699
 
 # Table names of storing similarity degrees between phrasal structures.
-stru_sim_tbl:stru_sim_19464
+stru_sim_tbl:stru_sim_14699
 
 # Table names of storing similarity degrees between phrasal spans.
 span_sim_tbl:span_sim_19464
 
 # Table names of storing similarity degrees between PhraSyn samples.
-phrasyn_sim_tbl:phrasyn_sim_19464
+phrasyn_sim_tbl:phrasyn_sim_14699
 
 # Table names of storing similarity degrees between samples of ContextOfSG, ContextOfSG3a, or other StruGene context model.
-csg_sim_tbl:csg3a_sim_202508
+csg_sim_tbl:csg3a_phrasyn0_sim_202509
 
 # Whether storing similarity degrees between ContextOfSG samples.
 store_csg_sim:True

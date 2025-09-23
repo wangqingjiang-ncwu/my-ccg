@@ -307,7 +307,7 @@ raiBc cate1 cate2
    (s1)S/s, (s2)P/s, (s3)O/s, (s4)A/s, (s5)Hn/s, (s6)N/s,
    (v1)S/v, (v2)O/v, (v3)A/v, (v4)Hn/v, (v5)D/v, (v6)Cn/v, (v7)Cv/v, (v8)N/v, (v9)P/vt, (v10)OE/vt, (v11)Vt/vi, (v12)A/vd,
    (a1)S/a, (a2)P/a, (a3)V/a, (a4)O/a, (a5)D/a, (a6)Da/a, (a7)Cn/a, (a8)Cv/a, (a9)Ca/a, (a10)Hn/a, (a11)N/a,
-   (n1)P/n, (n2)V/n, (n3)A/n, (n4)Cn/n, (n4)Cv/n, (n6)D/n, (n7)Da/n, (n8)ADJ/n, (n9)S/nd, (n10)O/nd, (n11)Hn/nd,
+   (n1)P/n, (n2)V/n, (n3)A/n, (n4)Cn/n, (n5)Cv/n, (n6)D/n, (n7)Da/n, (n8)ADJ/n, (n9)S/nd, (n10)O/nd, (n11)Hn/nd,
    (d1)S/d, (d2)O/d, (d3)A/d, (d4)Hn/d, (d5)Cv/d, (d6)N/d, (d7)ADJ/d, (d8)Da/d, (d9)Ds/d, (d10)Dx/d, (d11)Doe/d,
    (p1)D/p,
    (oe1)O/oe, (oe2)Hn/oe, (oe3)N/oe,

@@ -26,3 +26,5 @@ spec = do
       traverseBiTree (Empty :: BiTree Int) `shouldBe` []
     it "The result of traverseBiTree ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) is [1,2] :: [Int]" $ do
       traverseBiTree ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) `shouldBe` [1,2]
+    it "The result of nodePairsBetwTwOBiTree ((Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty)) :: BiTree Int) ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) is [(3,1),(5,2)] :: [(Int,Int)]" $ do
+      nodePairsBetwTwOBiTree ((Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty)) :: BiTree Int) ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) `shouldBe` ([(3,1),(5,2)] :: [(Int,Int)])

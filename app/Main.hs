@@ -584,8 +584,10 @@ doCountInTree username funcIndex = do
     confInfo <- readFile "Configuration"
     let tree_source = getConfProperty "tree_source" confInfo
     let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+    let phrasyn = getConfProperty "phrasyn" confInfo
     putStrLn $ " tree_source: " ++ tree_source
     putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+    putStrLn $ " phrasyn: " ++ phrasyn
 
     contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
     if contOrNot == "c"
@@ -625,7 +627,7 @@ doCountInStruGene username = do
     putStrLn " 7 -> Get similarity degree between every pair of grammatic rules"
     putStrLn " 8 -> Get similarity degree between every pair of phrasal structures"
     putStrLn " 9 -> Get similarity degree between every pair of phrasal spans"
-    putStrLn " A -> Get similarity degree between every pair of PhraSyn values"
+    putStrLn " A -> Get similarity degree between every pair of PhraSyn/PhraSyn0 values"
     putStrLn " B -> Get the mean purity of sample Prior values"
     putStrLn " 0 -> Go back to the upper layer."
 
@@ -957,8 +959,27 @@ doRearrangeIdinCertainTable username =
             putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
             close conn
 
-          x | elem x ["stru_gene3a_202508"] -> do
+          x | elem x ["stru_gene3a_202508", "stru_gene3a_phrasyn0_202509"] -> do
             let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (leftOverTree, rightOverTree, clauTagPrior, lpHitCount, rpHitCount, nothHitCount) select leftOverTree, rightOverTree, clauTagPrior, lpHitCount, rpHitCount, nothHitCount from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
+          x | elem x ["csg3a_phrasyn0_sim_202509"] -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (contextofsg1idx, contextofsg2idx, sim) select contextofsg1idx, contextofsg2idx, sim from " ++ tblName     -- Copy table data to new table.
             stmt' <- prepareStmt conn sqlstat
             ok <- executeStmt conn stmt' []
             putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
@@ -1043,8 +1064,9 @@ doClustering username = do
     putStrLn " G -> Batch running of K-Medoids clustering on StruGene2 samples."
     putStrLn " H -> Calculate probability of that two closest samples has same Prior value in StruGene2 samples"
     putStrLn " I -> Among StruGene3a samples, calculate similarity degree between every pair of contexts"
+    putStrLn " J -> Among StruGene3a0 samples, calculate similarity degree between every pair of contexts"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1070,6 +1092,7 @@ doClustering username = do
                "G" -> batchKMedoidsOnStruGene2Samples
                "H" -> doCalProbOfClosestSampleHasSamePrior
                "I" -> clusteringAnalysis 18
+               "J" -> clusteringAnalysis 19
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数

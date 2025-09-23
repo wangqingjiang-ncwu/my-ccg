@@ -47,7 +47,7 @@ import Utils
 import Database
 import Corpus
 import SentParse (sentToClauses, dispTreeOfSent)
-import AmbiResol (PhraSyn0, PhraSyn, readPhraSynFromStr, readPhraSynListFromStr, readBiTreePhraSynFromStr)
+import AmbiResol
 import Clustering
 import Numeric.LinearAlgebra.Data
 import Numeric.LinearAlgebra
@@ -114,6 +114,7 @@ countInTree :: Int -> Int -> Int -> IO ()
 countInTree bottomSn topSn funcIndex = do
     conn <- getConn
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let phrasyn = getConfProperty "phrasyn" confInfo
     let tree_source = getConfProperty "tree_source" confInfo
     let sqlstat = DS.fromString $ "select tree from " ++ tree_source ++ " where serial_num >= ? and serial_num <= ?"
     stmt <- prepareStmt conn sqlstat
@@ -301,7 +302,10 @@ countInTree bottomSn topSn funcIndex = do
 -- To calculate similarities between every pair of Categories.
     if funcIndex == 12
        then do
-         let typePair2SimTuple = getTypePair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+         let typePair2SimTuple = case phrasyn of
+                                   "phrasyn" -> getTypePair2SimFromSCPL sentClauPhraList     -- (NumOfPhraSyn, NumOfCate, NumOfCatePair, [((Category, Category), SimDeg)])
+                                   "phrasyn0" -> getTypePair2SimFromSCPL0 sentClauPhraList
+                                   _ -> error $ "countInTree: Property " ++ phrasyn ++ " can not be recognized."
          let typePair2SimList = fth4 typePair2SimTuple
          let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 typePair2SimTuple)
@@ -320,7 +324,10 @@ countInTree bottomSn topSn funcIndex = do
 -- To calculate similarities between every pair of grammatic rules.
     if funcIndex == 13
        then do
-         let tagPair2SimTuple = getTagPair2SimFromSCPL sentClauPhraList         -- (NumOfPhraSyn, NumOfTag, NumOfTagPair, [((Tag, Tag), SimDeg)])
+         let tagPair2SimTuple = case phrasyn of
+                                  "phrasyn" -> getTagPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((Tag, Tag), SimDeg)])
+                                  "phrasyn0" -> getTagPair2SimFromSCPL0 sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((Tag, Tag), SimDeg)])
+                                  _ -> error $ "countInTree: Property " ++ phrasyn ++ " can not be recognized."
          let tagPair2SimList = fth4 tagPair2SimTuple
          let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 tagPair2SimTuple)
@@ -339,7 +346,10 @@ countInTree bottomSn topSn funcIndex = do
 -- To calculate similarities between every pair of phrasal structures.
     if funcIndex == 14
        then do
-         let struPair2SimTuple = getStruPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+         let struPair2SimTuple = case phrasyn of
+                                   "phrasyn" -> getStruPair2SimFromSCPL sentClauPhraList       -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+                                   "phrasyn0" -> getStruPair2SimFromSCPL0 sentClauPhraList     -- (NumOfPhraSyn, NumOfPhraStru, NumOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+                                   _ -> error $ "countInTree: Property " ++ phrasyn ++ " can not be recognized."
          let struPair2SimList = fth4 struPair2SimTuple
          let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInTree: The number of different PhraSyns: " ++ show (fst4 struPair2SimTuple)
@@ -477,13 +487,16 @@ countInScript bottomSn topSn funcIndex = do
     if funcIndex == 4                                         -- To get type-conversional list and type-conversional total in parsing every clause.
        then do
          let sentClauTransConvList = map (map snd3) sentClauScriptList
-                                                              -- [[[[tag]]]], conversional tags(#4) used in every transition(#3) in parsing every clause(#2) in sentence list(#1).
+                                                              -- [[[[Rule]]]], conversional rules(#4) used in every transition(#3) in parsing every clause(#2) in sentence list(#1).
+         let f' = foldl (++) []
+         let convRuleList = (nub . f' . f' . f') sentClauTransConvList     -- [Rule]
          let sentClauTransConvNumList = map (map (map length)) sentClauTransConvList
-                                                              -- [[[num]]], list of numbers of conversional tags (#3) in parsing every clause(#2) in sentence list(#1).
+                                                              -- [[[num]]], list of numbers of conversional rules (#3) in parsing every clause(#2) in sentence list(#1).
          let sentClauConvTotalList = map (map (foldl (+) 0)) sentClauTransConvNumList
-                                                              -- [[total]], list of totals of conversional tags in parsing every clause(#2) in sentence list(#1).
-         putStrLn $ "countInScript: The conversion-taged list of every clause in every sentences: " ++ show sentClauTransConvList
-         putStrLn $ "countInScript: The total num. of conversional tags used in parsing every clause in every sentences: " ++ show sentClauConvTotalList
+                                                              -- [[total]], list of totals of conversional rules in parsing every clause(#2) in sentence list(#1).
+         putStrLn $ "countInScript: The conversion rules list of every clause in every sentences: " ++ show sentClauTransConvList
+         putStrLn $ "countInScript: The total num. of conversional rules used in parsing every clause in every sentences: " ++ show sentClauConvTotalList
+         putStrLn $ "countInScript: Conversion rules: " ++ show convRuleList ++ ", count " ++ (show . length) convRuleList
        else putStr ""
 
     if funcIndex == 5                                         -- Frequency of using type conversions in transitive computing for every clausal length.
@@ -498,7 +511,6 @@ countInScript bottomSn topSn funcIndex = do
          putStrLn $ "countInScript: The list of frequencies of using type conversions in transitive computing for every clausal length: " ++ show ascenListOfClauLength2ConvNumList
          putStrLn $ "countInScript: Clausal count: " ++ show (foldl (+) 0 (map (length . snd) ascenListOfClauLength2ConvNumList))
          putStrLn $ "countInScript: The minimum, maximum, and mean value of total of using type conversions in transitive computing for every clausal length: [" ++ showListOfClauLength2CerParaMinMaxMeanList ascenListOfClauLength2ConvNumMinMaxMeanList ++ "]"
-
        else putStr ""
 
 {- To get the number of abandoned phrases in parsing every clause of every sentence, which is useful to evaluate ambiguity of clause syntax.
@@ -637,7 +649,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
          confInfo <- readFile "Configuration"
          let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          conn <- getConn
-         phraSynList <- case syntax_ambig_resol_model of
+         typePair2SimTuple <- case syntax_ambig_resol_model of
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
@@ -646,7 +658,8 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             return $ getTypePair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfCate, numOfCatePair, [((Category, Category), SimDeg)])
 
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
@@ -656,11 +669,22 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, lots, rots, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             return $ getTypePair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfCate, numOfCatePair, [((Category, Category), SimDeg)])
+
+           x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
+             let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
+             let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
+             let (lots, rots) = unzip contextList                                     -- Extract ([LeftOverTree], [RightOverTree]).
+             let phraSyn0List = nub $ foldl (++) [] lots ++ (foldl (++) [] rots)    -- [PhraSyn0]
+             return $ getTypePair2SimFromPS0L phraSyn0List             -- (numOfPhraSyn, numOfCate, numOfCatePair, [((Category, Category), SimDeg)])
 
            _ -> error $ "countInStruGene: " ++ syntax_ambig_resol_model ++ " is NOT recognized."
 
-         let typePair2SimTuple = getTypePair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfCate, numOfCatePair, [((Category, Category), SimDeg)])
          let typePair2SimList = fth4 typePair2SimTuple                          -- [((Category, Category), SimDeg)]
          let sparseTypePair2SimList = [x | x <- typePair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInStruGene: The number of different PhraSyns: " ++ show (fst4 typePair2SimTuple)
@@ -700,7 +724,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 7
        then do
          conn <- getConn
-         phraSynList <- case syntax_ambig_resol_model of
+         tagPair2SimTuple <- case syntax_ambig_resol_model of
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
@@ -709,7 +733,8 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             return $ getTagPair2SimFromPSL phraSynList               -- (numOfPhraSyn, numOfTag, numOfTagPair, [((Tag, Tag), SimDeg)])
 
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
@@ -719,11 +744,22 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, lots, rots, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             return $ getTagPair2SimFromPSL phraSynList               -- (numOfPhraSyn, numOfTag, numOfTagPair, [((Tag, Tag), SimDeg)])
+
+           x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
+             let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
+             let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
+             let (lots, rots) = unzip contextList                                     -- Extract ([LeftOverTree], [RightOverTree]).
+             let phraSyn0List = nub $ foldl (++) [] lots ++ (foldl (++) [] rots)                -- [PhraSyn0]
+             return $ getTagPair2SimFromPS0L phraSyn0List               -- (numOfPhraSyn, numOfTag, numOfTagPair, [((Tag, Tag), SimDeg)])
 
            _ -> error $ "countInStruGene: " ++ syntax_ambig_resol_model ++ " is NOT recognized."
 
-         let tagPair2SimTuple = getTagPair2SimFromPSL phraSynList               -- (numOfPhraSyn, numOfTag, numOfTagPair, [((Tag, Tag), SimDeg)])
          let tagPair2SimList = fth4 tagPair2SimTuple                            -- [((Tag, Tag), SimDeg)]
          let sparseTagPair2SimList = [x | x <- tagPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInStruGene: The number of different phraSyns: " ++ show (fst4 tagPair2SimTuple)
@@ -763,7 +799,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 8
        then do
          conn <- getConn
-         phraSynList <- case syntax_ambig_resol_model of
+         struPair2SimTuple <- case syntax_ambig_resol_model of
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
@@ -772,7 +808,8 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, los, ros, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ los ++ ros ++ (foldl (++) [] res)  -- [PhraSyn]
+             return $ getStruPair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfPhraStru, numOfStruPair, [((PhraStru, PhraStru), SimDeg)])
 
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
@@ -782,11 +819,22 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              let (les, lots, rots, res) = unzip4 contextOfOTList                      -- Extract [LeftExtend], [LeftOver], [RightOver] and [RightExtend].
-             return $ nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             let phraSynList = nub $ foldl (++) [] les ++ (foldl (++) [] lots) ++ (foldl (++) [] rots) ++ (foldl (++) [] res)   -- [PhraSyn]
+             return $ getStruPair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfPhraStru, numOfStruPair, [((PhraStru, PhraStru), SimDeg)])
+
+           x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
+             let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
+             let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
+             let (lots, rots) = unzip contextList                                     -- Extract ([LeftOverTree], [RightOverTree]).
+             let phraSyn0List = nub $ foldl (++) [] lots ++ (foldl (++) [] rots)                -- [PhraSyn0]
+             return $ getStruPair2SimFromPS0L phraSyn0List             -- (numOfPhraSyn, numOfPhraStru, numOfStruPair, [((PhraStru, PhraStru), SimDeg)])
 
            _ -> error $ "countInStruGene: " ++ syntax_ambig_resol_model ++ " is NOT recognized."
 
-         let struPair2SimTuple = getStruPair2SimFromPSL phraSynList             -- (numOfPhraSyn, numOfPhraStru, numOfStruPair, [((PhraStru, PhraStru), SimDeg)])
          let struPair2SimList = fth4 struPair2SimTuple                          -- [((PhraStru, PhraStru), SimDeg)]
          let sparseStruPair2SimList = [x | x <- struPair2SimList, snd x /= fromIntegral 0]
          putStrLn $ "countInStruGene: The number of different phraSyns: " ++ show (fst4 struPair2SimTuple)
@@ -885,14 +933,23 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
          close conn
        else putStr ""
 
-    -- 10. Get similarity degree between every pair of PhraSyn values.
+    {- 10. Get similarity degree between every pair of PhraSyn (or PhraSyn0) values.
+     - For Model StruGene3a0, PhraSyn0 pairs come from BiTree PhraSyn0 pairs. Suppose number of BiTree PhraSyn0 samples is n.
+     - Number of BiTree PhraSyn0 pairs is n^2, and number of PhraSyn0 pairs is bigger than n^2 because a tree has more than one PhraSyn0 node.
+     - So, Computation on (PhraSyn0, PhraSyn0) pairs is impossible when size of pairs increases.
+     -}
     if funcIndex == 10
        then do
          conn <- getConn
          confInfo <- readFile "Configuration"
          let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ phrasyn_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, phrasyn1 VARCHAR(70), phrasyn2 VARCHAR(70), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
 
-         phraSynPair2SimMap <- case syntax_ambig_resol_model of
+         case syntax_ambig_resol_model of
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
@@ -902,8 +959,29 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
              putStrLn $ "countInStruGene: Num. of ContextOfOT values = " ++ (show . length) contextOfOTList
 
-             phraSynPair2SimMap' <- getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList     -- Map (PhraSyn, PhraSyn) SimDeg
-             return phraSynPair2SimMap'
+             phraSynPair2SimMap <- getPhraSynPair2SimFromCOT phra_gram_dist_algo contextOfOTList     -- Map (PhraSyn, PhraSyn) SimDeg
+             let phraSynPair2SimList = Map.toList phraSynPair2SimMap            -- [((PhraSyn, PhraSyn), SimDeg)]
+             forM_ phraSynPair2SimList $ \((ps1, ps2), simDeg) -> do
+               let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+               stmt <- prepareStmt conn sqlstat
+               (_, is) <- queryStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2]
+               rows <- S.toList is
+               closeStmt conn stmt
+               if rows == []
+                 then do
+                   let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   ok <- executeStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2, toMySQLDouble simDeg]
+                   putStrLn $ "countInStruGene: Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                   closeStmt conn stmt
+                 else if length rows == 1
+                        then do
+                          let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
+                          stmt <- prepareStmt conn sqlstat
+                          ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                          putStrLn $ "countInStruGene: Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                          closeStmt conn stmt
+                        else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
 
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
@@ -914,39 +992,67 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              let contextOfOT3aList = map (\x -> (readPhraSynListFromStr (fst4 x), readBiTreePhraSynFromStr (snd4 x), readBiTreePhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOT3aStrList
              putStrLn $ "countInStruGene: Num. of ContextOfOT3a values = " ++ (show . length) contextOfOT3aList
 
-             phraSynPair2SimMap' <- getPhraSynPair2SimFromCOT3a phra_gram_dist_algo contextOfOT3aList     -- Map (PhraSyn, PhraSyn) SimDeg
-             return phraSynPair2SimMap'
+             phraSynPair2SimMap <- getPhraSynPair2SimFromCOT3a phra_gram_dist_algo contextOfOT3aList     -- Map (PhraSyn, PhraSyn) SimDeg
+             let phraSynPair2SimList = Map.toList phraSynPair2SimMap            -- [((PhraSyn, PhraSyn), SimDeg)]
+             forM_ phraSynPair2SimList $ \((ps1, ps2), simDeg) -> do
+               let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+               stmt <- prepareStmt conn sqlstat
+               (_, is) <- queryStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2]
+               rows <- S.toList is
+               closeStmt conn stmt
+               if rows == []
+                 then do
+                   let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   ok <- executeStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2, toMySQLDouble simDeg]
+                   putStrLn $ "countInStruGene: Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                   closeStmt conn stmt
+                 else if length rows == 1
+                        then do
+                          let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
+                          stmt <- prepareStmt conn sqlstat
+                          ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                          putStrLn $ "countInStruGene: Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                          closeStmt conn stmt
+                        else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
+
+           x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
+             let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat           -- In database table, field name is 'leftOverTree' for LeftOverTree and LeftOverTree0.
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             contextOfSG3a0StrList <- readStreamByTextText [] is                -- [(String, String)]
+             let contextOfSG3a0List = map (\x -> (readBiTreePhraSyn0FromStr (fst x), readBiTreePhraSyn0FromStr (snd x))) contextOfSG3a0StrList
+             putStrLn $ "countInStruGene: Num. of ContextOfSG3a0 values = " ++ (show . length) contextOfSG3a0List
+
+             phraSyn0Pair2SimMap <- getPhraSyn0Pair2SimFromCSG3a phra_gram_dist_algo contextOfSG3a0List     -- Map (PhraSyn0, PhraSyn0) SimDeg
+             let phraSyn0Pair2SimList = Map.toList phraSyn0Pair2SimMap          -- [((PhraSyn0, PhraSyn0), SimDeg)]
+             putStrLn $ "countInStruGene: Similarities of PhraSyn0 pairs have been obtained."
+
+             forM_ phraSyn0Pair2SimList $ \((ps1, ps2), simDeg) -> do
+               let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+               stmt <- prepareStmt conn sqlstat
+               (_, is) <- queryStmt conn stmt [(toMySQLText . phraSyn0ToString) ps1, (toMySQLText . phraSyn0ToString) ps2]
+               rows <- S.toList is
+               closeStmt conn stmt
+               if rows == []
+                 then do
+                   let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   ok <- executeStmt conn stmt [(toMySQLText . phraSyn0ToString) ps1, (toMySQLText . phraSyn0ToString) ps2, toMySQLDouble simDeg]
+                   putStrLn $ "countInStruGene: Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                   closeStmt conn stmt
+                 else if length rows == 1
+                        then do
+                          let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
+                          stmt <- prepareStmt conn sqlstat
+                          ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                          putStrLn $ "countInStruGene: Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                          closeStmt conn stmt
+                        else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
 
            _ -> error $ "countInStruGene: " ++ syntax_ambig_resol_model ++ " is NOT recognized."
 
-         let phraSynPair2SimList = Map.toList phraSynPair2SimMap                                 -- [((PhraSyn, PhraSyn), SimDeg)]
-         let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
-         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ phrasyn_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, phrasyn1 VARCHAR(70), phrasyn2 VARCHAR(70), sim DOUBLE)"
-         stmt <- prepareStmt conn sqlstat
-         executeStmt conn stmt []
-         closeStmt conn stmt
-
-         forM_ phraSynPair2SimList $ \((ps1, ps2), simDeg) -> do
-             let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
-             stmt <- prepareStmt conn sqlstat
-             (_, is) <- queryStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2]
-             rows <- S.toList is
-             closeStmt conn stmt
-             if rows == []
-               then do
-                 let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
-                 stmt <- prepareStmt conn sqlstat
-                 ok <- executeStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2, toMySQLDouble simDeg]
-                 putStrLn $ "countInStruGene: Insert record whose id is " ++ (show . getOkLastInsertID) ok
-                 closeStmt conn stmt
-               else if length rows == 1
-                      then do
-                        let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
-                        stmt <- prepareStmt conn sqlstat
-                        ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
-                        putStrLn $ "countInStruGene: Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
-                        closeStmt conn stmt
-                      else error "countInStruGene: More than one time of hitting on (phrasyn1, phrasyn2)."
          close conn
        else putStr ""
 
@@ -954,7 +1060,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 11
        then
          case syntax_ambig_resol_model of
-           x | elem x ["stru_gene3a_202508", "stru_gene3_202508", "stru_gene_202501"] -> do                 -- Multimodel
+           x | elem x ["stru_gene3a_phrasyn0_202509","stru_gene3a_202508", "stru_gene3_202508", "stru_gene_202501"] -> do                 -- Multimodel
              conn <- getConn
              let sqlstat = DS.fromString $ "select clauTagPrior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat

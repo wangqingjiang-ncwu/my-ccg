@@ -48,6 +48,7 @@ module Database (
   readStreamByInt32Text,           -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32UText,          -- [(Int, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String)]
   readStreamByInt32TextText,       -- [(Int, String, String)] -> S.InputStream [MySQLValue] -> IO [(Int, String, String)]
+  readStreamByTextText,            -- [(String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String)]
   readStreamByTextTextTextText,    -- [(String, String, String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String, String, String)]
   readStreamByInt32UTextText,      -- [(Int, (String, String))] -> S.InputStream [MySQLValue] -> IO [(Int, (String, String))]
   readStreamByInt32UTextTextTextTextInt8,    -- [(Int, (String, String, String, String, Int))] -> S.InputStream [MySQLValue] -> IO [(Int, (String, String, String, String, Int))]
@@ -269,6 +270,16 @@ readStreamByInt32TextText :: [(Int, String, String)] -> S.InputStream [MySQLValu
 readStreamByInt32TextText es is = do
     S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
         Just x -> readStreamByInt32TextText (es ++ [(fromMySQLInt32 (x!!0), fromMySQLText (x!!1), fromMySQLText (x!!2))]) is
+        Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], append it to existed list [(String, String)], then read the next,
+ - until read Nothing.
+ - Here [MySQLValue] is [MySQLText, MySQLText].
+ -}
+readStreamByTextText :: [(String, String)] -> S.InputStream [MySQLValue] -> IO [(String, String)]
+readStreamByTextText es is = do
+    S.read is >>= \x -> case x of                                        -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByTextText (es ++ [(fromMySQLText (x!!0), fromMySQLText (x!!1))]) is
         Nothing -> return es
 
 {- Read a value from input stream [MySQLValue], append it to existed list [(String, String, String, String)], then read the next,

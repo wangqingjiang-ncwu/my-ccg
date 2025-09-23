@@ -857,8 +857,12 @@ traverseBiTree :: BiTree a -> [a]
 traverseBiTree Empty = []
 traverseBiTree (Node root leftSub rightSub) = root : traverseBiTree leftSub ++ traverseBiTree rightSub
 
--- Get node pairs between two BiTree instances.
+-- Non-recursive algorithm for geting node pairs between two BiTree instances.
 nodePairsBetwTwOBiTree :: BiTree a -> BiTree a -> [(a,a)]
-nodePairsBetwTwOBiTree Empty _ = []
-nodePairsBetwTwOBiTree _ Empty = []
-nodePairsBetwTwOBiTree (Node r1 lst1 rst1) (Node r2 lst2 rst2) = (r1,r2) : (nodePairsBetwTwOBiTree lst1 lst2) ++ nodePairsBetwTwOBiTree rst1 rst2
+nodePairsBetwTwOBiTree t1 t2 = go [(t1, t2)]
+    where
+      go [] = []
+      go ((Empty,Empty) : rest) = go rest
+      go ((Empty,_) : rest) = go rest
+      go ((_,Empty) : rest) = go rest
+      go ((Node r1 lst1 rst1, Node r2 lst2 rst2) : rest) = (r1,r2) : go ((lst1,lst2) : (rst1,rst2) : rest)

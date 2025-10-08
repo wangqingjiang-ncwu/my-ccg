@@ -11,7 +11,7 @@ module Main (
 import Control.Monad
 import qualified System.IO.Streams as S
 import qualified Data.Map as Map
-import Data.List (sort)
+import Data.List (sort, isPrefixOf)
 import Data.Tuple.Utils
 import System.IO
 import Data.Time.Clock
@@ -497,8 +497,9 @@ doStatisticalAnalysis username = do
     putStrLn " 2 -> Count in syntax_ambig_resol_model samples"
     putStrLn " 3 -> Search in treebank"
     putStrLn " 4 -> Evaluate an experimental treebank"
+    putStrLn " 5 -> Count in cate_ambig_resol_model samples"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -508,6 +509,7 @@ doStatisticalAnalysis username = do
                "2" -> doCountInStruGene username
                "3" -> doSearchInTreebank username
                "4" -> doEvaluateAnExperimentalTreebank username
+               "5" -> doCountInSLRBank username
              doStatisticalAnalysis username                    -- Rear recursion
 
 -- A1. Do count in treebank and display results. 't' means from field 'tree', and 's' means from 'script'.
@@ -741,6 +743,106 @@ doSearchInScript username funcIndex = do
 -- A4. Evaluate an experimental treebank against a certain benchmark treebank.
 doEvaluateAnExperimentalTreebank :: String -> IO ()
 doEvaluateAnExperimentalTreebank username = evaluateExperimentalTreebank
+
+-- A5. Display statistical results from SLR database, such as slr_corpus_202509.
+doCountInSLRBank :: String  -> IO ()
+doCountInSLRBank username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Get similarity degree between every pair of PhraSyn values"
+    putStrLn " 2 -> Get similarity degree between every pair of PhraSyn0 values"
+    putStrLn " 3 -> Get similarity degree between every pair of ContextOfCC1 values"
+    putStrLn " 4 -> Get similarity degree between every pair of ContextOfCC2 values"
+    putStrLn " 5 -> Get similarity degree between every pair of ContextOfCC3 values"
+    putStrLn " 6 -> Get similarity degree between every pair of ContextOfCC4 values"
+    putStrLn " 7 -> Get average category-conversions similarity between every SLR sample and its Stub-closest SLR sample"
+    putStrLn " 0 -> Go back to the upper layer."
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+             case line of
+               "?" -> putStr ""                                -- Do nothing
+               "1" -> doCountInSLRBank' username 1
+               "2" -> doCountInSLRBank' username 2
+               "3" -> doCountInSLRBank' username 3
+               "4" -> doCountInSLRBank' username 4
+               "5" -> doCountInSLRBank' username 5
+               "6" -> doCountInSLRBank' username 6
+               "7" -> doCountInSLRBank' username 7
+             doCountInSLRBank username                         -- Rear recursion
+
+-- A5_1/2/3/4/5/6/7. Display statistical results from a certain SLR sample bank, such as table 'slr_corpus_202509'.
+doCountInSLRBank' :: String -> Int -> IO ()
+doCountInSLRBank' username funcIndex = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+    let howToGetGramAttrSim = getConfProperty "howToGetGramAttrSim" confInfo
+    let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+    let phrasyn0_sim_tbl = getConfProperty "phrasyn0_sim_tbl" confInfo
+    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+    let type_sim_tbl = getConfProperty "type_sim_tbl" confInfo
+    let tag_sim_tbl = getConfProperty "tag_sim_tbl" confInfo
+    let stru_sim_tbl = getConfProperty "stru_sim_tbl" confInfo
+    let span_sim_tbl = getConfProperty "span_sim_tbl" confInfo
+    let store_ccc_sim = getConfProperty "store_ccc_sim" confInfo
+    let ccc_sim_rows_chunk = getConfProperty "ccc_sim_rows_chunk" confInfo
+    let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+    let decay_subtree_kernel = getConfProperty "decay_subtree_kernel" confInfo
+
+    putStrLn $ " cate_ambig_resol_model: " ++ cate_ambig_resol_model     -- Display the ambiguity resolution model
+    if elem funcIndex [1,2]
+      then do
+        putStrLn $ " phra_gram_dist_algo: " ++ phra_gram_dist_algo
+        putStrLn $ " howToGetGramAttrSim: " ++ howToGetGramAttrSim
+        putStrLn $ " type_sim_tbl: " ++ type_sim_tbl
+        putStrLn $ " tag_sim_tbl: " ++ tag_sim_tbl
+        putStrLn $ " stru_sim_tbl: " ++ stru_sim_tbl
+      else putStr ""
+    if elem funcIndex [1]
+      then putStrLn $ " span_sim_tbl: " ++ span_sim_tbl
+      else putStr ""
+    if elem funcIndex [1,3,5]
+      then putStrLn $ " phrasyn_sim_tbl: " ++ phrasyn_sim_tbl
+      else putStr ""
+    if elem funcIndex [2,4,6]
+      then putStrLn $ " phrasyn0_sim_tbl: " ++ phrasyn0_sim_tbl
+      else putStr ""
+    if elem funcIndex [3,4,5,6]
+      then do
+        putStrLn $ " store_ccc_sim: " ++ store_ccc_sim
+        putStrLn $ " ccc_sim_rows_chunk: " ++ ccc_sim_rows_chunk
+        putStrLn $ " ccc_sim_tbl: " ++ ccc_sim_tbl
+      else putStr ""
+    if elem funcIndex [5,6]
+      then do
+        putStrLn $ " decay_subtree_kernel: " ++ decay_subtree_kernel
+      else putStr ""
+    if elem funcIndex [7]
+      then do
+        putStrLn $ " ccc_sim_tbl: " ++ ccc_sim_tbl
+      else putStr ""
+
+    startIdx <- getNumUntil "Please input index number of start cate_ambig_resol_model sample [Return for 1]: " [0 ..]
+    endIdx <- getNumUntil "Please input index number of end cate_ambig_resol_model sample [Return for last]: " [0 ..]
+
+    conn <- getConn
+    let sqlstat = DS.fromString $ "SELECT count(*) from " ++ cate_ambig_resol_model
+    (defs, is) <- query_ conn sqlstat
+    rows <- readStreamByInt64 [] is
+
+    let startIdx' = case startIdx of
+                      0 -> 1
+                      _ -> startIdx
+    let endIdx' = case endIdx of
+                    0 -> head rows
+                    _ -> endIdx
+
+    putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+    contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+    if contOrNot == "n"
+      then putStrLn "doCountInSLRBank: cancelled."
+      else countInSLRBank cate_ambig_resol_model startIdx' endIdx' funcIndex
 
 -- B. Do experiments.
 doExperiments :: String -> IO ()
@@ -997,6 +1099,101 @@ doRearrangeIdinCertainTable username =
             putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
             close conn
 
+          x | elem x ["slr_corpus_202509"] -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (transTag, phrasyn_list_rules, phrasyn0_list_rules, bitree_phrasyn_rules, bitree_phrasyn0_rules) select transTag, phrasyn_list_rules, phrasyn0_list_rules, bitree_phrasyn_rules, bitree_phrasyn0_rules from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
+          x | isPrefixOf "type_sim_for" x -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (cate1, cate2, sim) select cate1, cate2, sim from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
+          x | isPrefixOf "tag_sim_for" x -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (tag1, tag2, sim) select tag1, tag2, sim from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
+          x | isPrefixOf "stru_sim_for" x -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (stru1, stru2, sim) select stru1, stru2, sim from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
+          x | isPrefixOf "span_sim_for" x -> do
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ "_bak (span1, span2, sim) select span1, span2, sim from " ++ tblName     -- Copy table data to new table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were inserted into " ++ tblName ++ "_bak."
+            let sqlstat = DS.fromString $ "truncate table " ++ tblName          -- Remove data from old table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ " truncated."
+            let sqlstat = DS.fromString $ "insert into " ++ tblName ++ " select * from " ++ tblName ++ "_bak"    -- Copy table data to old table.
+            stmt' <- prepareStmt conn sqlstat
+            ok <- executeStmt conn stmt' []
+            putStrLn $ show (getOkAffectedRows ok) ++ " rows were copied into " ++ tblName
+            let sqlstat = DS.fromString $ "drop table " ++ tblName ++ "_bak"    -- Drop new table.
+            stmt' <- prepareStmt conn sqlstat
+            executeStmt conn stmt' []
+            putStrLn $ "Table " ++ tblName ++ "_bak was dropped."
+            close conn
+
           _ -> putStrLn $ "Table name was not recognized."
 
 -- C_2. Sort phrases in corpus field 'tree' and 'script' according to span ascending.
@@ -1065,8 +1262,11 @@ doClustering username = do
     putStrLn " H -> Calculate probability of that two closest samples has same Prior value in StruGene2 samples"
     putStrLn " I -> Among StruGene3a samples, calculate similarity degree between every pair of contexts"
     putStrLn " J -> Among StruGene3a0 samples, calculate similarity degree between every pair of contexts"
+    putStrLn " K -> From SLR raw samples, get SLR ripe samples"
+    putStrLn " L -> Calculate inter-value similarity degrees of every PhraSyn member on SLR ripe corpus"
+    putStrLn " M -> Calculate inter-value similarity degrees of every PhraSyn0 member on SLR ripe corpus"
     putStrLn " 0 -> Go back to the upper layer"
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F","G","H","I","J","K","L","M","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1093,6 +1293,9 @@ doClustering username = do
                "H" -> doCalProbOfClosestSampleHasSamePrior
                "I" -> clusteringAnalysis 18
                "J" -> clusteringAnalysis 19
+               "K" -> clusteringAnalysis 20
+               "L" -> clusteringAnalysis 21
+               "M" -> clusteringAnalysis 22
              doClustering username                             -- Rear recursion
 
 -- D_1.测试求初始点函数

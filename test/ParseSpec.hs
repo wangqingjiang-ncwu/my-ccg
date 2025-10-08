@@ -227,7 +227,7 @@ spec = do
       let pcClo0 = [pc21]
       findAnces pc22 pcClo `shouldBe` [pc01,pc12,pc02,pc03]                     -- Phrase pc21 has syntactic structure 'NR', which is not a descendant of any phrase.
 
-    it "The result of findSubTree ((0,2),[(s,\"<\",\"((loves' Mary') Frank')\",\"SP\",True],1) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2)，((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"NR\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is [((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((0,2),[(s,\"<\",\"((loves' Mary') Frank')\",\"SP\",True)],2)]" $ do
+    it "The result of findATree ((0,2),[(s,\"<\",\"((loves' Mary') Frank')\",\"SP\",True],1) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False)],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False)],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False)],2),((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],1), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"NR\",True)],2),((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is (((0,2),[(s,<,((loves' Mary') Frank'),SP,True)],1),(((0,0),[(np,\"Desig,Frank'\",\"DE\",False)],0),Empty,Empty),(((1,1),[(s\\.np,>,\"(loves' Mary')\",\"VO\",False)],2),(((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False)],0),Empty,Empty),(((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False)],0),Empty,Empty))" $ do
       let c01 = npCate
       let c02 = getCateFromString "(s\\.np)/.np"
       let c03 = npCate
@@ -244,7 +244,19 @@ spec = do
       let pcs = [pc01,pc02,pc03]
       let pcClo = pcs ++ [pc11,pc12,pc21,pc22]
       let pcClo0 = [pc21]
-      findSubTree pc22 pcClo `shouldBe` Node pc22 (Node pc01 Empty Empty) (Node pc12 (Node pc02 Empty Empty) (Node pc03 Empty Empty))                     -- Phrase pc21 has syntactic structure 'NR', which is not a descendant of any phrase.
+      findATree pc22 pcClo `shouldBe` Node pc22 (Node pc01 Empty Empty) (Node pc12 (Node pc02 Empty Empty) (Node pc03 Empty Empty))                     -- Phrase pc21 has syntactic structure 'NR', which is not a descendant of any phrase.
+
+    it "The result of findForest [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2),((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],2)] is [(((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True)],2),(((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False)],0),Empty,Empty), (((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False)],0),Empty,Empty)),(((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",True)],0),Empty,Empty)]" $ do
+      let c00 = npCate
+      let c10 = getCateFromString "(s\\.np)/.np"
+      let c20 = npCate
+      let c01 = getCateFromString "s/.np"
+      let pc00 = createPhraCate 0 0 [(c00, "Desig", "Frank'", "DE", False)] 0
+      let pc10 = createPhraCate 1 0 [(c10, "Desig", "loves'", "DE", False)] 1
+      let pc20 = createPhraCate 2 0 [(c20, "Desig", "Mary'", "DE", True)] 2
+      let pc01 = createPhraCate 0 1 [(c01, ">T->B", "((R Frank') loves')", "OE", True)] 1
+      let clo = [pc00,pc10,pc20,pc01]
+      findForest clo `shouldBe` ([Node pc01 (Node pc00 Empty Empty) (Node pc10 Empty Empty), Node pc20 Empty Empty] :: [BiTree PhraCate])
 
     it "The result of removeOnePC ((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0) [((0,0),[(np,\"Desig\",\"Frank'\",\"DE\",False],0), ((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((0,1),[(s/.np,\">T->B\",\"((R Frank') loves')\",\"OE\",True), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2), ((0,2),[(s,\">\",\"((loves' Mary') Frank')\",\"SP\",True)],1)] is [((1,0),[((s\\.np)/.np,\"Desig\",\"loves'\",\"DE\",False],1), ((2,0),[(np,\"Desig\",\"Mary'\",\"DE\",False],2), ((1,1),[(s\\.np,\">\",\"(loves' Mary')\",\"VO\",True)],2)]" $ do
       let c01 = npCate

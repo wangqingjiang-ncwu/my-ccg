@@ -20,7 +20,8 @@ module Parse (
     findSplitCate,     -- PhraCate -> [PhraCate] -> [(PhraCate,PhraCate)]
     findDescen,        -- PhraCate -> [PhraCate] -> [PhraCate]
     findAnces,         -- PhraCate -> [PhraCate] -> [PhraCate]
-    findSubTree,       -- PhraCate -> [PhraCate] -> BiTree PhraCate
+    findATree,         -- PhraCate -> [PhraCate] -> BiTree PhraCate
+    findForest,        -- [PhraCate] -> [BiTree PhraCate]
     growForest,        -- OnOff -> [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
     growTree,          -- OnOff -> [PhraCate] -> [PhraCate] -> [[PhraCate]]
     findTipsOfTree,    -- OnOff -> [PhraCate] -> [PhraCate] -> [PhraCate]
@@ -37,7 +38,7 @@ import Data.List
 import Category
 import Phrase
 import Rule
-import AmbiResol (OverType, OverPair, Prior(..))
+import AmbiResol (OverType, OverPair, Prior(..), PhraSyn, PhraSyn0)
 import Utils
 
 {- Function cateComb combines two input (phrasal) categories into resultant one.
@@ -1361,10 +1362,10 @@ findAnces pc clo
 {- Find syntactic tree with a given phrasal category as its root from the transitive closure of phrasal categories.
  - The rootTree is defined as (Node r Empty Empty), where r is the root, and left and right subtrees wait for growing.
  -}
-findSubTree :: PhraCate -> [PhraCate] -> BiTree PhraCate
-findSubTree root clo
+findATree :: PhraCate -> [PhraCate] -> BiTree PhraCate
+findATree root clo
     | root == nilPhra = Empty           -- Empty tree has no root from which a tree can grow.
-    | otherwise = Node root (findSubTree father clo) (findSubTree mother clo)
+    | otherwise = Node root (findATree father clo) (findATree mother clo)
       where
         parents = findSplitCate root clo           -- [(PhraCate, PhraCate)]
         parent = case parents of
@@ -1372,6 +1373,16 @@ findSubTree root clo
                    _ -> parents!!0                 -- Suppose the root has only one pair of parents.
         father = fst parent
         mother = snd parent
+
+{- Find the forest of syntactic trees from a list of phrasal categories.
+ - Step 1. Filter all roots by attribue Act being True.
+ - Step 2. From every root, a subTree is obtained by function findSubTree.
+ - Here, all phrasal categories are atomized, that is, [(Category,Tag,Seman,PhraStru,Act)] is a singleton set.
+ -}
+findForest :: [PhraCate] -> [BiTree PhraCate]
+findForest clo = map (\x -> findATree x clo) roots       -- [BiTree PhraCate]
+    where
+    roots = sortOn stOfCate $ filter (\x -> (acOfCate x)!!0) clo           -- [PhraCate] in order of ascending start positions
 
 {- Generate syntactic trees (forest) from the closure of phrase categories which has been atomized.
    Here is a recursived forest-growing algorithm: For the input forest,

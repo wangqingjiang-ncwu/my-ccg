@@ -541,8 +541,8 @@ updateStruGene clauTag nPCs overPairs (pcp:pcps) = do
       lop = fst pcp                                      -- PhraCate
       rop = snd pcp                                      -- PhraCate
       ot = getOverType nPCs lop rop                      -- Overlapping type
-      lopt = findSubTree lop nPCs                        -- Left overlapping phrase tree :: BiTree PhraCate
-      ropt = findSubTree rop nPCs                        -- Right overlapping phrase tree :: BiTree PhraCate
+      lopt = findATree lop nPCs                          -- Left overlapping phrase tree :: BiTree PhraCate
+      ropt = findATree rop nPCs                          -- Right overlapping phrase tree :: BiTree PhraCate
       leps = getPhraByEnd (stOfCate lop - 1) nPCs        -- All left-extend phrases
       reps = getPhraByStart (enOfCate rop + 1) nPCs      -- All right-entend phrases
       contextOfSG = (leps,lop,rop,reps,ot,lopt,ropt)
@@ -916,8 +916,8 @@ rollbackStruGene clauTag nPCs (op:ops) = do
     let overType = getOverType nPCs leftOver rightOver                          -- Get overlapping type
     let leftExtend = getPhraByEnd (stOfCate leftOver - 1) nPCs                  -- Get all left-extend phrases
     let rightExtend = getPhraByStart (enOfCate rightOver + 1) nPCs              -- Get all right-entend phrases
-    let leftOverTree = findSubTree leftOver nPCs                                -- BiTree PhraCate
-    let rightOverTree = findSubTree rightOver nPCs                              -- BiTree PhraCate
+    let leftOverTree = findATree leftOver nPCs                                  -- BiTree PhraCate
+    let rightOverTree = findATree rightOver nPCs                                -- BiTree PhraCate
 
     let le = map ((!!0) . ctpsOfCate) leftExtend         -- [(Category,Tag,PhraStru,Span)] of left-extended phrases
     let lo = (ctpsOfCate leftOver)!!0                    -- (Category,Tag,PhraStru,Span) of left-overlapping phrase
@@ -2868,8 +2868,8 @@ updateSyntaxAmbiResolSample' clauTag nPCs overPair = do
     let rightOver = snd3 overPair                                   -- Get right overlapping phrase.
     let overType = getOverType nPCs leftOver rightOver              -- Get overlapping type
     let prior = thd3 overPair                                       -- Get prior selection of the two overlapping phrases.
-    let leftOverTree = findSubTree leftOver nPCs                    -- BiTree PhraCate
-    let rightOverTree = findSubTree rightOver nPCs                  -- BiTree PhraCate
+    let leftOverTree = findATree leftOver nPCs                      -- BiTree PhraCate
+    let rightOverTree = findATree rightOver nPCs                    -- BiTree PhraCate
 
     case syntax_ambig_resol_model of
       x | elem x ["stru_gene3a_phrasyn0_202509"] -> do                -- Multimodel

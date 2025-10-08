@@ -9,6 +9,7 @@ module Statistics (
     countInStruGene,                -- String -> Int -> Int -> Int -> IO ()
     searchInTree,                   -- Int -> Int -> Int -> IO ()
     searchInScript,                 -- Int -> Int -> Int -> IO ()
+    countInSLRBank,                 -- String -> Int -> Int -> Int -> IO ()
     toTypeTagStru2FreqMap',         -- [[[PhraCate]]] -> Map PhraSyn0 Int -> Map PhraSyn0 Int
     insertPhraList2CtpFreqMap',     -- [PhraCate] -> Map PhraSyn0 Int -> Map PhraSyn0 Int
     formatMapListWithFloatValue,    -- [(String,Float)] -> Int -> [(String,String)]
@@ -33,8 +34,10 @@ import qualified Data.String as DS
 import Database.MySQL.Base
 import Data.List
 import Data.List.Utils
+import Data.Time.Clock
 import Data.Tuple
 import Data.Tuple.Utils
+import GHC.Float (double2Float)
 import Text.Printf
 import qualified Data.Tuple as Tuple
 import Data.Map (Map)
@@ -424,7 +427,7 @@ countInScript bottomSn topSn funcIndex = do
     confInfo <- readFile "Configuration"                                        -- Read the local configuration file
     let script_source = getConfProperty "script_source" confInfo
     putStrLn $ "The source of parsing scripts is set as: " ++ script_source       -- Display the source of parsing trees
-    let sqlstat = DS.fromString $ "select script from " ++ script_source ++ " where serial_num >= ? and serial_num < ?"
+    let sqlstat = DS.fromString $ "select script from " ++ script_source ++ " where serial_num >= ? and serial_num <= ?"
     stmt <- prepareStmt conn sqlstat
     (defs, is) <- queryStmt conn stmt [toMySQLInt32 bottomSn, toMySQLInt32 topSn]
 
@@ -456,18 +459,18 @@ countInScript bottomSn topSn funcIndex = do
 
     if funcIndex == 1                                         -- To get transitive times of every clause in all sentences.
        then do
-         let sentClauTransTimesList = map (map (length . snd3)) sentClauScriptList
+         let sentClauTransTimesList = map (map (length . snd3)) sentClauScriptList           -- [[Int]]
          putStrLn $ "countInScript: The transitive times of every clause in all sentence: " ++ show sentClauTransTimesList
        else putStr ""
 
     if funcIndex == 2                                         -- To get frequencies of different ransitive times in all clause parsing.
        then do
          let transTimes2FreqMap = toTransTimes2FreqMap sentClauScriptList Map.empty                  -- Map Int Int, namely Map <transTimes> <ttNum>.
-         let descListOfTT2FreqByValue = toDescListOfMapByValue (Map.toList transTimes2FreqMap)
+         let descListOfTT2FreqByValue = toDescListOfMapByValue (Map.toList transTimes2FreqMap)       -- [(Int,Int)]
          putStrLn $ "countInScript: The descending list of frequencies of different transitive times: " ++ show descListOfTT2FreqByValue
 
-         let transTimesTotal = fromIntegral $ foldl (+) 0 $ map fst descListOfTT2FreqByValue         -- The total number of transtive times for all clauses.
-         let descListOfTT2NormalizedFreqByValue = map (\x -> (fst x, ((/ transTimesTotal) . fromIntegral . snd) x)) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
+         let transTimesTotal = foldl (+) 0 $ map (\(transTimes, ttNum) -> transTimes * ttNum) descListOfTT2FreqByValue  -- The total number of transtive times for all clauses.
+         let descListOfTT2NormalizedFreqByValue = map (\(transTimes, ttNum) -> (transTimes, ((/ (fromIntegral transTimesTotal)) . fromIntegral) (transTimes * ttNum))) descListOfTT2FreqByValue    -- [(transitive times, normalized freq.)]
          putStrLn $ "countInScript: Transitive times total for all clauses: " ++ show transTimesTotal
          putStrLn $ "countInScript: The descending list of normalized frequencies of different transitive times: " ++ show (formatMapListWithFloatValue descListOfTT2NormalizedFreqByValue 4)
        else putStr ""
@@ -1162,6 +1165,391 @@ searchInTree bottomSn topSn funcIndex = do
  -}
 searchInScript :: Int -> Int -> Int -> IO ()
 searchInScript bottomSn topSn funcIndex = putStrLn "searchInScript: to do."
+
+{- Get statistics in category ambiguity resolution samples, here 'funcIndex' indicates which statistics will be done.
+ -}
+countInSLRBank :: String -> Int -> Int -> Int -> IO ()
+countInSLRBank cate_ambig_resol_model startIdx endIdx funcIndex = do
+    {- 1. Get similarity degree between every pair of PhraSyn values.
+     -}
+    if funcIndex == 1
+       then do
+         confInfo <- readFile "Configuration"
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ phrasyn_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, phrasyn1 VARCHAR(70), phrasyn2 VARCHAR(70), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         case cate_ambig_resol_model of
+           x | elem x ["slr_corpus_202509"] -> do
+             let sqlstat = DS.fromString $ "select phrasyn_list_rules from " ++ cate_ambig_resol_model ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             stub2RuleStrList <- readStreamByText [] is                         -- [String]
+             let stub2RuleList = map stringToPhraSyns2Rules stub2RuleStrList    -- [([PhraSyn], [Rule])]
+             let contextOfCC1List = map fst stub2RuleList                       -- [[PhraSyn]]
+             putStrLn $ "countInSLRBank (Func. 1): Num. of ContextOfCC1 samples = " ++ (show . length) contextOfCC1List
+
+             phraSynPair2SimMap <- getPhraSynPair2SimFromCCC1 phra_gram_dist_algo contextOfCC1List     -- Map (PhraSyn, PhraSyn) SimDeg
+             let phraSynPair2SimList = Map.toList phraSynPair2SimMap            -- [((PhraSyn, PhraSyn), SimDeg)]
+             putStrLn $ "countInSLRBank (Func. 1): Num. of PhraSyn value pairs = " ++ (show . length) phraSynPair2SimList
+
+             forM_ phraSynPair2SimList $ \((ps1, ps2), simDeg) -> do
+               let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+               stmt <- prepareStmt conn sqlstat
+               (_, is) <- queryStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2]
+               rows <- S.toList is
+               closeStmt conn stmt
+               if rows == []
+                 then do
+                   let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   ok <- executeStmt conn stmt [(toMySQLText . phraSynToString) ps1, (toMySQLText . phraSynToString) ps2, toMySQLDouble simDeg]
+                   putStrLn $ "countInSLRBank (Func. 1): Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                   closeStmt conn stmt
+                 else if length rows == 1
+                        then do
+                          let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn_sim_tbl ++ " SET sim = ? where id = ?"
+                          stmt <- prepareStmt conn sqlstat
+                          ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                          putStrLn $ "countInSLRBank (Func. 1): Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                          closeStmt conn stmt
+                        else error "countInSLRBank (Func. 1): More than one time of hitting on (phrasyn1, phrasyn2)."
+
+           _ -> error $ "countInSLRBank (Func. 2): " ++ cate_ambig_resol_model ++ " is NOT recognized."
+
+         close conn
+       else putStr ""
+
+    {- 2. Get similarity degree between every pair of PhraSyn0 values.
+     -}
+    if funcIndex == 2
+       then do
+         confInfo <- readFile "Configuration"
+         let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
+         let phrasyn0_sim_tbl = getConfProperty "phrasyn0_sim_tbl" confInfo
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ phrasyn0_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, phrasyn1 VARCHAR(70), phrasyn2 VARCHAR(70), sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         case cate_ambig_resol_model of
+           x | elem x ["slr_corpus_202509"] -> do
+             let sqlstat = DS.fromString $ "SELECT phrasyn0_list_rules FROM " ++ cate_ambig_resol_model ++ " WHERE id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+
+             stub2RuleStrList <- readStreamByText [] is                         -- [String]
+             let stub2RuleList = map stringToPhraSyn0s2Rules stub2RuleStrList   -- [([PhraSyn0], [Rule])]
+             let contextOfCC2List = map fst stub2RuleList                       -- [[PhraSyn0]]
+             putStrLn $ "countInSLRBank (Func. 2): Num. of ContextOfCC2 samples = " ++ (show . length) contextOfCC2List
+
+             phraSyn0Pair2SimMap <- getPhraSyn0Pair2SimFromCCC2 phra_gram_dist_algo contextOfCC2List     -- Map (PhraSyn0, PhraSyn0) SimDeg
+             let phraSyn0Pair2SimList = Map.toList phraSyn0Pair2SimMap          -- [((PhraSyn0, PhraSyn0), SimDeg)]
+             putStrLn $ "countInSLRBank (Func. 2): Num. of PhraSyn0 value pairs = " ++ (show . length) phraSyn0Pair2SimList
+
+             forM_ phraSyn0Pair2SimList $ \((ps1, ps2), simDeg) -> do
+               let sqlstat = DS.fromString $ "SELECT id from " ++ phrasyn0_sim_tbl ++ " where phrasyn1 = ? and phrasyn2 = ?"
+               stmt <- prepareStmt conn sqlstat
+               (_, is) <- queryStmt conn stmt [(toMySQLText . phraSyn0ToString) ps1, (toMySQLText . phraSyn0ToString) ps2]
+               rows <- S.toList is
+               closeStmt conn stmt
+               if rows == []
+                 then do
+                   let sqlstat = DS.fromString $ "INSERT INTO " ++ phrasyn0_sim_tbl ++ " SET phrasyn1 = ?, phrasyn2 = ?, sim = ?"
+                   stmt <- prepareStmt conn sqlstat
+                   ok <- executeStmt conn stmt [(toMySQLText . phraSyn0ToString) ps1, (toMySQLText . phraSyn0ToString) ps2, toMySQLDouble simDeg]
+                   putStrLn $ "countInSLRBank (Func. 2): Insert record whose id is " ++ (show . getOkLastInsertID) ok
+                   closeStmt conn stmt
+                 else if length rows == 1
+                        then do
+                          let sqlstat = DS.fromString $ "UPDATE " ++ phrasyn0_sim_tbl ++ " SET sim = ? where id = ?"
+                          stmt <- prepareStmt conn sqlstat
+                          ok <- executeStmt conn stmt [toMySQLDouble simDeg, ((rows!!0)!!0)]
+                          putStrLn $ "countInSLRBank (Func. 2): Update record whose id is " ++ (show . fromMySQLInt32U) ((rows!!0)!!0)
+                          closeStmt conn stmt
+                        else error "countInSLRBank (Func. 2): More than one time of hitting on (phrasyn1, phrasyn2)."
+
+           _ -> error $ "countInSLRBank (Func. 2): " ++ cate_ambig_resol_model ++ " is NOT recognized."
+
+         close conn
+       else putStr ""
+
+    {- 3. Get similarity degree between every pair of ContextOfCC1 values.
+     -}
+    if funcIndex == 3
+       then do
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+         let store_ccc_sim = getConfProperty "store_ccc_sim" confInfo
+         let ccc_sim_rows_chunk = getConfProperty "ccc_sim_rows_chunk" confInfo
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ ccc_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stub1idx SMALLINT, stub2idx SMALLINT, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         putStrLn "All to all similarity degree calculations begin ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         sIdx2ContextOfCC1List <- getSIdx2ContextOfCC1Base startIdx endIdx          -- [(SIdx, ContextOfCC1)]
+         let sIdx2ContextOfCC1PairList = [(u, v) | u <- sIdx2ContextOfCC1List, v <- sIdx2ContextOfCC1List, u <= v]
+                                             -- [((SIdx, ContextOfCC1), (SIdx, ContextOfCC1))], where commutative unique and not descending.
+         putStrLn $ "Num. of SIdx2ContextOfCC1 pairs = " ++ show (length sIdx2ContextOfCC1PairList)
+
+         phraSynPair2SimList <- readStaticPhraSynPair2Sim
+         let phraSynPair2SimMap = Map.fromList phraSynPair2SimList                  -- Map (PhraSyn, PhraSyn) SimDeg
+         putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg was created. Num. of PhraSyn pairs = " ++ show (length phraSynPair2SimList)
+
+         let sIdxPair2SimList = map (\((idx1, ccc1), (idx2, ccc2)) ->
+                                      (idx1, idx2, getPhraSynSetSim ccc1 ccc2 phraSynPair2SimMap)
+                                    ) sIdx2ContextOfCC1PairList                     -- [(SIdx, SIdx, SimDeg)]
+
+         let rowNum = read ccc_sim_rows_chunk :: Int
+         let sIdxPair2SimLists = chunk rowNum sIdxPair2SimList                      -- [[(SIdx, SIdx, SimDeg)]]
+         case store_ccc_sim of
+           "True" -> do
+             putStrLn $ "  Last inserted ID, (SIdx, SIdx) and time spent: "
+             forM_ sIdxPair2SimLists $ \sIdxPair2SimSubList -> do
+               t1 <- getCurrentTime                                                 -- UTCTime
+               let sqlstat = DS.fromString $ "INSERT INTO " ++ ccc_sim_tbl ++ " SET stub1idx = ?, stub2idx = ?, sim = ?"
+               let vList = map (\(idx1, idx2, sim) -> [toMySQLInt16U idx1, toMySQLInt16U idx2, toMySQLFloat (double2Float sim)]) sIdxPair2SimSubList  -- [[MySQLValue]]
+               oks <- executeMany conn sqlstat vList
+               let lastInsertID = getOkLastInsertID (last oks)
+               t2 <- getCurrentTime                                                 -- UTCTime
+               putStrLn $ "  " ++ show lastInsertID ++ " \t" ++ show ((fst3 . last) sIdxPair2SimSubList, (snd3 . last) sIdxPair2SimSubList) ++ " \t" ++ show (diffUTCTime t2 t1)
+           "False" -> putStrLn "clusteringAnalysis: No database operation."
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
+
+    {- 4. Get similarity degree between every pair of ContextOfCC2 values.
+     -}
+    if funcIndex == 4
+       then do
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+         let store_ccc_sim = getConfProperty "store_ccc_sim" confInfo
+         let ccc_sim_rows_chunk = getConfProperty "ccc_sim_rows_chunk" confInfo
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ ccc_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stub1idx SMALLINT, stub2idx SMALLINT, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         putStrLn "All to all similarity degree calculations begin ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         sIdx2ContextOfCC2List <- getSIdx2ContextOfCC2Base startIdx endIdx          -- [(SIdx, ContextOfCC2)]
+         let sIdx2ContextOfCC2PairList = [(u, v) | u <- sIdx2ContextOfCC2List, v <- sIdx2ContextOfCC2List, u <= v]
+                                             -- [((SIdx, ContextOfCC2), (SIdx, ContextOfCC2))], where commutative unique and not descending.
+         putStrLn $ "Num. of SIdx2ContextOfCC2 pairs = " ++ show (length sIdx2ContextOfCC2PairList)
+
+         phraSyn0Pair2SimList <- readStaticPhraSyn0Pair2Sim
+         let phraSyn0Pair2SimMap = Map.fromList phraSyn0Pair2SimList                -- Map (PhraSyn0, PhraSyn0) SimDeg
+         putStrLn $ "Map (PhraSyn0, PhraSyn0) SimDeg was created. Num. of PhraSyn0 pairs = " ++ show (length phraSyn0Pair2SimList)
+
+         let sIdxPair2SimList = map (\((idx1, ccc1), (idx2, ccc2)) ->
+                                      (idx1, idx2, getPhraSyn0SetSim ccc1 ccc2 phraSyn0Pair2SimMap)
+                                    ) sIdx2ContextOfCC2PairList                     -- [(SIdx, SIdx, SimDeg)]
+
+         let rowNum = read ccc_sim_rows_chunk :: Int
+         let sIdxPair2SimLists = chunk rowNum sIdxPair2SimList                      -- [[(SIdx, SIdx, SimDeg)]]
+         case store_ccc_sim of
+           "True" -> do
+             putStrLn $ "  Last inserted ID, (SIdx, SIdx) and time spent: "
+             forM_ sIdxPair2SimLists $ \sIdxPair2SimSubList -> do
+               t1 <- getCurrentTime                                                 -- UTCTime
+               let sqlstat = DS.fromString $ "INSERT INTO " ++ ccc_sim_tbl ++ " SET stub1idx = ?, stub2idx = ?, sim = ?"
+               let vList = map (\(idx1, idx2, sim) -> [toMySQLInt16U idx1, toMySQLInt16U idx2, toMySQLFloat (double2Float sim)]) sIdxPair2SimSubList  -- [[MySQLValue]]
+               oks <- executeMany conn sqlstat vList
+               let lastInsertID = getOkLastInsertID (last oks)
+               t2 <- getCurrentTime                                                 -- UTCTime
+               putStrLn $ "  " ++ show lastInsertID ++ " \t" ++ show ((fst3 . last) sIdxPair2SimSubList, (snd3 . last) sIdxPair2SimSubList) ++ " \t" ++ show (diffUTCTime t2 t1)
+           "False" -> putStrLn "clusteringAnalysis: No database operation."
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
+
+    {- 5. Get similarity degree between every pair of ContextOfCC3 values.
+     -}
+    if funcIndex == 5
+       then do
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+         let store_ccc_sim = getConfProperty "store_ccc_sim" confInfo
+         let ccc_sim_rows_chunk = getConfProperty "ccc_sim_rows_chunk" confInfo
+         let decay_subtree_kernel = getConfProperty "decay_subtree_kernel" confInfo
+         let decay = read decay_subtree_kernel :: Double
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ ccc_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stub1idx SMALLINT, stub2idx SMALLINT, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         putStrLn "All to all similarity degree calculations begin ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         sIdx2ContextOfCC3List <- getSIdx2ContextOfCC3Base startIdx endIdx      -- [(SIdx, ContextOfCC3)]
+         let sIdx2ContextOfCC3PairList = [(u, v) | u <- sIdx2ContextOfCC3List, v <- sIdx2ContextOfCC3List, u <= v]
+                                             -- [((SIdx, ContextOfCC3), (SIdx, ContextOfCC3))], where commutative unique and not descending.
+         putStrLn $ "Num. of SIdx2ContextOfCC3 pairs = " ++ show (length sIdx2ContextOfCC3PairList)
+
+         phraSynPair2SimList <- readStaticPhraSynPair2Sim
+         let phraSynPair2SimMap = Map.fromList phraSynPair2SimList              -- Map (PhraSyn, PhraSyn) SimDeg
+         putStrLn $ "Map (PhraSyn, PhraSyn) SimDeg was created. Num. of PhraSyn pairs = " ++ show (length phraSynPair2SimList)
+
+         let sIdxPair2SimList = map (\((idx1, ccc1), (idx2, ccc2)) ->
+                                      (idx1, idx2, getBiTreePhraSynSim ccc1 ccc2 decay phraSynPair2SimMap)
+                                    ) sIdx2ContextOfCC3PairList                 -- [(SIdx, SIdx, SimDeg)]
+
+         let rowNum = read ccc_sim_rows_chunk :: Int
+         let sIdxPair2SimLists = chunk rowNum sIdxPair2SimList                  -- [[(SIdx, SIdx, SimDeg)]]
+         case store_ccc_sim of
+           "True" -> do
+             putStrLn $ "  Last inserted ID, (SIdx, SIdx) and time spent: "
+             forM_ sIdxPair2SimLists $ \sIdxPair2SimSubList -> do
+               t1 <- getCurrentTime                                                 -- UTCTime
+               let sqlstat = DS.fromString $ "INSERT INTO " ++ ccc_sim_tbl ++ " SET stub1idx = ?, stub2idx = ?, sim = ?"
+               let vList = map (\(idx1, idx2, sim) -> [toMySQLInt16U idx1, toMySQLInt16U idx2, toMySQLFloat (double2Float sim)]) sIdxPair2SimSubList  -- [[MySQLValue]]
+               oks <- executeMany conn sqlstat vList
+               let lastInsertID = getOkLastInsertID (last oks)
+               t2 <- getCurrentTime                                                 -- UTCTime
+               putStrLn $ "  " ++ show lastInsertID ++ " \t" ++ show ((fst3 . last) sIdxPair2SimSubList, (snd3 . last) sIdxPair2SimSubList) ++ " \t" ++ show (diffUTCTime t2 t1)
+           "False" -> putStrLn "clusteringAnalysis: No database operation."
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
+
+    {- 6. Get similarity degree between every pair of ContextOfCC4 values.
+     -}
+    if funcIndex == 6
+       then do
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+         let store_ccc_sim = getConfProperty "store_ccc_sim" confInfo
+         let ccc_sim_rows_chunk = getConfProperty "ccc_sim_rows_chunk" confInfo
+         let decay_subtree_kernel = getConfProperty "decay_subtree_kernel" confInfo
+         let decay = read decay_subtree_kernel :: Double
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ ccc_sim_tbl ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stub1idx SMALLINT, stub2idx SMALLINT, sim DOUBLE)"
+         stmt <- prepareStmt conn sqlstat
+         executeStmt conn stmt []
+         closeStmt conn stmt
+
+         putStrLn "All to all similarity degree calculations begin ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         sIdx2ContextOfCC4List <- getSIdx2ContextOfCC4Base startIdx endIdx      -- [(SIdx, ContextOfCC4)]
+         let sIdx2ContextOfCC4PairList = [(u, v) | u <- sIdx2ContextOfCC4List, v <- sIdx2ContextOfCC4List, u <= v]
+                                             -- [((SIdx, ContextOfCC4), (SIdx, ContextOfCC4))], where commutative unique and not descending.
+         putStrLn $ "Num. of SIdx2ContextOfCC4 pairs = " ++ show (length sIdx2ContextOfCC4PairList)
+
+         phraSyn0Pair2SimList <- readStaticPhraSyn0Pair2Sim
+         let phraSyn0Pair2SimMap = Map.fromList phraSyn0Pair2SimList            -- Map (PhraSyn0, PhraSyn0) SimDeg
+         putStrLn $ "Map (PhraSyn0, PhraSyn0) SimDeg was created. Num. of PhraSyn0 pairs = " ++ show (length phraSyn0Pair2SimList)
+
+         let sIdxPair2SimList = map (\((idx1, ccc1), (idx2, ccc2)) ->
+                                      (idx1, idx2, getBiTreePhraSyn0Sim' ccc1 ccc2 decay phraSyn0Pair2SimMap)
+                                    ) sIdx2ContextOfCC4PairList                 -- [(SIdx, SIdx, SimDeg)]
+
+         let rowNum = read ccc_sim_rows_chunk :: Int
+         let sIdxPair2SimLists = chunk rowNum sIdxPair2SimList                  -- [[(SIdx, SIdx, SimDeg)]]
+         case store_ccc_sim of
+           "True" -> do
+             putStrLn $ "  Last inserted ID, (SIdx, SIdx) and time spent: "
+             forM_ sIdxPair2SimLists $ \sIdxPair2SimSubList -> do
+               t1 <- getCurrentTime                                                 -- UTCTime
+               let sqlstat = DS.fromString $ "INSERT INTO " ++ ccc_sim_tbl ++ " SET stub1idx = ?, stub2idx = ?, sim = ?"
+               let vList = map (\(idx1, idx2, sim) -> [toMySQLInt16U idx1, toMySQLInt16U idx2, toMySQLFloat (double2Float sim)]) sIdxPair2SimSubList  -- [[MySQLValue]]
+               oks <- executeMany conn sqlstat vList
+               let lastInsertID = getOkLastInsertID (last oks)
+               t2 <- getCurrentTime                                                 -- UTCTime
+               putStrLn $ "  " ++ show lastInsertID ++ " \t" ++ show ((fst3 . last) sIdxPair2SimSubList, (snd3 . last) sIdxPair2SimSubList) ++ " \t" ++ show (diffUTCTime t2 t1)
+           "False" -> putStrLn "clusteringAnalysis: No database operation."
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ " Total calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
+
+    {- 7. Get average category-conversions similarity between every SLR sample and its Stub-closest SLR sample.
+     - Stub has four kinds of representation, ContextOfCC1, ContextOfCC2, ContextOfCC3, and ContextOfCC4.
+     - For every SLR sample, find samples which have highest similarity degree with it, and calculate the category-conversions similarity
+     - between the SLR sample and the most similar SLR samples.
+     -}
+    if funcIndex == 7
+       then do
+         putStrLn "Start to calculate ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         srList <- readSIdxRulesFromDB startIdx endIdx                          -- [SIdxRules], namely [(SIdx, [Rule])]
+         putStrLn $ "[INFO] " ++ show (endIdx - startIdx + 1) ++ " (SIdx, [Rule]) samples are read into memory."
+
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo               -- Select one table from four tables.
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select stub1idx, stub2idx, sim from " ++ ccc_sim_tbl ++ " where stub1idx >= ? and stub1idx <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (_, is) <- queryStmt conn stmt [toMySQLInt16U startIdx, toMySQLInt16U endIdx]     -- Enough for computing.
+         rows' <- S.toList is                                                   -- [[MySQLValue]]
+         let rows = map (\x -> ((fromMySQLInt16U (x!!0), fromMySQLInt16U (x!!1)), fromMySQLDouble (x!!2))) rows'
+         putStrLn $ "[INFO] " ++ show (length rows) ++ " rows of ((SIdx, SIdx), SimDeg) are read into memory."
+
+         let sIdxPair2SimMap = Map.fromList rows                               -- Map (SIdx, SIdx) SimDeg
+         let simList = map (meanRulesSimOnOneSample sIdxPair2SimMap srList) srList     -- [SimDeg]
+         let meanSim = foldl (+) 0.0 simList / (fromIntegral (length simList))         -- SimDeg
+         putStrLn $ "[INFO] Average similarity degree is " ++ show meanSim
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
+
+    {- 8. Get average category-conversions similarity between every SLR sample and its ContextOfCC2-closest SLR sample.
+     - For every SLR sample, find samples which have highest similarity degree with it, and calculate the category-conversions similarity
+     - between the SLR sample and the most similar SLR samples.
+     -}
+    if funcIndex == 8
+       then do
+         putStrLn "Start to calculate ..."
+         t0 <- getCurrentTime                -- UTCTime
+
+         srList <- readSIdxRulesFromDB startIdx endIdx                          -- [SIdxRules], namely [(SIdx, [Rule])]
+         putStrLn $ "[INFO] " ++ show (endIdx - startIdx + 1) ++ " (SIdx, [Rule]) samples are read into memory."
+
+         confInfo <- readFile "Configuration"
+         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "select stub1idx, stub2idx, sim from " ++ ccc_sim_tbl ++ " where stub1idx >= ? and stub1idx <= ?"
+         stmt <- prepareStmt conn sqlstat
+         (_, is) <- queryStmt conn stmt [toMySQLInt16U startIdx, toMySQLInt16U endIdx]     -- Enough for computing.
+         rows' <- S.toList is                                                   -- [[MySQLValue]]
+         let rows = map (\x -> ((fromMySQLInt16U (x!!0), fromMySQLInt16U (x!!1)), fromMySQLDouble (x!!2))) rows'
+         putStrLn $ "[INFO] " ++ show (length rows) ++ " rows of ((SIdx, SIdx), SimDeg) are read into memory."
+
+         let sIdxPair2SimMap = Map.fromList rows                               -- Map (SIdx, SIdx) SimDeg
+         let simList = map (meanRulesSimOnOneSample sIdxPair2SimMap srList) srList     -- [SimDeg]
+         let meanSim = foldl (+) 0.0 simList / (fromIntegral (length simList))         -- SimDeg
+         putStrLn $ "[INFO] Average similarity degree is " ++ show meanSim
+         t3 <- getCurrentTime                                                   -- UTCTime
+         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
+         close conn
+       else putStr ""
 
 {- Get representations in memory of parsing results of sentences.
  - <sentsResult> ::= [<sentResult>], a <sentResult> is the parsing result for a sentence.

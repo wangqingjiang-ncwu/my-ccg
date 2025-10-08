@@ -53,7 +53,11 @@ module Corpus (
     nTreeToString,       -- [Tree] -> String
     aSLRToString,        -- SLROfATrans -> String
     clauseSLRToString,   -- SLROfClause -> String
-    nClauseSLRToString,   -- SLROfSent -> String
+    nClauseSLRToString,  -- SLROfSent -> String
+    readClauTagFromStr,  -- String -> ClauTag
+    stringToASLR,        -- String -> SLROfATrans
+    stringToClauSLR,     -- String -> SLROfClause
+    stringToSentSLR,     -- String -> SLROfSent
     closureToString,     -- Closure -> String
     nClosureToString,    -- [Closure] -> String
     forestToString,      -- Forest -> String
@@ -664,6 +668,28 @@ clauseSLRToString clauSLR = listToString (map aSLRToString clauSLR)
 
 nClauseSLRToString :: SLROfSent -> String
 nClauseSLRToString clauSLRs = listToString (map clauseSLRToString clauSLRs)
+
+readClauTagFromStr :: String -> ClauTag
+readClauTagFromStr str = (sentIdx, clauIdx)
+    where
+    (sentIdxStr, clauIdxStr) = stringToTuple str
+    sentIdx = read sentIdxStr :: Int
+    clauIdx = read clauIdxStr :: Int
+
+stringToASLR :: String -> SLROfATrans
+stringToASLR str = (clauTag, (stub, rules))
+    where
+    (clauTagStr, stubRulesStr) = stringToTuple str
+    clauTag = readClauTagFromStr clauTagStr                                     -- (SentIdx, ClauIdx)
+    (stubStr, rulesStr) = stringToTuple stubRulesStr
+    stub = getPhraCateListFromString stubStr                                    -- [PhraCate]
+    rules = getRulesFromStr rulesStr                                            -- [Rule]
+
+stringToClauSLR :: String -> SLROfClause
+stringToClauSLR str = map stringToASLR (stringToList str)                       -- [SLROfATrans]
+
+stringToSentSLR :: String -> SLROfSent
+stringToSentSLR str = map stringToClauSLR (stringToList str)                    -- [SLROfClause]
 
 type Closure = [PhraCate]
 type Forest = [[PhraCate]]

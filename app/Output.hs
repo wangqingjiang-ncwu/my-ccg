@@ -10,7 +10,10 @@ module Output (
     showNSeman,       -- [PhraCate] -> IO ()
     showNSeman2,      -- [(Category, Seman)] -> IO ()
     showPhraCate,     -- PhraCate -> IO ()
+    showPhraSyn0,     -- PhraSyn0 -> IO ()
     showPhraSyn,      -- PhraSyn -> IO ()
+    showNPhraSyn0,    -- [PhraSyn0] -> IO ()
+    showNPhraSyn,     -- [PhraSyn] -> IO ()
     showStruGene,     -- StruGene -> IO ()
     showStruGeneSample,  -- StruGeneSample -> IO ()
     putNCtsca,        -- [(Category, Tag, Seman, PhraStru, Act)] -> IO ()
@@ -19,6 +22,8 @@ module Output (
     showNPhraCateLn,     -- [PhraCate] -> IO ()
     showNPhraCate,       -- [PhraCate] -> IO ()
     showNPhraSynLn,      -- [PhraSyn] -> IO ()
+    putNPS,           -- [PhraSyn] -> IO ()
+    putNPS0,          -- [PhraSyn0] -> IO ()
     putNPC,           -- [PhraCate] -> IO ()
     showNPhraCateListLn,   -- [[PhraCate]] -> IO ()
     putNPCList,       -- [[PhraCate]] -> IO ()
@@ -59,14 +64,14 @@ module Output (
     showTagPair2SimList,    -- [((Tag, Tag), String)] -> IO ()
     showStruPair2SimList,   -- [((PhraStru, PhraStru), String)] -> IO ()
     showSpanPair2SimList,   -- [((Span, Span), String)] -> IO ()
+    showBiTreePhraSyn,      -- BiTree PhraSyn -> IO ()
+    showBiTreePhraSyn0,     -- BiTree PhraSyn0 -> IO ()
     ) where
 
 import Category
 import Rule
 import Phrase
---import Parse
 import Corpus
---import AmbiResol (PhraSyn, OverPair, OverType, Prior,)
 import AmbiResol
 import Utils
 import Data.Char
@@ -136,9 +141,24 @@ showPhraCate pc = do
     putNCtsca (ctspaOfCate pc)
     putStr $ "]," ++ show (ssOfCate pc) ++ ")"
 
+-- Convert a PhraSyn0 value to its String value. PhraSyn0 :: (Category, Tag, PhraStru)
+showPhraSyn0 :: PhraSyn0 -> IO ()
+showPhraSyn0 ps = putStr $ "(" ++ show (fst3 ps) ++ "," ++ (snd3 ps) ++ "," ++ (thd3 ps) ++ ")"
+
 -- Convert a PhraSyn value to its String value. PhraSyn :: (Category, Tag, PhraStru, Span)
 showPhraSyn :: PhraSyn -> IO ()
 showPhraSyn ps = putStr $ "(" ++ show (fst4 ps) ++ "," ++ (snd4 ps) ++ "," ++ (thd4 ps) ++ "," ++ show (fth4 ps) ++ ")"
+
+showNPhraSyn0 :: [PhraSyn0] -> IO ()
+showNPhraSyn0 [] = putStr "[]"
+showNPhraSyn0 [x] = do
+    putStr "["
+    showPhraSyn0 x
+    putStr "]"
+showNPhraSyn0 (x:xs) = do
+    putStr "["
+    putNPS0 (x:xs)
+    putStr "]"
 
 showNPhraSyn :: [PhraSyn] -> IO ()
 showNPhraSyn [] = putStr "[]"
@@ -217,7 +237,7 @@ showNPhraCate (x:xs) = do
     putNPC (x:xs)
     putStr "]"
 
--- Show a list of PhraSyn values without the outest square brackets, and print a new line at the end.
+-- Show a list of PhraSyn values with the outest square brackets, and print a new line at the end.
 showNPhraSynLn :: [PhraSyn] -> IO ()
 showNPhraSynLn [] = putStrLn "[]"
 showNPhraSynLn [x] = do
@@ -228,6 +248,15 @@ showNPhraSynLn (x:xs) = do
     putStr "["
     putNPS (x:xs)
     putStrLn "]"
+
+-- Show a list of PhraSyn0 values without the outest square brackets.
+putNPS0 :: [PhraSyn0] -> IO ()
+putNPS0 [] = putStr ""
+putNPS0 [x] = showPhraSyn0 x
+putNPS0 (x:xs) = do
+    showPhraSyn0 x
+    putStr ","
+    putNPS0 xs
 
 -- Show a list of PhraSyn values without the outest square brackets.
 putNPS :: [PhraSyn] -> IO ()
@@ -853,3 +882,25 @@ showSpanPair2SimList' (s:ss) = do
     showSpanPair2SimList' [s]
     putStr ", "
     showSpanPair2SimList' ss
+
+showBiTreePhraSyn :: BiTree PhraSyn -> IO ()
+showBiTreePhraSyn Empty = putStr "()"
+showBiTreePhraSyn (Node r t1 t2) = do
+    putStr "("
+    showPhraSyn r
+    putStr ","
+    showBiTreePhraSyn t1
+    putStr ","
+    showBiTreePhraSyn t2
+    putStr ")"
+
+showBiTreePhraSyn0 :: BiTree PhraSyn0 -> IO ()
+showBiTreePhraSyn0 Empty = putStr "()"
+showBiTreePhraSyn0 (Node r t1 t2) = do
+    putStr "("
+    showPhraSyn0 r
+    putStr ","
+    showBiTreePhraSyn0 t1
+    putStr ","
+    showBiTreePhraSyn0 t2
+    putStr ")"

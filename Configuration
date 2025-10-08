@@ -62,6 +62,11 @@ phrasyn:phrasyn0
 #   - stru_gene3a_phrasyn0_202509
 syntax_ambig_resol_model:stru_gene3a_phrasyn0_202509
 
+# Category ambiguity resolution model also is the name of MySQL table storing the samples of that model.
+# Possible values of this property:
+#   - slr_corpus_202509
+cate_ambig_resol_model:slr_corpus_202509
+
 # Switch of updating syntax or category ambiguity resolution samples in database.
 # For grammar inconsistancy, parsing by scripts sometimes includes manually ambiguity resolution, using new category conversion rules or syntax rules.
 # On another aspects, resolution policies might be different between parsing by scripts and parsing manually.
@@ -171,19 +176,28 @@ defaultEndIdx:200
 # '18782' is for stru_gene_202501
 # '19464' is for stru_gene3_202508
 # '14699' is for stru_gene3a_phrasyn0_202509
-type_sim_tbl:type_sim_14699
+# 'type_sim_for_phrasyn_from_slr_corpus_202509' is for phrasyn from slr_corpus_202509
+type_sim_tbl:type_sim_for_phrasyn_from_slr_corpus_202509
 
 # Table names of storing similarity degrees between grammatic rules.
-tag_sim_tbl:tag_sim_14699
+tag_sim_tbl:tag_sim_for_phrasyn_from_slr_corpus_202509
 
 # Table names of storing similarity degrees between phrasal structures.
-stru_sim_tbl:stru_sim_14699
+stru_sim_tbl:stru_sim_for_phrasyn_from_slr_corpus_202509
 
 # Table names of storing similarity degrees between phrasal spans.
-span_sim_tbl:span_sim_19464
+span_sim_tbl:span_sim_for_phrasyn_from_slr_corpus_202509
 
 # Table names of storing similarity degrees between PhraSyn samples.
-phrasyn_sim_tbl:phrasyn_sim_14699
+# Possible options:
+# - phrasyn_sim_14699
+# - phrasyn_sim_from_slr_corpus_202509
+phrasyn_sim_tbl:phrasyn_sim_from_slr_corpus_202509
+
+# Table names of storing similarity degrees between PhraSyn0 samples.
+# Possible options:
+# - phrasyn0_sim_from_slr_corpus_202509_test
+phrasyn0_sim_tbl:phrasyn0_sim_from_slr_corpus_202509
 
 # Table names of storing similarity degrees between samples of ContextOfSG, ContextOfSG3a, or other StruGene context model.
 csg_sim_tbl:csg3a_phrasyn0_sim_202509
@@ -193,6 +207,15 @@ store_csg_sim:True
 
 # Chunk, namely a batch of rows which are written into MySQL table every SQL writing operation.
 csg_sim_rows_chunk:80000
+
+# Table names of storing similarity degrees between samples of Context of Categorial Conversions (Stub).
+ccc_sim_tbl:ccc_sim_for_contextofcc3_from_slr_corpus_202509
+
+# Whether storing similarity degrees between Stub samples.
+store_ccc_sim:True
+
+# Chunk, namely a batch of rows which are written into MySQL table every SQL writing operation.
+ccc_sim_rows_chunk:80000
 
 # How to get similarity degrees on basic grammatic attributes.
 # dynamic: Collect PhraSyn values, then calculate similarity degrees on grammatic attributes.
@@ -210,3 +233,9 @@ mean_sim_trace_file:mean_sim_trace.csv
 
 # Name of file storing change trace of all clusters.
 clusters_trace_file:clusters_trace.csv
+
+# MySQL Table storing raw SLR samples
+slr_raw_corpus:treebank_including_SLR_for_creating_stru_gene3_202508
+
+# MySQL Table storing ripe SLR samples
+slr_ripe_corpus:slr_corpus_202509

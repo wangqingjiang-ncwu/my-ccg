@@ -39,6 +39,8 @@ module Clustering (
     readStreamByStruGene,                -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
     readStreamByStruGene2GetStruGeneSample,          -- [StruGeneSample] -> S.InputStream [MySQLValue] -> IO [StruGeneSample]
     readStreamBySIdxPrior,               -- [SIdxPrior] -> S.InputStream [MySQLValue] -> IO [SIdxPrior]
+    readStreamBySIdxRules,               -- [SIdxRules] -> S.InputStream [MySQLValue] -> IO [SIdxRules]
+    readSIdxRulesFromDB,                 -- SIdx -> SIdx -> IO [SIdxRules]
     storeOneIterationResult,             -- TableName -> INo -> [SampleClusterMark] -> [StruGene] -> DistMean -> IO ()
     storeClusterTime,                    -- TimeTableName -> KVal -> SNum -> NominalDiffTime -> NominalDiffTime -> Int -> Double -> IO ()
     autoRunClustByChangeKValSNum,        -- String -> String -> Int -> KValRange -> SNumRange -> DistWeiRatioList -> IO ()
@@ -80,8 +82,11 @@ module Clustering (
     getPhraSynPair2SimFromCSG,       -- DistAlgo ->[ContextOfSG] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
     getPhraSynPair2SimFromCSG3a,     -- DistAlgo -> [ContextOfSG3a] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
     getPhraSyn0Pair2SimFromCSG3a,    -- DistAlgo -> [ContextOfSG3a0] -> IO (Map (PhraSyn0, PhraSyn0) SimDeg)
+    getPhraSynPair2SimFromCCC1,      -- DistAlgo -> [ContextOfCC1] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
+    getPhraSyn0Pair2SimFromCCC2,     -- DistAlgo -> [ContextOfCC2] -> IO (Map (PhraSyn0, PhraSyn0) SimDeg)
     getPhraSynSetSim,                -- [PhraSyn] -> [PhraSyn] -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
-    toPhraSynPair2Sim,               -- Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
+    getPhraSyn0SetSim,               -- [PhraSyn0] -> [PhraSyn0] -> Map (PhraSyn0, PhraSyn0) SimDeg -> SimDeg
+    lookupInPhraSynPair2Sim,         -- (Ord a, Show a) => Map (a, a) SimDeg -> (a, a) -> ((a, a), SimDeg)
     getSentClauPhraList,             -- SentIdx -> SentIdx -> IO SentClauPhraList
 
     getContext2OverTypeBase,         -- SIdx -> SIdx -> IO Context2OverTypeBase
@@ -92,6 +97,10 @@ module Clustering (
     getSIdx2ContextOfSGBase,         -- SIdx -> SIdx -> IO [(SIdx, ContextOfSG)]
     getSIdx2ContextOfSG3aBase,       -- SIdx -> SIdx -> IO [(SIdx, ContextOfSG3a)]
     getSIdx2ContextOfSG3a0Base,      -- SIdx -> SIdx -> IO [(SIdx, ContextOfSG3a0)]
+    getSIdx2ContextOfCC1Base,        -- SIdx -> SIdx -> IO [(SIdx, ContextOfCC1)]
+    getSIdx2ContextOfCC2Base,        -- SIdx -> SIdx -> IO [(SIdx, ContextOfCC2)]
+    getSIdx2ContextOfCC3Base,        -- SIdx -> SIdx -> IO [(SIdx, ContextOfCC3)]
+    getSIdx2ContextOfCC4Base,        -- SIdx -> SIdx -> IO [(SIdx, ContextOfCC4)]
     getContextOfSGPairSimBySVD,      -- Context2ClauTagPriorBase -> IO ([(ContextOfSG, ContextOfSG)], Matrix Double, Matrix Double, [((ContextOfSG, ContextOfSG), SimDeg)])
     getContextOfSGPairSim,           -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     getOneContextOfSGPairSim,        -- ContextOfSG -> ContextOfSG -> String -> String -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
@@ -99,6 +108,7 @@ module Clustering (
     getOneContextOfSG3a0PairSim,     -- ContextOfSG3a0 -> ContextOfSG3a0 -> String -> Double -> Map (PhraSyn0, PhraSyn0) SimDeg -> SimDeg
     getBiTreePhraSynSim,             -- BiTree PhraSyn -> BiTree PhraSyn -> Double -> Map (PhraSyn, PhraSyn) SimDeg -> SimDeg
     getBiTreePhraSyn0Sim,            -- BiTree PhraSyn0 -> BiTree PhraSyn0 -> Double -> SimDeg
+    getBiTreePhraSyn0Sim',           -- BiTree PhraSyn0 -> BiTree PhraSyn0 -> Double -> Map (PhraSyn0, PhraSyn0) SimDeg -> SimDeg
     getContextOfSGPairSimWithStaticOT,     -- Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     getOneToAllContextOfSGSim,       -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
     getOneToAllContextOfSGSim',      -- ContextOfSG -> Context2ClauTagPriorBase -> IO ([(SimDeg, SimDeg, SimDeg, SimDeg, SimDeg)], [((ContextOfSG, ContextOfSG), SimDeg)])
@@ -117,11 +127,12 @@ module Clustering (
 
 import Category
 import Phrase
+import Parse (findForest)
 import AmbiResol
 import qualified AmbiResol as AR
 import Corpus
+import Rule (getRulesFromStr)
 import Utils
-import Output
 import Data.Tuple (swap)
 import Data.Tuple.Utils
 import Data.List
@@ -697,7 +708,7 @@ readStreamByStruGene2GetStruGeneSample es is = do
 
 {- Read a value from input stream [MySQLValue], change it into a SIdxPrior value, append it
  - to existed SIdxPrior list, then read the next until read Nothing.
- - Here [MySQLValue] is [MySQLText, MySQLText, MySQLText, MySQLText, MySQLInt8, MySQLText], which comes from StruGene2Sample base.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText], which comes from StruGene2Sample bank.
  -}
 readStreamBySIdxPrior :: [SIdxPrior] -> S.InputStream [MySQLValue] -> IO [SIdxPrior]
 readStreamBySIdxPrior es is = do
@@ -707,6 +718,34 @@ readStreamBySIdxPrior es is = do
                                                    Just x -> x
                                                    Nothing -> error "readStreamBySIdxPrior: Exception")]) is
         Nothing -> return es
+
+{- Read a value from input stream [MySQLValue], change it into a SIdxRules value, append it
+ - to existed SIdxRules list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt32U, MySQLText], which comes from SLR sample bank, MySQLText value is (Stub,[Rule]) text.
+ -}
+readStreamBySIdxRules :: [SIdxRules] -> S.InputStream [MySQLValue] -> IO [SIdxRules]
+readStreamBySIdxRules es is = do
+    S.read is >>= \case                                         -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamBySIdxRules (es ++ [(fromMySQLInt32U (x!!0),
+                                                 getRulesFromStr ((snd . stringToTuple . fromMySQLText) (x!!1))
+                                                )]) is
+        Nothing -> return es
+
+{- Get SIdxRules samples from database.
+ - SIdxRules :: (SIdx, [Rule])
+ -}
+readSIdxRulesFromDB :: SIdx -> SIdx -> IO [SIdxRules]
+readSIdxRulesFromDB startId endId = do
+  confInfo <- readFile "Configuration"
+  let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+  conn <- getConn
+  let sqlstat = DS.fromString $ "SELECT id, phrasyn_list_rules FROM " ++ cate_ambig_resol_model ++ " where id >= " ++ show startId ++ " and id <= " ++ show endId
+  stmt <- prepareStmt conn sqlstat
+  (defs, is) <- queryStmt conn stmt []
+  sps <- readStreamBySIdxRules [] is                -- [SIdxRules]
+  closeStmt conn stmt
+  close conn
+  return sps
 
 type TableName = String
 {- Store clustering result of every times of iteration.
@@ -1206,8 +1245,8 @@ clusteringAnalysis funcIndex = do
              putStrLn $ "The result of getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps2, ps3] [ps2, ps3, ps4] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps1] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps2] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps2] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps2] [ps1] phraSynPair2SimMap)
-             putStrLn $ "The result of toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) is: " ++ show (toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2))
-             putStrLn $ "The result of toPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1) is: " ++ show (toPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1))
+             putStrLn $ "The result of lookupInPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) is: " ++ show (lookupInPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2))
+             putStrLn $ "The result of lookupInPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1) is: " ++ show (lookupInPhraSynPair2Sim phraSynPair2SimMap (ps2, ps1))
              putStrLn $ "The result of getPhraSynSetSim [ps1, ps3] [ps2] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1, ps3] [ps2] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps2, ps3] [ps1] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps2, ps3] [ps1] phraSynPair2SimMap)
              putStrLn $ "The result of getPhraSynSetSim [ps1] [ps2, ps3] phraSynPair2SimMap is: " ++ show (getPhraSynSetSim [ps1] [ps2, ps3] phraSynPair2SimMap)
@@ -1339,7 +1378,7 @@ clusteringAnalysis funcIndex = do
            else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 10. Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition.
+{- 10(A). Get similarity degrees between any two contexts of StruGene samples by Singular Value Decomposition.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
  -}
@@ -1408,7 +1447,7 @@ clusteringAnalysis funcIndex = do
            else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 11. Get similarity degrees between any two contexts of StruGene samples.
+{- 11(B). Get similarity degrees between any two contexts of StruGene samples.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
  -}
@@ -1459,7 +1498,7 @@ clusteringAnalysis funcIndex = do
            else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 12. Among StruGene samples, calculate similarity degrees from one to all contexts.
+{- 12(C). Among StruGene samples, calculate similarity degrees from one to all contexts.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - ContextOfSG3a0 :: (LeftOverTree0, RightOverTree0)
  - LeftOverTree0, RightOverTree0 :: BiTree PhraSyn0
@@ -1568,7 +1607,7 @@ clusteringAnalysis funcIndex = do
 
         else putStr ""
 
-{- 13. Get similarity degrees between one ClauTagPrior context to every context of StruGene (or Strugene3a0) samples.
+{- 13(D). Get similarity degrees between one ClauTagPrior context to every context of StruGene (or Strugene3a0) samples.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  - ContextOfSG3a0 :: (LeftOverTree0, RightOverTree0)
  - Input No.4 Sample , it is ([(((s\.np)/#(s\.np))/*np,"Desig","DE")],(np,">","AHn"),(s,"<","SP"),[],2)
@@ -1672,7 +1711,7 @@ clusteringAnalysis funcIndex = do
            else putStrLn "Operation was cancelled."
        else putStr ""
 
-{- 14. Among StruGene samples, calculate similarity degree between every pair of contexts.
+{- 14(E). Among StruGene samples, calculate similarity degree between every pair of contexts.
  - ContextOfSG :: (LeftExtend, LeftOver, RightOver, RightExtend, OverType)
  -}
     if funcIndex == 14
@@ -1740,7 +1779,7 @@ clusteringAnalysis funcIndex = do
          close conn                                   -- Close MySQL connection.
        else putStr ""
 
-{- 18. Among StruGene3a samples, calculate similarity degree between every pair of contexts.
+{- 18(I). Among StruGene3a samples, calculate similarity degree between every pair of contexts.
  - ContextOfSG3a :: (LeftOverTree, RightOverTree)
  -}
     if funcIndex == 18
@@ -1811,7 +1850,7 @@ clusteringAnalysis funcIndex = do
            else putStrLn "Operation was canceled."
        else putStr ""
 
-{- 19. Among StruGene3a0 samples, calculate similarity degree between every pair of contexts.
+{- 19(J). Among StruGene3a0 samples, calculate similarity degree between every pair of contexts.
  - ContextOfSG3a0 :: (LeftOverTree0, RightOverTree0)
  -}
     if funcIndex == 19
@@ -1879,6 +1918,325 @@ clusteringAnalysis funcIndex = do
              close conn                                   -- Close MySQL connection.
            else putStrLn "Operation was canceled."
        else putStr ""
+
+{- 20(K). From SLR raw samples, get SLR ripe samples.
+ - slr_raw_sample: [PhraCate] -> [Rule]
+ - slr_ripe_sample: [PhraSyn] -> [Rule], [PhraSyn0] -> [Rule], BiTree PhraSyn -> [Rule], and BiTree PhraSyn0 -> [Rule]
+ - Every SLR sample includes a collection of phrasal cateories and categorial conversions to be adopted.
+ - From these phrasal categories, the corresponding PhraSyn and PhraSyn0 values are extracted, and
+ - are used to form a forest of binary trees, and the later corresponds to a binary tree by left-child right-sibling algorithm.
+ - Results are stored into MySQL Table named as the value of attribute "slr_ripe_corpus".
+ -}
+    if funcIndex == 20
+       then do
+         confInfo <- readFile "Configuration"
+         let slr_raw_corpus = getConfProperty "slr_raw_corpus" confInfo
+         let slr_ripe_corpus = getConfProperty "slr_ripe_corpus" confInfo
+
+         putStrLn $ " slr_raw_corpus: " ++ slr_raw_corpus
+         putStrLn $ " slr_ripe_corpus: " ++ slr_ripe_corpus
+
+         startIdx <- getNumUntil "Please input index number of start SLR raw sample [Return for 1]: " [0 ..]
+         endIdx <- getNumUntil "Please input index number of end SLR raw sample [Return for last]: " [0 ..]
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "SELECT count(*) from " ++ slr_raw_corpus
+         (defs, is) <- query_ conn sqlstat
+         rows <- readStreamByInt64 [] is
+
+         let startIdx' = case startIdx of
+                           0 -> 1
+                           _ -> startIdx
+         let endIdx' = case endIdx of
+                         0 -> head rows
+                         _ -> endIdx
+
+         putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
+           then do
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ slr_ripe_corpus ++ " (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, transTag varchar(12), phrasyn_list_rules MEDIUMTEXT, phrasyn0_list_rules MEDIUMTEXT, bitree_phrasyn_rules MEDIUMTEXT, bitree_phrasyn0_rules MEDIUMTEXT)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             closeStmt conn stmt
+
+             putStrLn "Start to generate SLR ripe corpus ..."
+             t0 <- getCurrentTime                -- UTCTime
+
+             let sqlstat = DS.fromString $ "SELECT SLR from " ++ slr_raw_corpus ++ " where serial_num >= ? and serial_num <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32 startIdx', toMySQLInt32 endIdx']
+             closeStmt conn stmt
+
+             sLROfSentStrList <- readStreamByText [] is                         -- [String], here a string is a SLROfSent sample.
+             let sLROfATransListListList = map stringToSentSLR sLROfSentStrList   -- [[[sLROfATrans]]]
+             let idxListListList = map (\sentSLR -> map (\clauSLR -> [1 .. length clauSLR]) sentSLR) sLROfATransListListList  -- [[[Int]]]
+             let sLROfATransList = (concat . concat) sLROfATransListListList    -- [sLROfATrans]
+             let idxList = (concat . concat) idxListListList                    -- [Int], namely [TransIdx]
+             let clauTagList = map fst sLROfATransList                          -- [(SentIdx, ClauIdx)]
+             let transTagList = map (\((sentIdx, clauIdx), transIdx) -> (sentIdx, clauIdx, transIdx)) $ zip clauTagList idxList  -- [(SentIdx,ClauIdx,TransIdx)]
+             let sLRList = map snd sLROfATransList                              -- [(Stub, [Rule])]
+             putStrLn $ " clusteringAnalysis Func. 20(K): Num. of SLR samples = " ++ show (length sLRList)
+
+             let phraSyns2RulesList = map (\(stub,rules) -> (map phraCate2PhraSyn stub, rules)) sLRList     -- [([PhraSyn], [Rule])]
+             let phraSyn0s2RulesList = map (\(stub,rules) -> (map phraCate2PhraSyn0 stub, rules)) sLRList   -- [([PhraSyn0], [Rule])]
+             let biTreePhraSyn2RulesList = map (\(stub,rules) -> ((biTreePhraCate2BiTreePhraSyn . forest2BiTree . findForest) stub, rules)) sLRList     -- [(BiTree PhraSyn, [Rule])]
+             let biTreePhraSyn02RulesList = map (\(stub,rules) -> ((biTreePhraCate2BiTreePhraSyn0 . forest2BiTree . findForest) stub, rules)) sLRList   -- [(BiTree PhraSyn0, [Rule])]
+
+             let transTagList' = map (\x -> [(toMySQLText . show) x]) transTagList          -- [[MySQLText]]
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ slr_ripe_corpus ++ " WHERE transTag = ?"
+             executeMany conn sqlstat transTagList'
+
+             let vList = map (\(v,w,x,y,z) -> [(toMySQLText . show) v
+                                              ,(toMySQLText . phraSyns2RulesToString) w
+                                              ,(toMySQLText . phraSyn0s2RulesToString) x
+                                              ,(toMySQLText . biTreePhraSyn2RulesToString) y
+                                              ,(toMySQLText . biTreePhraSyn02RulesToString) z
+                                              ]) $ zip5 transTagList
+                                                        phraSyns2RulesList
+                                                        phraSyn0s2RulesList
+                                                        biTreePhraSyn2RulesList
+                                                        biTreePhraSyn02RulesList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ slr_ripe_corpus ++ " SET transTag = ?, phrasyn_list_rules = ?, phrasyn0_list_rules = ?, bitree_phrasyn_rules = ?, bitree_phrasyn0_rules = ?"
+             oks <- executeMany conn sqlstat vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 20(K):: LastInsertID : " ++ show lastInsertID
+
+             t1 <- getCurrentTime                                               -- UTCTime
+             putStrLn $ "\n Total calculating time: " ++ show (diffUTCTime t1 t0)
+
+             close conn
+           else putStrLn "Operation was canceled."
+         else putStr ""
+
+{- 21(L). From SLR ripe samples, get inter-value similarity degrees of every PhraSyn's basic attribue.
+ - slr_ripe_corpus: Source of PhraSyns
+ - type_sim_tbl: MySQL table storing inter-type similarity degrees
+ - tag_sim_tbl: MySQL table storing inter-tag similarity degrees
+ - stru_sim_tbl:MySQL table storing inter-phrastru similarity degrees
+ - span_sim_tbl: MySQL table storing inter-phrasal span similarity degrees
+ -}
+    if funcIndex == 21
+       then do
+         confInfo <- readFile "Configuration"
+         let slr_ripe_corpus = getConfProperty "slr_ripe_corpus" confInfo
+         let type_sim_tbl = getConfProperty "type_sim_tbl" confInfo
+         let tag_sim_tbl = getConfProperty "tag_sim_tbl" confInfo
+         let stru_sim_tbl = getConfProperty "stru_sim_tbl" confInfo
+         let span_sim_tbl = getConfProperty "span_sim_tbl" confInfo
+
+         putStrLn $ " slr_ripe_corpus: " ++ slr_ripe_corpus
+         putStrLn $ " type_sim_tbl: " ++ type_sim_tbl
+         putStrLn $ " tag_sim_tbl: " ++ tag_sim_tbl
+         putStrLn $ " stru_sim_tbl: " ++ stru_sim_tbl
+         putStrLn $ " span_sim_tbl: " ++ span_sim_tbl
+
+         startIdx <- getNumUntil "Please input index number of start SLR raw sample [Return for 1]: " [0 ..]
+         endIdx <- getNumUntil "Please input index number of end SLR raw sample [Return for last]: " [0 ..]
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "SELECT count(*) from " ++ slr_ripe_corpus
+         (defs, is) <- query_ conn sqlstat
+         rows <- readStreamByInt64 [] is
+
+         let startIdx' = case startIdx of
+                           0 -> 1
+                           _ -> startIdx
+         let endIdx' = case endIdx of
+                         0 -> head rows
+                         _ -> endIdx
+
+         putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
+           then do
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ type_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cate1 VARCHAR(100), cate2 VARCHAR(100), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tag_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, tag1 VARCHAR(50), tag2 VARCHAR(50), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ stru_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stru1 VARCHAR(10), stru2 VARCHAR(10), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ span_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, span1 TINYINT, span2 TINYINT, sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             closeStmt conn stmt
+
+             putStrLn "Start to calculate inter-value similarity degrees of every PhraSyn attribue ..."
+             t0 <- getCurrentTime                -- UTCTime
+
+             let sqlstat = DS.fromString $ "SELECT phrasyn_list_rules from " ++ slr_ripe_corpus ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32 startIdx', toMySQLInt32 endIdx']
+             closeStmt conn stmt
+
+             phrasyn_list_rules_str <- readStreamByText [] is                   -- [String], here a string is a phrasyn_list_rules sample.
+             let phrasyn_list_rules = map stringToPhraSyns2Rules phrasyn_list_rules_str    -- [([PhraSyn], [Rule])]
+             let phrasyns = concat $ map fst phrasyn_list_rules                 -- [PhraSyn]
+             putStrLn $ " clusteringAnalysis Func. 21(L): Num. of PhraSyn instances = " ++ show (length phrasyns)
+
+             let typePair2Sim = fth4 $ getTypePair2SimFromPSL phrasyns          -- [((Category, Category), SimDeg)]
+             let tagPair2Sim = fth4 $ getTagPair2SimFromPSL phrasyns            -- [((Tag, Tag), SimDeg)]
+             let struPair2Sim = fth4 $ getStruPair2SimFromPSL phrasyns          -- [((PhraStru, PhraStru), SimDeg)]
+             let spanPair2Sim = fth4 $ getSpanPair2SimFromPSL phrasyns          -- [((Span, Span), SimDeg)]
+
+             let typePair2Sim_vList = map (\((cate1, cate2), simDeg) -> [(toMySQLText . show) cate1, (toMySQLText . show) cate2, toMySQLDouble simDeg]) typePair2Sim
+             let tagPair2Sim_vList = map (\((tag1, tag2), simDeg) -> [toMySQLText tag1, toMySQLText tag2, toMySQLDouble simDeg]) tagPair2Sim
+             let struPair2Sim_vList = map (\((stru1, stru2), simDeg) -> [toMySQLText stru1, toMySQLText stru2, toMySQLDouble simDeg]) struPair2Sim
+             let spanPair2Sim_vList = map (\((span1, span2), simDeg) -> [toMySQLInt8 span1, toMySQLInt8 span2, toMySQLDouble simDeg]) spanPair2Sim
+
+             let typePair_vList = map (take 2) typePair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ type_sim_tbl ++ " WHERE cate1 = ? and cate2 = ?"
+             executeMany conn sqlstat typePair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ type_sim_tbl ++ " SET cate1 = ?, cate2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat typePair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ type_sim_tbl ++ " " ++ show lastInsertID
+
+             let tagPair_vList = map (take 2) tagPair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ tag_sim_tbl ++ " WHERE tag1 = ? and tag2 = ?"
+             executeMany conn sqlstat tagPair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ tag_sim_tbl ++ " SET tag1 = ?, tag2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat tagPair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ tag_sim_tbl ++ " " ++ show lastInsertID
+
+             let struPair_vList = map (take 2) struPair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ stru_sim_tbl ++ " WHERE stru1 = ? and stru2 = ?"
+             executeMany conn sqlstat struPair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ stru_sim_tbl ++ " SET stru1 = ?, stru2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat struPair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ stru_sim_tbl ++ " " ++ show lastInsertID
+
+             let spanPair_vList = map (take 2) spanPair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ span_sim_tbl ++ " WHERE span1 = ? and span2 = ?"
+             executeMany conn sqlstat spanPair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ span_sim_tbl ++ " SET span1 = ?, span2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat spanPair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ span_sim_tbl ++ " " ++ show lastInsertID
+
+             t1 <- getCurrentTime                                               -- UTCTime
+             putStrLn $ "\n Total calculating time: " ++ show (diffUTCTime t1 t0)
+
+             close conn
+           else putStrLn "Operation was canceled."
+         else putStr ""
+
+{- 22(M). From SLR ripe samples, get inter-value similarity degrees of every PhraSyn0's basic attribue.
+ - slr_ripe_corpus: Source of PhraSyn0s
+ - type_sim_tbl: MySQL table storing inter-type similarity degrees
+ - tag_sim_tbl: MySQL table storing inter-tag similarity degrees
+ - stru_sim_tbl:MySQL table storing inter-phrastru similarity degrees
+ -}
+    if funcIndex == 22
+       then do
+         confInfo <- readFile "Configuration"
+         let slr_ripe_corpus = getConfProperty "slr_ripe_corpus" confInfo
+         let type_sim_tbl = getConfProperty "type_sim_tbl" confInfo
+         let tag_sim_tbl = getConfProperty "tag_sim_tbl" confInfo
+         let stru_sim_tbl = getConfProperty "stru_sim_tbl" confInfo
+
+         putStrLn $ " slr_ripe_corpus: " ++ slr_ripe_corpus
+         putStrLn $ " type_sim_tbl: " ++ type_sim_tbl
+         putStrLn $ " tag_sim_tbl: " ++ tag_sim_tbl
+         putStrLn $ " stru_sim_tbl: " ++ stru_sim_tbl
+
+         startIdx <- getNumUntil "Please input index number of start SLR raw sample [Return for 1]: " [0 ..]
+         endIdx <- getNumUntil "Please input index number of end SLR raw sample [Return for last]: " [0 ..]
+
+         conn <- getConn
+         let sqlstat = DS.fromString $ "SELECT count(*) from " ++ slr_ripe_corpus
+         (defs, is) <- query_ conn sqlstat
+         rows <- readStreamByInt64 [] is
+
+         let startIdx' = case startIdx of
+                           0 -> 1
+                           _ -> startIdx
+         let endIdx' = case endIdx of
+                         0 -> head rows
+                         _ -> endIdx
+
+         putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+         contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+         if contOrNot == "c"
+           then do
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ type_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cate1 VARCHAR(100), cate2 VARCHAR(100), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ tag_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, tag1 VARCHAR(50), tag2 VARCHAR(50), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             let sqlstat = DS.fromString $ "CREATE TABLE IF NOT EXISTS " ++ stru_sim_tbl ++ " (id SMALLINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, stru1 VARCHAR(10), stru2 VARCHAR(10), sim DOUBLE)"
+             stmt <- prepareStmt conn sqlstat
+             executeStmt conn stmt []
+             closeStmt conn stmt
+
+             putStrLn "Start to calculate inter-value similarity degrees of every PhraSyn0 attribue ..."
+             t0 <- getCurrentTime                -- UTCTime
+
+             let sqlstat = DS.fromString $ "SELECT phrasyn0_list_rules from " ++ slr_ripe_corpus ++ " where id >= ? and id <= ?"
+             stmt <- prepareStmt conn sqlstat
+             (defs, is) <- queryStmt conn stmt [toMySQLInt32 startIdx', toMySQLInt32 endIdx']
+             closeStmt conn stmt
+
+             phrasyn0_list_rules_str <- readStreamByText [] is                  -- [String], here a string is a phrasyn0_list_rules sample.
+             let phrasyn0_list_rules = map stringToPhraSyn0s2Rules phrasyn0_list_rules_str    -- [([PhraSyn0], [Rule])]
+             let phrasyn0s = concat $ map fst phrasyn0_list_rules               -- [PhraSyn0]
+             putStrLn $ " clusteringAnalysis Func. 22(M): Num. of PhraSyn0 instances = " ++ show (length phrasyn0s)
+
+             let typePair2Sim = fth4 $ getTypePair2SimFromPS0L phrasyn0s        -- [((Category, Category), SimDeg)]
+             let tagPair2Sim = fth4 $ getTagPair2SimFromPS0L phrasyn0s          -- [((Tag, Tag), SimDeg)]
+             let struPair2Sim = fth4 $ getStruPair2SimFromPS0L phrasyn0s        -- [((PhraStru, PhraStru), SimDeg)]
+
+             let typePair2Sim_vList = map (\((cate1, cate2), simDeg) -> [(toMySQLText . show) cate1, (toMySQLText . show) cate2, toMySQLDouble simDeg]) typePair2Sim
+             let tagPair2Sim_vList = map (\((tag1, tag2), simDeg) -> [toMySQLText tag1, toMySQLText tag2, toMySQLDouble simDeg]) tagPair2Sim
+             let struPair2Sim_vList = map (\((stru1, stru2), simDeg) -> [toMySQLText stru1, toMySQLText stru2, toMySQLDouble simDeg]) struPair2Sim
+
+             let typePair_vList = map (take 2) typePair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ type_sim_tbl ++ " WHERE cate1 = ? and cate2 = ?"
+             executeMany conn sqlstat typePair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ type_sim_tbl ++ " SET cate1 = ?, cate2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat typePair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ type_sim_tbl ++ " " ++ show lastInsertID
+
+             let tagPair_vList = map (take 2) tagPair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ tag_sim_tbl ++ " WHERE tag1 = ? and tag2 = ?"
+             executeMany conn sqlstat tagPair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ tag_sim_tbl ++ " SET tag1 = ?, tag2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat tagPair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ tag_sim_tbl ++ " " ++ show lastInsertID
+
+             let struPair_vList = map (take 2) struPair2Sim_vList
+             let sqlstat = DS.fromString $ "DELETE FROM " ++ stru_sim_tbl ++ " WHERE stru1 = ? and stru2 = ?"
+             executeMany conn sqlstat struPair_vList
+
+             let sqlstat = DS.fromString $ "INSERT INTO " ++ stru_sim_tbl ++ " SET stru1 = ?, stru2 = ?, sim = ?"
+             oks <- executeMany conn sqlstat struPair2Sim_vList
+             let lastInsertID = getOkLastInsertID (last oks)
+             putStrLn $ " clusteringAnalysis Func. 21(L):: LastInsertID in " ++ stru_sim_tbl ++ " " ++ show lastInsertID
+
+             t1 <- getCurrentTime                                               -- UTCTime
+             putStrLn $ "\n Total calculating time: " ++ show (diffUTCTime t1 t0)
+
+             close conn
+           else putStrLn "Operation was canceled."
+         else putStr ""
 
 type SentClauPhraList = [[[PhraCate]]]        -- A list includs sentences, a sentence incluse clauses, and a clause includes phrases, a phrase has a value of PhraCate.
 type SimDeg = Double          -- Similarity degree of some kind of grammatic attribue, such as syntatic type, grammatic rule, phrasal type, and so on.
@@ -2645,8 +3003,42 @@ getPhraSyn0Pair2SimFromCSG3a distAlgo contextOfSG3a0List = do
     let phraSyn0Pairs = nub $ map (\(x,y) -> if x <= y then (x,y) else (y,x))
                             $ foldl (++) []
                             $ map (\(t1,t2) -> nodePairsBetwTwOBiTree t1 t2) otps   -- [(PhraSyn0, PhraSyn0)], ordered pairs
-    phraSyn0PairSimTuple <- getPhraSyn0PairSim distAlgo phraSyn0Pairs           -- [((PhraSyn0, PhraSyn0), SimDeg)]
-    return $ Map.fromList phraSyn0PairSimTuple
+    phraSyn0PairSim <- getPhraSyn0PairSim distAlgo phraSyn0Pairs                -- [((PhraSyn0, PhraSyn0), SimDeg)]
+    return $ Map.fromList phraSyn0PairSim
+
+{- Extract all pairs of PhraSyn values from [ContextOfCC1], who can appear in calculating their grammatic similarities.
+ - From [ContextOfCC1], get [PhraSyn].
+ - Form PhraSyn pair set by Cartesian product, namely [PhraSyn] x [PhraSyn].
+ - For every pair, calculate their similarity. Finally return Map (PhraSyn, PhraSyn) SimDeg.
+ - 'CCC1' in function name means 1-type Context of Categorial Conversions, namely [PhraSyn].
+ -}
+getPhraSynPair2SimFromCCC1 :: DistAlgo -> [ContextOfCC1] -> IO (Map (PhraSyn, PhraSyn) SimDeg)
+getPhraSynPair2SimFromCCC1 distAlgo contextOfCC1List = do
+    let phraSyns = concat contextOfCC1List                        -- [PhraSyn]
+    let phraSynSet = Set.fromList phraSyns                        -- Set PhraSyn, without duplicate element
+
+    let phraSynPairSet = Set.cartesianProduct phraSynSet phraSynSet          -- Set (PhraSyn, PhraSyn)
+    let phraSynPairs = filter (\(ps1, ps2) -> ps1 <= ps2) $ Set.toList phraSynPairSet     -- [(PhraSyn, PhraSyn)], where Set.toList is in not-descending order.
+
+    phraSynPairSimTuple <- getPhraSynPairSim distAlgo phraSynPairs
+    return $ Map.fromList (thd3 phraSynPairSimTuple)
+
+{- Extract all pairs of PhraSyn0 values from [ContextOfCC2], who can appear in calculating their grammatic similarities.
+ - From [ContextOfCC2], get [PhraSyn0].
+ - Form PhraSyn0 pair set by Cartesian product, namely [PhraSyn0] x [PhraSyn0].
+ - For every pair, calculate their similarity. Finally return Map (PhraSyn0, PhraSyn0) SimDeg.
+ - 'CCC2' in function name means 2-type Context of Categorial Conversions, namely [PhraSyn0].
+ -}
+getPhraSyn0Pair2SimFromCCC2 :: DistAlgo -> [ContextOfCC2] -> IO (Map (PhraSyn0, PhraSyn0) SimDeg)
+getPhraSyn0Pair2SimFromCCC2 distAlgo contextOfCC2List = do
+    let phraSyn0s = concat contextOfCC2List                        -- [PhraSyn0]
+    let phraSyn0Set = Set.fromList phraSyn0s                        -- Set PhraSyn0, without duplicate element
+
+    let phraSyn0PairSet = Set.cartesianProduct phraSyn0Set phraSyn0Set          -- Set (PhraSyn0, PhraSyn0)
+    let phraSyn0Pairs = filter (\(ps1, ps2) -> ps1 <= ps2) $ Set.toList phraSyn0PairSet     -- [(PhraSyn0, PhraSyn0)], where Set.toList is in not-descending order.
+
+    phraSyn0PairSim <- getPhraSyn0PairSim distAlgo phraSyn0Pairs
+    return $ Map.fromList phraSyn0PairSim
 
 {- Reading parsing trees from start sentence to end sentence in treebank, get [[[PhraCate]]].
  - If start index and end index are both 0, then default start index and default end index are used, which are defined in file Configuration.
@@ -2695,7 +3087,7 @@ getPhraSynSetSim [] _ _ = 0.0
 getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
     where
     phraSynPairMatrix = [(a,b) | a <- zip [1..] psl1, b <- zip [1..] psl2]      -- [((RowIdx, PhraSyn), (ColIdx, PhraSyn))], a tuple matrix.
-    phraSynPair2SimMatrix = map (\x -> (((fst . fst) x, (fst . snd) x), (toPhraSynPair2Sim phraSynPair2SimMap) ((snd . fst) x, (snd . snd) x))) phraSynPairMatrix
+    phraSynPair2SimMatrix = map (\x -> (((fst . fst) x, (fst . snd) x), (lookupInPhraSynPair2Sim phraSynPair2SimMap) ((snd . fst) x, (snd . snd) x))) phraSynPairMatrix
                                                                                 -- [((RowIdx, ColIdx), ((PhraSyn, PhraSyn), SimDeg))]
     matchedPhraSynPair2SimList = map snd $ getMatchedElemPair2SimList [] phraSynPair2SimMatrix      -- [((PhraSyn, PhraSyn), SimDeg)]
     allMatchedPhraSynPair2SimList = case (signum (length psl1 - (length psl2))) of
@@ -2704,18 +3096,43 @@ getPhraSynSetSim psl1 psl2 phraSynPair2SimMap = simDeg
       1 -> matchedPhraSynPair2SimList ++ [((x, nullPhraSyn), 0.0) | x <- psl1, notElem x (map (fst . fst) matchedPhraSynPair2SimList)]
     simDeg = foldl (+) 0.0 (map snd allMatchedPhraSynPair2SimList) / (fromIntegral (length allMatchedPhraSynPair2SimList))
 
-{- Convert (PhraSyn, PhraSyn) to ((PhraSyn, PhraSyn), SimDeg) by looking Map (PhraSyn, PhraSyn) SimDeg.
- - For every key (x,y) in Map (PhraSyn, PhraSyn) SimDeg, x <= y.
+{- Get similarity degree between two phrasal sets in their grammatical features.
+ - (1) Suppose set A and B are [PhraSyn0]. Get upper triangular matrix of similarity degrees, where sim(a,b) is similarity of (a,b).
+ -     M = [((a,b), sim(a,b)) | (a,b) in A X B, a <= b]
+ - (2) Match elements between A and B according to maximum similarity degree, forming list L.
+ - (3) If |A| < |B|. For every element b in B, which does not appear in L, append ((nullPhraSyn, b), 0) to L.
+ - (4) If |A| > |B|. For every element a in A, which does not appear in L, append ((a, nullPhraSyn), 0) to L.
+ - Finally, return mean value of similarity degrees of all matched PhraSyn value pairs.
+ - In Map (PhraSyn0, PhraSyn0) SimDeg, every key (x,y) satisfies order of x <= y.
  -}
-toPhraSynPair2Sim :: Map (PhraSyn, PhraSyn) SimDeg -> (PhraSyn, PhraSyn) -> ((PhraSyn, PhraSyn), SimDeg)
-toPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) =
+getPhraSyn0SetSim :: [PhraSyn0] -> [PhraSyn0] -> Map (PhraSyn0, PhraSyn0) SimDeg -> SimDeg
+getPhraSyn0SetSim [] [] _ = 1.0           -- Two empty sets
+getPhraSyn0SetSim _ [] _ = 0.0
+getPhraSyn0SetSim [] _ _ = 0.0
+getPhraSyn0SetSim psl1 psl2 phraSyn0Pair2SimMap = simDeg
+    where
+    phraSyn0PairMatrix = [(a,b) | a <- zip [1..] psl1, b <- zip [1..] psl2]      -- [((RowIdx, PhraSyn0), (ColIdx, PhraSyn0))], a tuple matrix.
+    phraSyn0Pair2SimMatrix = map (\x -> (((fst . fst) x, (fst . snd) x), (lookupInPhraSynPair2Sim phraSyn0Pair2SimMap) ((snd . fst) x, (snd . snd) x))) phraSyn0PairMatrix
+                                                                                -- [((RowIdx, ColIdx), ((PhraSyn0, PhraSyn0), SimDeg))]
+    matchedPhraSyn0Pair2SimList = map snd $ getMatchedElemPair2SimList [] phraSyn0Pair2SimMatrix      -- [((PhraSyn0, PhraSyn0), SimDeg)]
+    allMatchedPhraSyn0Pair2SimList = case (signum (length psl1 - (length psl2))) of
+      -1 -> matchedPhraSyn0Pair2SimList ++ [((nullPhraSyn0, x), 0.0) | x <- psl2, notElem x (map (snd . fst) matchedPhraSyn0Pair2SimList)]
+      0 -> matchedPhraSyn0Pair2SimList
+      1 -> matchedPhraSyn0Pair2SimList ++ [((x, nullPhraSyn0), 0.0) | x <- psl1, notElem x (map (fst . fst) matchedPhraSyn0Pair2SimList)]
+    simDeg = foldl (+) 0.0 (map snd allMatchedPhraSyn0Pair2SimList) / (fromIntegral (length allMatchedPhraSyn0Pair2SimList))
+
+{- Lookuping Map (a, a) SimDeg for (a, a) and return ((a, a), SimDeg), here 'a' may be PhraSyn or PhraSyn0.
+ - For every key (x,y) in Map (x, y) SimDeg, x <= y.
+ -}
+lookupInPhraSynPair2Sim :: (Ord a, Show a) => Map (a, a) SimDeg -> (a, a) -> ((a, a), SimDeg)
+lookupInPhraSynPair2Sim phraSynPair2SimMap (ps1, ps2) =
     if ps1 <= ps2
       then case (Map.lookup (ps1, ps2) phraSynPair2SimMap) of
              Just x -> ((ps1, ps2), x)
-             Nothing -> error $ "toPhraSynPair2Sim: Key (" ++ show ps1 ++ ", " ++ show ps2 ++ ") does not exist."
+             Nothing -> error $ "lookupInPhraSynPair2Sim: Key (" ++ show ps1 ++ ", " ++ show ps2 ++ ") does not exist."
       else case (Map.lookup (ps2, ps1) phraSynPair2SimMap) of
              Just x -> ((ps1, ps2), x)
-             Nothing -> error $ "toPhraSynPair2Sim: Key (" ++ show ps2 ++ ", " ++ show ps1 ++ ") does not exist."
+             Nothing -> error $ "lookupInPhraSynPair2Sim: Key (" ++ show ps2 ++ ", " ++ show ps1 ++ ") does not exist."
 
 -- Types for calculating similarity degree of phrasal overlapping types.
 type NumOfContextOfOT = Int       -- ContextOfOT :: (LeftExtend, LeftOver, RightOver, RightExtend)
@@ -3139,6 +3556,162 @@ getSIdx2ContextOfSG3a0Base startIdx endIdx = do
         putStrLn "getSIdx2ContextOfSG3a0Base: Value of property 'syntax_ambig_resol_model' does not match any MySQL table."
         return []
 
+{- Reading SIdx and ContextOfCC1 from the sample database of a certain cate_conv_resol_model, such as 'slr_corpus_202509'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - ContextOfCC1 :: [PhraSyn]
+ -}
+getSIdx2ContextOfCC1Base :: SIdx -> SIdx -> IO [(SIdx, ContextOfCC1)]
+getSIdx2ContextOfCC1Base startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+    case cate_ambig_resol_model of
+      x | elem x ["slr_corpus_202509"] -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "SELECT COUNT(*) FROM " ++ cate_ambig_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of SIdx and ContextOfCC1 is set as: " ++ cate_ambig_resol_model     -- Display the source of SIdx and ContextOfCC1
+          let sqlstat = DS.fromString $ "SELECT id, phrasyn_list_rules FROM " ++ cate_ambig_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          sIdx2StubRuleStrListFromDB <- readStreamByInt32UText [] is            -- [(Int, String)]
+          let sIdx2ContextOfCC1List = map (\(sIdx, phrasyn_list_rules_str)
+                                          -> (sIdx, (fst . stringToPhraSyns2Rules) phrasyn_list_rules_str)
+                                          ) sIdx2StubRuleStrListFromDB          -- [(SIdx, ContextOfCC1)]
+          let contextOfCC1SampleNum = length sIdx2ContextOfCC1List              -- The number of ContextOfCC1 samples.
+          putStrLn $ "getSIdx2ContextOfCC1Base: Num. of ContextOfCC1 Samples = " ++ show contextOfCC1SampleNum
+          return sIdx2ContextOfCC1List
+      _ -> do
+        putStrLn "getSIdx2ContextOfCC1Base: Value of property 'cate_ambig_resol_model' does not match any MySQL table."
+        return []
+
+{- Reading SIdx and ContextOfCC2 from the sample database of a certain cate_conv_resol_model, such as 'slr_corpus_202509'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - ContextOfCC2 :: [PhraSyn0]
+ -}
+getSIdx2ContextOfCC2Base :: SIdx -> SIdx -> IO [(SIdx, ContextOfCC2)]
+getSIdx2ContextOfCC2Base startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+    case cate_ambig_resol_model of
+      x | elem x ["slr_corpus_202509"] -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "SELECT COUNT(*) FROM " ++ cate_ambig_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of SIdx and ContextOfCC2 is set as: " ++ cate_ambig_resol_model     -- Display the source of SIdx and ContextOfCC2
+          let sqlstat = DS.fromString $ "SELECT id, phrasyn0_list_rules FROM " ++ cate_ambig_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          sIdx2StubRuleStrListFromDB <- readStreamByInt32UText [] is            -- [(Int, String)]
+          let sIdx2ContextOfCC2List = map (\(sIdx, phrasyn0_list_rules_str)
+                                          -> (sIdx, (fst . stringToPhraSyn0s2Rules) phrasyn0_list_rules_str)
+                                          ) sIdx2StubRuleStrListFromDB          -- [(SIdx, ContextOfCC2)]
+          let contextOfCC2SampleNum = length sIdx2ContextOfCC2List              -- The number of ContextOfCC2 samples.
+          putStrLn $ "getSIdx2ContextOfCC2Base: Num. of ContextOfCC2 Samples = " ++ show contextOfCC2SampleNum
+          return sIdx2ContextOfCC2List
+      _ -> do
+        putStrLn "getSIdx2ContextOfCC2Base: Value of property 'cate_ambig_resol_model' does not match any MySQL table."
+        return []
+
+{- Reading SIdx and ContextOfCC3 from the sample database of a certain cate_conv_resol_model, such as 'slr_corpus_202509'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - ContextOfCC3 :: BiTree PhraSyn
+ -}
+getSIdx2ContextOfCC3Base :: SIdx -> SIdx -> IO [(SIdx, ContextOfCC3)]
+getSIdx2ContextOfCC3Base startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+    case cate_ambig_resol_model of
+      x | elem x ["slr_corpus_202509"] -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "SELECT COUNT(*) FROM " ++ cate_ambig_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of SIdx and ContextOfCC3 is set as: " ++ cate_ambig_resol_model     -- Display the source of SIdx and ContextOfCC3
+          let sqlstat = DS.fromString $ "SELECT id, bitree_phrasyn_rules FROM " ++ cate_ambig_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          sIdx2StubRuleStrListFromDB <- readStreamByInt32UText [] is            -- [(Int, String)]
+          let sIdx2ContextOfCC3List = map (\(sIdx, bitree_phrasyn_rules_str)
+                                          -> (sIdx, (fst . stringToBiTreePhraSyn2Rules) bitree_phrasyn_rules_str)
+                                          ) sIdx2StubRuleStrListFromDB          -- [(SIdx, ContextOfCC3)]
+          let contextOfCC3SampleNum = length sIdx2ContextOfCC3List              -- The number of ContextOfCC3 samples.
+          putStrLn $ "getSIdx2ContextOfCC3Base: Num. of ContextOfCC3 Samples = " ++ show contextOfCC3SampleNum
+          return sIdx2ContextOfCC3List
+      _ -> do
+        putStrLn "getSIdx2ContextOfCC3Base: Value of property 'cate_ambig_resol_model' does not match any MySQL table."
+        return []
+
+{- Reading SIdx and ContextOfCC4 from the sample database of a certain cate_conv_resol_model, such as 'slr_corpus_202509'.
+ - If start index and end index are both 0, then all records in sample database will be read.
+ - ContextOfCC4 :: BiTree PhraSyn0
+ -}
+getSIdx2ContextOfCC4Base :: SIdx -> SIdx -> IO [(SIdx, ContextOfCC4)]
+getSIdx2ContextOfCC4Base startIdx endIdx = do
+    conn <- getConn
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let cate_ambig_resol_model = getConfProperty "cate_ambig_resol_model" confInfo
+    case cate_ambig_resol_model of
+      x | elem x ["slr_corpus_202509"] -> do
+          let startIdx' = case startIdx of
+                            0 -> 1
+                            _ -> startIdx
+          let sqlstat = DS.fromString $ "SELECT COUNT(*) FROM " ++ cate_ambig_resol_model
+          (defs, is) <- query_ conn sqlstat
+          rows <- readStreamByInt64 [] is
+          let endIdx' = case endIdx of
+                          0 -> head rows
+                          _ -> endIdx
+
+          putStrLn $ "stardIdx = " ++ show startIdx' ++ " , endIdx = " ++ show endIdx'
+
+          putStrLn $ "The source of SIdx and ContextOfCC4 is set as: " ++ cate_ambig_resol_model     -- Display the source of SIdx and ContextOfCC3
+          let sqlstat = DS.fromString $ "SELECT id, bitree_phrasyn0_rules FROM " ++ cate_ambig_resol_model ++ " where id >= ? and id <= ?"
+          stmt <- prepareStmt conn sqlstat
+          (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx', toMySQLInt32U endIdx']
+
+          sIdx2StubRuleStrListFromDB <- readStreamByInt32UText [] is            -- [(Int, String)]
+          let sIdx2ContextOfCC4List = map (\(sIdx, bitree_phrasyn0_rules_str)
+                                          -> (sIdx, (fst . stringToBiTreePhraSyn02Rules) bitree_phrasyn0_rules_str)
+                                          ) sIdx2StubRuleStrListFromDB          -- [(SIdx, ContextOfCC4)]
+          let contextOfCC4SampleNum = length sIdx2ContextOfCC4List              -- The number of ContextOfCC4 samples.
+          putStrLn $ "getSIdx2ContextOfCC4Base: Num. of ContextOfCC4 Samples = " ++ show contextOfCC4SampleNum
+          return sIdx2ContextOfCC4List
+      _ -> do
+        putStrLn "getSIdx2ContextOfCC4Base: Value of property 'cate_ambig_resol_model' does not match any MySQL table."
+        return []
+
 {- Get similarity degree between two prior contexts, namely two vectors of (LeftExtend, LeftOver, RightOver, RightExtend, OverType).
  - sim(contextOfSG1, contextOfSG2) = f(leSim, loSim, roSim, reSim, otSim), where
  -     leSim is similarity degree between two LeftExtends, namely two PhraSyn sets.
@@ -3432,6 +4005,34 @@ getBiTreePhraSyn0Sim t1 t2 decay_subtree_kernel = rootSim + decay_subtree_kernel
     lstSim = getBiTreePhraSyn0Sim lst1 lst2 decay_subtree_kernel
     rstSim = getBiTreePhraSyn0Sim rst1 rst2 decay_subtree_kernel
 
+{- The version of getBiTreePhraSyn0Sim uses pre-calculated Map (PhraSyn0, PhraSyn0) SimDeg.
+ - Get similarity degree between a pair of BiTree PhraSyn0 values.
+ - BiTree PhraSyn0 :: Empty | Node PhraSyn0 (BiTree PhraSyn0) (BiTree PhraSyn0)
+ - Algo.:
+ -   One tree is empty: return 0.0
+ -   Otherwise: return $ rootSim + decay_subtree_kernel x (leftSubSim + rightSubSim)
+ -}
+getBiTreePhraSyn0Sim' :: BiTree PhraSyn0 -> BiTree PhraSyn0 -> Double -> Map (PhraSyn0, PhraSyn0) SimDeg -> SimDeg
+getBiTreePhraSyn0Sim' Empty _ _ _ = 0.0
+getBiTreePhraSyn0Sim' _ Empty _ _ = 0.0
+getBiTreePhraSyn0Sim' t1 t2 decay_subtree_kernel phraSyn0Pair2SimMap = rootSim + decay_subtree_kernel * (leftSubSim + rightSubSim)
+    where
+    root1 = getRoot t1
+    leftSubTree1 = getLeftSub t1
+    rightSubTree1 = getRightSub t1
+    root2 = getRoot t2
+    leftSubTree2 = getLeftSub t2
+    rightSubTree2 = getRightSub t2
+    rootSim = if (root1 <= root2)
+                then case (Map.lookup (root1, root2) phraSyn0Pair2SimMap) of     -- Root SimDeg
+                       Just x -> x
+                       Nothing -> error $ "getBiTreePhraSyn0Sim': Failed to lookup (" ++ show root1 ++ ", " ++ show root2 ++ ")."
+                else case (Map.lookup (root2, root1) phraSyn0Pair2SimMap) of     -- Root SimDeg
+                       Just x -> x
+                       Nothing -> error $ "getBiTreePhraSyn0Sim': Failed to lookup (" ++ show root2 ++ ", " ++ show root1 ++ ")."
+    leftSubSim = getBiTreePhraSyn0Sim' leftSubTree1 leftSubTree2 decay_subtree_kernel phraSyn0Pair2SimMap
+    rightSubSim = getBiTreePhraSyn0Sim' rightSubTree1 rightSubTree2 decay_subtree_kernel phraSyn0Pair2SimMap
+
 {- Get similarity degree between PhraSyn0 values.
  -}
 getPhraSyn0Sim :: PhraSyn0 -> PhraSyn0 -> SimDeg
@@ -3699,8 +4300,8 @@ getOneToAllContextOfSG3a0Sim contextOfSG3a0 contextOfSG3a02ClauTagPriorBase = do
     confInfo <- readFile "Configuration"
 
 --    let phra_gram_dist_algo = getConfProperty "phra_gram_dist_algo" confInfo
---    phraSyn0PairSimTuple <- getPhraSyn0PairSim phra_gram_dist_algo phraSyn0Pairs
---    let phraSyn0Pair2SimMap = Map.fromList phraSyn0PairSimTuple
+--    phraSyn0PairSim <- getPhraSyn0PairSim phra_gram_dist_algo phraSyn0Pairs
+--    let phraSyn0Pair2SimMap = Map.fromList phraSyn0PairSim
 
     let decay_subtree_kernel = getConfProperty "decay_subtree_kernel" confInfo
     let decay = read decay_subtree_kernel :: Double
@@ -3944,10 +4545,10 @@ readStaticPhraSynPair2Sim = do
 readStaticPhraSyn0Pair2Sim :: IO [((PhraSyn0, PhraSyn0), SimDeg)]
 readStaticPhraSyn0Pair2Sim = do
     confInfo <- readFile "Configuration"
-    let phrasyn_sim_tbl = getConfProperty "phrasyn_sim_tbl" confInfo
+    let phrasyn0_sim_tbl = getConfProperty "phrasyn0_sim_tbl" confInfo
     conn <- getConn
-    let sqlStr = "SELECT * FROM " ++ phrasyn_sim_tbl
-    (_, is) <- query_ conn (DS.fromString sqlStr)
+    let sqlstat = DS.fromString $ "SELECT * FROM " ++ phrasyn0_sim_tbl
+    (_, is) <- query_ conn sqlstat
     rows <- S.toList is
     let phrasyn0Pair2Sim = map (\x -> (((readPhraSyn0FromStr . fromMySQLText) (x!!1)
                                      , (readPhraSyn0FromStr . fromMySQLText) (x!!2))

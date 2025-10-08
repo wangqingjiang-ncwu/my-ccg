@@ -28,3 +28,29 @@ spec = do
       traverseBiTree ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) `shouldBe` [1,2]
     it "The result of nodePairsBetwTwOBiTree ((Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty)) :: BiTree Int) ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) is [(3,1),(5,2)] :: [(Int,Int)]" $ do
       nodePairsBetwTwOBiTree ((Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty)) :: BiTree Int) ((Node 1 Empty (Node 2 Empty Empty)) :: BiTree Int) `shouldBe` ([(3,1),(5,2)] :: [(Int,Int)])
+    it "The result of forest2BiTree [] is Empty" $ do
+      forest2BiTree [] `shouldBe` (Empty :: BiTree Int)
+    it "The result of forest2BiTree [Node 3 Empty Empty, Node 5 Empty Empty] is Node 3 Empty (Node 5 Empty Empty)" $ do
+      forest2BiTree [Node 3 Empty Empty, Node 5 Empty Empty] `shouldBe` Node 3 Empty (Node 5 Empty Empty)
+    it "The result of forest2BiTree ([Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty), Node 6 Empty Empty] :: BiTree Int) is Node 3 (Node 4 Empty (Node 5 Empty Empty)) (Node 6 Empty Empty)" $ do
+      forest2BiTree [Node 3 (Node 4 Empty Empty) (Node 5 Empty Empty), Node 6 Empty Empty] `shouldBe` Node 3 (Node 4 Empty (Node 5 Empty Empty)) (Node 6 Empty Empty)
+{-
+    it "The result of stringToBiTree () is Empty" $ do
+      stringToBiTree () `shouldBe` Empty
+    it "The result of stringToBiTree "(1,(),(2,(),()))" is (Node 1 Empty (Node 2 Empty Empty))" $ do
+      stringToBiTree "(1,(),(2,(),()))" `shouldBe` (Node 1 Empty (Node 2 Empty Empty) :: BiTree Int)
+ -}
+    it "The result of jaccardSimIndex [] [] is 1.0" $ do
+      jaccardSimIndex [] ([] :: [Int]) `shouldBe` 1.0
+    it "The result of jaccardSimIndex [] (['a'] :: [Char]) is 0.0" $ do
+      jaccardSimIndex [] (['a'] :: [Char]) `shouldBe` 0.0
+    it "The result of jaccardSimIndex [] [] is 0.0" $ do
+      jaccardSimIndex (['a'] :: [Char]) [] `shouldBe` 0.0
+    it "The result of jaccardSimIndex ['a'] [] is 0.25" $ do
+      jaccardSimIndex (['a','b'] :: [Char]) ['a','c','d'] `shouldBe` 0.25
+    it "The result of jaccardSimIndex' ['a'] [['a','b'],['a','b','c','d']] is 0.375" $ do
+      jaccardSimIndex'  ['a'] [['a','b'],['a','b','c','d']] `shouldBe` 0.375
+    it "The result of jaccardSimIndex' ['a'] [[]] is 0.0" $ do
+      jaccardSimIndex' ['a'] [[]] `shouldBe` 0.0
+    it "The result of jaccardSimIndex' [] [[]] is 1.0" $ do
+      jaccardSimIndex' ([] :: [Int]) [[]] `shouldBe` 1.0

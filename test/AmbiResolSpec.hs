@@ -112,3 +112,21 @@ spec = do
       let phraSyn021 = (sCate, "<", "SP", 2)
       let phraSyn022 = (sCate, ">", "NR", 2)
       phraCateTree2PhraSynTree (Node pc021 (Node pc00 Empty Empty) (Node pc11 Empty Empty)) `shouldBe` (Node phraSyn021 (Node phraSyn0 Empty Empty) (Node phraSyn11 Empty Empty))
+
+    it "The result of biTreePhraCate2BiTreePhraSyn Empty is Empty." $ do
+      biTreePhraCate2BiTreePhraSyn Empty `shouldBe` Empty
+
+    it "The result of biTreePhraCate2BiTreePhraSyn (Node ((1,0),[(npCate,\"Desig\",\"I'\",\"DE\",False)],1) Empty Empty) is (Node (npCate,\"Desig\",\"DE\",0) Empty Empty)." $ do
+      biTreePhraCate2BiTreePhraSyn (Node ((1,0),[(npCate,"Desig","I'","DE",False)],1) Empty Empty) `shouldBe` (Node (npCate,"Desig","DE",0) Empty Empty)
+
+    it "The result of stringToBiTreePhraSyn () is Empty." $ do
+      stringToBiTreePhraSyn "()" `shouldBe` Empty
+
+    it "The result of stringToBiTreePhraSyn ((np,Desig,DE,1),(),((s,<,SP,2),(),())) is Node (np,Desig,DE,1) Empty (Node (s,<,SP,2) Empty Empty)." $ do
+      stringToBiTreePhraSyn "((np, Desig, DE, 1),(),((s, <, SP, 2),(),()))" `shouldBe` (Node (npCate, "Desig", "DE", 1) Empty (Node (sCate, "<", "SP", 2) Empty Empty) :: BiTree PhraSyn)
+
+    it "The result of stringToBiTreePhraSyn0 () is Empty." $ do
+      stringToBiTreePhraSyn0 "()" `shouldBe` Empty
+
+    it "The result of stringToBiTreePhraSyn0 ((np, Desig, DE),(),((s, <, SP),(),())) is Node (np, Desig, DE) Empty (Node (s, <, SP) Empty Empty)." $ do
+      stringToBiTreePhraSyn0 "((np, Desig, DE),(),((s, <, SP),(),()))" `shouldBe` (Node (npCate, "Desig", "DE") Empty (Node (sCate, "<", "SP") Empty Empty) :: BiTree PhraSyn0)

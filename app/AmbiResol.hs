@@ -4,7 +4,8 @@
 module AmbiResol (
     PhraSyn0,            -- (Category, Tag, PhraStru)
     PhraSyn,             -- (Category, Tag, PhraStru, Span)
-    nullPhraSyn,         -- (Nil, "", "")
+    nullPhraSyn0,         -- (Nil, "", "")
+    nullPhraSyn,         -- (Nil, "", "", -1)
     SIdx,                -- Int
     LeftExtend,          -- [(Category, Tag, PhraStru, Span)]
     LeftOver,            -- (Category, Tag, PhraStru, Span)
@@ -59,7 +60,7 @@ module AmbiResol (
     readAmbiResol1FromStr,   -- String -> AmbiResol1
     readPhraSyn0FromStr,     -- String -> PhraSyn0
     readPhraSynFromStr,      -- String -> PhraSyn
-    readPhraSyn0ListFromStr,       -- String -> [PhraSyn0]
+    readPhraSyn0ListFromStr,      -- String -> [PhraSyn0]
     readPhraSynListFromStr,       -- String -> [PhraSyn]
     readBiTreePhraSyn0FromStr,     -- String -> BiTree PhraSyn0
     readBiTreePhraSynFromStr,     -- String -> BiTree PhraSyn
@@ -72,6 +73,7 @@ module AmbiResol (
     nScdToString,        -- [Scd] -> String
     phraSyn0ToString,    -- PhraSyn0 -> String
     phraSynToString,     -- PhraSyn -> String
+    nPhraSyn0ToString,   -- [PhraSyn0] -> String
     nPhraSynToString,    -- [PhraSyn] -> String
     contextOfSGToString, -- ContextOfSG -> String
     struGeneToString,    -- StruGene -> String
@@ -93,6 +95,7 @@ module AmbiResol (
     readStreamByStruGene2Sample,       -- [StruGene2Sample] -> S.InputStream [MySQLValue] -> IO [StruGene2Sample]
     readStreamByInt32U3TextInt8Text,   -- [AmbiResol1Sample] -> S.InputStream [MySQLValue] -> IO [AmbiResol1Sample]
     readStreamByInt16UInt16UFloat,     -- [((SIdx,SIdx),Float)] -> S.InputStream [MySQLValue] -> IO [((SIdx,SIdx),Float)]
+    readStreamByInt16UInt16UDouble,     -- [((SIdx,SIdx),Double)] -> S.InputStream [MySQLValue] -> IO [((SIdx,SIdx),Double)]
     SynAmbiResolMethod,  -- String
     rmNullCTPRecordsFromDB,       -- IO ()
 
@@ -118,10 +121,35 @@ module AmbiResol (
     phraCateTree2PhraSynTree,     -- BiTree PhraCate -> BiTree PhraSyn
     phraCateTree2PhraSyn0Tree,    -- BiTree PhraCate -> BiTree PhraSyn0
 
+    phraCate2PhraSyn0,   -- PhraCate -> PhraSyn0
+    phraCate2PhraSyn,    -- PhraCate -> PhraSyn
+    biTreePhraCate2BiTreePhraSyn,   -- BiTree PhraCate -> BiTree PhraSyn
+    biTreePhraCate2BiTreePhraSyn0,  -- BiTree PhraCate -> BiTree PhraSyn0
+
+    phraSyns2RulesToString,    -- ([PhraSyn],[Rule]) -> String
+    phraSyn0s2RulesToString,   -- ([PhraSyn0],[Rule]) -> String
+    biTreePhraSynToString,     -- BiTree PhraSyn -> String
+    biTreePhraSyn0ToString,    -- BiTree PhraSyn0 -> String
+    biTreePhraSyn2RulesToString,    -- (BiTree PhraSyn,[Rule]) -> String
+    biTreePhraSyn02RulesToString,   -- (BiTree PhraSyn0,[Rule]) -> String
+    stringToPhraSyns2Rules,     -- String -> ([PhraSyn],[Rule])
+    stringToPhraSyn0s2Rules,    -- String -> ([PhraSyn0],[Rule])
+    stringToBiTreePhraSyn,      -- String -> BiTree PhraSyn
+    stringToBiTreePhraSyn0,     -- String -> BiTree PhraSyn0
+    stringToBiTreePhraSyn2Rules,    -- String -> (BiTree PhraSyn, [Rule])
+    stringToBiTreePhraSyn02Rules,   -- String -> (BiTree PhraSyn0, [Rule])
+
+    ContextOfCC1,        -- [PhraSyn]
+    ContextOfCC2,        -- [PhraSyn0]
+    ContextOfCC3,        -- [BiTree PhraSyn]
+    ContextOfCC4,        -- [BiTree PhraSyn0]
+    SIdxRules,           -- (SIdx,[Rule])
+    meanRulesSimOnOneSample,   -- M.Map (SIdx,SIdx) Double -> [(SIdx,[Rule])] -> (SIdx,[Rule]) -> Double
+
     ) where
 
 import Category
-import Phrase (Span, Tag, PhraStru, PhraCate, ctpsOfCate, ctpOfCate, getPhraCateFromString, getPhraCateListFromString, equalPhra)
+import Phrase
 import Rule (Rule)
 import Utils
 import Data.List (nub, elemIndex)
@@ -132,6 +160,7 @@ import Database
 import Database.MySQL.Base
 import qualified Data.String as DS
 import qualified System.IO.Streams as S
+import qualified Data.Map.Strict as M
 
 {- Syntactic attribues of a phrase, including its syntactic category, tag of grammar rule by which the phrase is obtained,
  - structural type of the phrase, and phrasal span.
@@ -143,6 +172,9 @@ type PhraSyn = (Category, Tag, PhraStru, Span)
 -- Null phrasal syntax, in which grammar tag, phrasal structure and phrasal span use their not existing values.
 nullPhraSyn :: PhraSyn
 nullPhraSyn = (Nil, "", "", -1)
+
+nullPhraSyn0 :: PhraSyn0
+nullPhraSyn0 = (Nil, "", "")
 
 {- To indicate which phrasal structure is more prior in an overlapping pair, the left-adjacent phrases and the right-
    adjacent phrases should be considered. As basic fragments, such quadruples would exist in many
@@ -596,6 +628,11 @@ phraSynToString phs = "(" ++ ca ++ "," ++ ta ++ "," ++ ps ++ "," ++ sp ++ ")"
 nPhraSynToString :: [PhraSyn] -> String
 nPhraSynToString nps = listToString (map phraSynToString nps)
 
+
+-- Get the string of [PhraSyn0]
+nPhraSyn0ToString :: [PhraSyn0] -> String
+nPhraSyn0ToString nps0 = listToString (map phraSyn0ToString nps0)
+
 -- Get the string of a ContextOfSG sample
 contextOfSGToString :: ContextOfSG -> String
 contextOfSGToString csg = "(" ++ le ++ "," ++ lo ++ "," ++ re ++ "," ++ ro ++ "," ++ ot ++ ")"
@@ -791,6 +828,21 @@ readStreamByInt16UInt16UFloat es is = do
         Just x -> readStreamByInt16UInt16UFloat (es ++ [((fromMySQLInt16U (x!!0),fromMySQLInt16U (x!!1)), fromMySQLFloat (x!!2))]) is
         Nothing -> return es
 
+{- Read a value from input stream [MySQLValue], change it into a CCC2Sim value, append it
+ - to existed CCC2Sim list, then read the next until read Nothing.
+ - Here [MySQLValue] is [MySQLInt16U,MySQLInt16U, MySQLDouble], CCC2Sim :: ((SIdx,SIdx),SimDeg), SimDeg :: Double.
+ - Functions like 'readStreamByXXX' are very ineffient because their Implementations are recursive.
+ -}
+readStreamByInt16UInt16UDouble :: [((SIdx, SIdx), Double)] -> S.InputStream [MySQLValue] -> IO [((SIdx, SIdx), Double)]
+readStreamByInt16UInt16UDouble es is = do
+    let num = length es
+    if (num `mod` 1000 == 0)
+      then putStr $ " " ++ show num
+      else putStr ""
+    S.read is >>= \x -> case x of                             -- Dumb element 'case' is an array with type [MySQLValue]
+        Just x -> readStreamByInt16UInt16UDouble (es ++ [((fromMySQLInt16U (x!!0),fromMySQLInt16U (x!!1)), fromMySQLDouble (x!!2))]) is
+        Nothing -> return es
+
 {- For every syntactic ambiguity resolution model, there might be multiple methods of using samples to resolve syntactic ambiguity.
  - For model StruGene, methods include "StruGeneSimple" and "StruGeneEmbedded".
  -}
@@ -848,3 +900,117 @@ phraCateTree2PhraSyn0Tree :: BiTree PhraCate -> BiTree PhraSyn0
 phraCateTree2PhraSyn0Tree pcTree
     | pcTree == Empty = Empty
     | otherwise = Node (((ctpOfCate . getRoot) pcTree)!!0) (phraCateTree2PhraSyn0Tree (getLeftSub pcTree)) (phraCateTree2PhraSyn0Tree (getRightSub pcTree))
+
+{- Get the corresponding PhraSyn0 value from a PhraCate value.
+ - Suppose the PhraCate value is atomic, that is, in which the list is a singleton list.
+ -}
+phraCate2PhraSyn0 :: PhraCate -> PhraSyn0
+phraCate2PhraSyn0 ((_, _), [(cate, tag, _, phraStru, _)], _) = (cate, tag, phraStru)
+phraCate2PhraSyn0 ((_, _), list, _) = error $ "phraCate2PhraSyn0: In which the list has " ++ show (length list) ++ " elements."
+
+{- Get the corresponding PhraSyn value from a PhraCate value.
+ - Suppose the PhraCate value is atomic, that is, in which the list is a singleton list.
+ -}
+phraCate2PhraSyn :: PhraCate -> PhraSyn
+phraCate2PhraSyn ((_, span), [(cate, tag, _, phraStru, _)], _) = (cate, tag, phraStru, span)
+phraCate2PhraSyn ((_, _), list, _) = error $ "phraCate2PhraSyn: In which the list has " ++ show (length list) ++ " elements."
+
+{- Get corresponding BiTree PhraSyn instance from BiTree PhraCate instance.
+ - Suppose every PhraCate instance is atomic.
+ -}
+biTreePhraCate2BiTreePhraSyn :: BiTree PhraCate -> BiTree PhraSyn
+biTreePhraCate2BiTreePhraSyn Empty = Empty
+biTreePhraCate2BiTreePhraSyn (Node r lst rst) = Node (fst3 ctp, snd3 ctp, thd3 ctp, spOfCate r) (biTreePhraCate2BiTreePhraSyn lst) (biTreePhraCate2BiTreePhraSyn rst)
+    where
+    ctp = (ctpOfCate r)!!0
+
+{- Get corresponding BiTree PhraSyn0 instance from BiTree PhraCate instance.
+ - Suppose every PhraCate instance is atomic.
+ -}
+biTreePhraCate2BiTreePhraSyn0 :: BiTree PhraCate -> BiTree PhraSyn0
+biTreePhraCate2BiTreePhraSyn0 Empty = Empty
+biTreePhraCate2BiTreePhraSyn0 (Node r lst rst) = Node ((ctpOfCate r)!!0) (biTreePhraCate2BiTreePhraSyn0 lst) (biTreePhraCate2BiTreePhraSyn0 rst)
+
+phraSyns2RulesToString :: ([PhraSyn],[Rule]) -> String
+phraSyns2RulesToString (nPhraSyn, rules) = "(" ++ nPhraSynToString nPhraSyn ++ "," ++ show rules ++ ")"
+
+phraSyn0s2RulesToString :: ([PhraSyn0],[Rule]) -> String
+phraSyn0s2RulesToString (nPhraSyn0, rules) = "(" ++ nPhraSyn0ToString nPhraSyn0 ++ "," ++ show rules ++ ")"
+
+biTreePhraSynToString :: BiTree PhraSyn -> String
+biTreePhraSynToString Empty = "()"
+biTreePhraSynToString (Node r lst rst) = "(" ++ phraSynToString r ++ "," ++ biTreePhraSynToString lst ++ "," ++ biTreePhraSynToString rst ++ ")"
+
+biTreePhraSyn0ToString :: BiTree PhraSyn0 -> String
+biTreePhraSyn0ToString Empty = "()"
+biTreePhraSyn0ToString (Node r lst rst) = "(" ++ phraSyn0ToString r ++ "," ++ biTreePhraSyn0ToString lst ++ "," ++ biTreePhraSyn0ToString rst ++ ")"
+
+biTreePhraSyn2RulesToString :: (BiTree PhraSyn,[Rule]) -> String
+biTreePhraSyn2RulesToString (biTreePhraSyn, rules) = "(" ++ biTreePhraSynToString biTreePhraSyn ++ "," ++ show rules ++ ")"
+
+biTreePhraSyn02RulesToString :: (BiTree PhraSyn0,[Rule]) -> String
+biTreePhraSyn02RulesToString (biTreePhraSyn0, rules) = "(" ++ biTreePhraSyn0ToString biTreePhraSyn0 ++ "," ++ show rules ++ ")"
+
+stringToPhraSyns2Rules :: String -> ([PhraSyn],[Rule])
+stringToPhraSyns2Rules str = (map readPhraSynFromStr phrasyn_strs, map (\x -> read x :: Rule) rule_strs)
+    where
+    (phrasyns_str, rules_str) = stringToTuple str                                        -- (String, String)
+    (phrasyn_strs, rule_strs) = (stringToList phrasyns_str, stringToList rules_str)      -- ([String], [String])
+
+stringToPhraSyn0s2Rules :: String -> ([PhraSyn0],[Rule])
+stringToPhraSyn0s2Rules str = (map readPhraSyn0FromStr phrasyn0_strs, map (\x -> read x :: Rule) rule_strs)
+    where
+    (phrasyn0s_str, rules_str) = stringToTuple str                                       -- (String, String)
+    (phrasyn0_strs, rule_strs) = (stringToList phrasyn0s_str, stringToList rules_str)    -- ([String], [String])
+
+stringToBiTreePhraSyn :: String -> BiTree PhraSyn
+stringToBiTreePhraSyn "()" = Empty
+stringToBiTreePhraSyn str = (Node (readPhraSynFromStr rStr) (stringToBiTreePhraSyn lstStr) (stringToBiTreePhraSyn rstStr))
+    where
+    (rStr, lstStr, rstStr) = stringToTriple str
+
+stringToBiTreePhraSyn0 :: String -> BiTree PhraSyn0
+stringToBiTreePhraSyn0 "()" = Empty
+stringToBiTreePhraSyn0 str = (Node (readPhraSyn0FromStr rStr) (stringToBiTreePhraSyn0 lstStr) (stringToBiTreePhraSyn0 rstStr))
+    where
+    (rStr, lstStr, rstStr) = stringToTriple str
+
+stringToBiTreePhraSyn2Rules :: String -> (BiTree PhraSyn, [Rule])
+stringToBiTreePhraSyn2Rules str = (stringToBiTreePhraSyn biTreePhraSyn_str, map (\x -> read x :: Rule) (stringToList rules_str))
+    where
+    (biTreePhraSyn_str, rules_str) = stringToTuple str                          -- (String, String)
+
+stringToBiTreePhraSyn02Rules :: String -> (BiTree PhraSyn0, [Rule])
+stringToBiTreePhraSyn02Rules str = (stringToBiTreePhraSyn0 biTreePhraSyn0_str, map (\x -> read x :: Rule) (stringToList rules_str))
+    where
+    (biTreePhraSyn0_str, rules_str) = stringToTuple str                          -- (String, String)
+
+-- Context Models of categorial conversions
+type ContextOfCC1 = [PhraSyn]
+type ContextOfCC2 = [PhraSyn0]
+type ContextOfCC3 = BiTree PhraSyn
+type ContextOfCC4 = BiTree PhraSyn0
+
+-- Used for calculating similarity between category-conversion lists.
+type SIdxRules = (SIdx, [Rule])
+
+{- Calculate average similarity degree between one Rules sample and every one in a set of Rules.
+ -}
+meanRulesSimOnOneSample :: M.Map (SIdx,SIdx) Double -> [(SIdx,[Rule])] -> (SIdx,[Rule]) -> Double
+meanRulesSimOnOneSample sIdxPair2SimMap srList sIdxRules = sim
+ where
+   sIdx = fst sIdxRules                -- SIdx
+   rules = snd sIdxRules               -- [Rule]
+   otherSamples = filter (\x -> fst x /= sIdx) srList                -- [(SIdx, [Rule])]
+   sims = map (\x -> case (x <= sIdx) of
+                       True -> M.lookup (x, sIdx) sIdxPair2SimMap
+                       False -> M.lookup (sIdx, x) sIdxPair2SimMap
+              ) (map fst otherSamples)                               -- [Maybe Double]
+   sims' = map (\x -> case x of
+                        Just x -> x
+                        Nothing -> error "countInSLRBank (Func. 7): sIdxPair2SimMap exception"
+               ) sims                                                -- [Double]
+   highestSim = maximum sims'
+   indices = map fst $ filter (\x -> snd x == highestSim) $ zip [0..] sims'    -- [Int]
+   closestSamples = [otherSamples!!idx | idx <- indices]             -- [SIdx]
+   sim = jaccardSimIndex' (snd sIdxRules) (map snd otherSamples)     -- Double

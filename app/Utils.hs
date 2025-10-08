@@ -73,7 +73,7 @@ module Utils (
     indexOfDelimiter,  -- Int -> Int -> Int -> String -> Int
     rewriteBackSlash,  -- String -> string
     quickSort4Int,   -- [Int] -> [Int]
-    toDescListOfMapByValue, -- [(String,Int)] -> [(String,Int)]
+    toDescListOfMapByValue, -- EQ k => [(k,Int)] -> [(k,Int)]
     toAscListOfMapByValue,  -- [(String,Int)] -> [(String,Int)]
     isSubstr,          -- String -> String -> String -> String -> Bool
     txt2csv4WordEmbed, -- String -> IO ()
@@ -104,10 +104,14 @@ module Utils (
     setRoot,       -- a -> BiTree a -> BiTree a
     traverseBiTree,     -- BiTree a -> [a]
     nodePairsBetwTwOBiTree,   -- BiTree a -> BiTree a -> [(a,a)]
+--    stringToBiTree,     -- (Read a) => String -> BiTree a
+    forest2BiTree,      -- [BiTree a] -> BiTree a
+    jaccardSimIndex,    -- (Eq a) => [a] -> [a] -> Double
+    jaccardSimIndex',   -- (Eq a) => [[a]] -> Double
     ) where
 
 import Data.Tuple
-import Data.List (elemIndex)
+import Data.List (elemIndex, intersect, union)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.String as DS
@@ -866,3 +870,38 @@ nodePairsBetwTwOBiTree t1 t2 = go [(t1, t2)]
       go ((Empty,_) : rest) = go rest
       go ((_,Empty) : rest) = go rest
       go ((Node r1 lst1 rst1, Node r2 lst2 rst2) : rest) = (r1,r2) : go ((lst1,lst2) : (rst1,rst2) : rest)
+
+{- Create a binary tree from a string.
+ - Has NOT debugged.
+stringToBiTree :: (Read a) => String -> BiTree a
+stringToBiTree "()" = Empty
+stringToBiTree str = Node (read rStr :: a) (stringToBiTree lstStr) (stringToBiTree rstStr)
+    where
+    (rStr, lstStr, rstStr) = stringToTriple str
+ -}
+
+{- Create a binary tree from a forest of binary trees.
+ - Binary trees for Categorial Grammar are those not including 1-degree nodes, so left-child right-sibling algorithm is used.
+ -}
+forest2BiTree :: [BiTree a] -> BiTree a
+forest2BiTree [] = Empty
+forest2BiTree ((Node r Empty Empty):ts) = Node r Empty (forest2BiTree ts)
+forest2BiTree ((Node r lst rst):ts) = Node r (forest2BiTree [lst, rst]) (forest2BiTree ts)
+forest2BiTree _ = error "forest2BiTree: A binary tree includes 1-degree nodes."
+
+{- Jaccard Similarity Index is one kind of similarity metric between two sets.
+ - The index equals to the ratio of cardinality of intersection to cardinality of union between two sets.
+ -}
+jaccardSimIndex :: (Eq a) => [a] -> [a] -> Double
+jaccardSimIndex [] [] = 1.0
+jaccardSimIndex [] _ = 0.0
+jaccardSimIndex _ [] = 0.0
+jaccardSimIndex s1 s2 = (fromIntegral (length (intersect s1 s2))) / (fromIntegral (length (union s1 s2)))
+
+{- Another version of Jaccard Similarity Index is used as the similarity between one set and more than one set.
+ - The index equals to the average value of similarity between the set and every one in a collection of sets.
+ -}
+jaccardSimIndex' :: (Eq a) => [a] -> [[a]] -> Double
+jaccardSimIndex' s1 ss = foldl (+) 0.0 indices / ((fromIntegral . length) indices)
+    where
+    indices = map (jaccardSimIndex s1) ss

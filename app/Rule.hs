@@ -20,6 +20,8 @@ module Rule (
     Rule(..),         -- Enumerated type for the tags of category-converted rules
     ccTags,           -- [String], List of category type-conversional tags
     lexRule,          -- [Rule]
+    getRuleFromStr,   -- String -> Rule
+    getRulesFromStr,  -- String -> [Rule]
     OnOff,            -- [Rule], Rule used is the one in this module
     ruleOn,           -- Rule -> OnOff -> OnOff
     ruleOff,          -- Rule -> OnOff -> OnOff
@@ -343,7 +345,7 @@ data Rule = Ss | Ps | Os | As | Hns | Ns
           | Npe
           | Aq
           | Jfc | Jbc
-          | U3du3 deriving (Eq, Ord)
+          | U3du3 deriving (Eq, Ord, Read)
 
 lexRule :: [Rule]
 lexRule = [Ss, Ps, Os, As, Hns, Ns, Sv, Ov, Av, Hnv, Dv, Cnv, Cvv, Nv, Pvt, OEvt, Vtvi, Avd, Sa, Oa, Hna, Na, Pa, Va, Da, Daa, Cva, Cna, Caa, Pn, Vn, An, Cnn, Cvn, Dn, Dan, ADJn, Snd, Ond, Hnnd, Sd, Od, Ad, Hnd, Cvd, Nd, ADJd, Dad, Dsd, Dxd, Doed, Dp, Ooe, Hnoe, Noe, Npe, Aq, Jfc, Jbc, U3du3]
@@ -410,6 +412,20 @@ instance Show Rule where
     show Jfc = "Jf/c"
     show Jbc = "Jb/c"
     show U3du3 = "U3d/u3"
+
+-- Get a Rule value from its String value.
+getRuleFromStr :: String -> Rule
+getRuleFromStr str = rule
+    where
+    slashPos = maybe 0 (\x -> x) $ elemIndex '/' str
+    ruleLiteral = case slashPos of
+                    0 -> error "getRuleFromStr: Input " ++ str ++ " does not include '/'."
+                    x -> take x str ++ drop (x+1) str
+    rule = read ruleLiteral :: Rule
+
+-- Get Rule values from its String value.
+getRulesFromStr :: String -> [Rule]
+getRulesFromStr str = map getRuleFromStr (stringToList str)
 
 -- OnOff is the list of Rule members
 type OnOff = [Rule]

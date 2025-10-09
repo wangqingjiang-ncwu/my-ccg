@@ -1008,9 +1008,9 @@ meanRulesSimOnOneSample sIdxPair2SimMap srList sIdxRules = sim
               ) (map fst otherSamples)                               -- [Maybe Double]
    sims' = map (\x -> case x of
                         Just x -> x
-                        Nothing -> error "countInSLRBank (Func. 7): sIdxPair2SimMap exception"
+                        Nothing -> error "meanRulesSimOnOneSample: Sample index pair does NOT hit an entry in sIdxPair2SimMap."
                ) sims                                                -- [Double]
    highestSim = maximum sims'
    indices = map fst $ filter (\x -> snd x == highestSim) $ zip [0..] sims'    -- [Int]
    closestSamples = [otherSamples!!idx | idx <- indices]             -- [SIdx]
-   sim = jaccardSimIndex' (snd sIdxRules) (map snd otherSamples)     -- Double
+   sim = jaccardSimIndex' (snd sIdxRules) (map snd closestSamples)   -- Double

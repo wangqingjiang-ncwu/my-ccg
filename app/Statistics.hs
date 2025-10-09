@@ -41,7 +41,7 @@ import GHC.Float (double2Float)
 import Text.Printf
 import qualified Data.Tuple as Tuple
 import Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Category
@@ -1510,39 +1510,7 @@ countInSLRBank cate_ambig_resol_model startIdx endIdx funcIndex = do
          let rows = map (\x -> ((fromMySQLInt16U (x!!0), fromMySQLInt16U (x!!1)), fromMySQLDouble (x!!2))) rows'
          putStrLn $ "[INFO] " ++ show (length rows) ++ " rows of ((SIdx, SIdx), SimDeg) are read into memory."
 
-         let sIdxPair2SimMap = Map.fromList rows                               -- Map (SIdx, SIdx) SimDeg
-         let simList = map (meanRulesSimOnOneSample sIdxPair2SimMap srList) srList     -- [SimDeg]
-         let meanSim = foldl (+) 0.0 simList / (fromIntegral (length simList))         -- SimDeg
-         putStrLn $ "[INFO] Average similarity degree is " ++ show meanSim
-         t3 <- getCurrentTime                                                   -- UTCTime
-         putStrLn $ "\nTotal calculating time: " ++ show (diffUTCTime t3 t0)
-         close conn
-       else putStr ""
-
-    {- 8. Get average category-conversions similarity between every SLR sample and its ContextOfCC2-closest SLR sample.
-     - For every SLR sample, find samples which have highest similarity degree with it, and calculate the category-conversions similarity
-     - between the SLR sample and the most similar SLR samples.
-     -}
-    if funcIndex == 8
-       then do
-         putStrLn "Start to calculate ..."
-         t0 <- getCurrentTime                -- UTCTime
-
-         srList <- readSIdxRulesFromDB startIdx endIdx                          -- [SIdxRules], namely [(SIdx, [Rule])]
-         putStrLn $ "[INFO] " ++ show (endIdx - startIdx + 1) ++ " (SIdx, [Rule]) samples are read into memory."
-
-         confInfo <- readFile "Configuration"
-         let ccc_sim_tbl = getConfProperty "ccc_sim_tbl" confInfo
-
-         conn <- getConn
-         let sqlstat = DS.fromString $ "select stub1idx, stub2idx, sim from " ++ ccc_sim_tbl ++ " where stub1idx >= ? and stub1idx <= ?"
-         stmt <- prepareStmt conn sqlstat
-         (_, is) <- queryStmt conn stmt [toMySQLInt16U startIdx, toMySQLInt16U endIdx]     -- Enough for computing.
-         rows' <- S.toList is                                                   -- [[MySQLValue]]
-         let rows = map (\x -> ((fromMySQLInt16U (x!!0), fromMySQLInt16U (x!!1)), fromMySQLDouble (x!!2))) rows'
-         putStrLn $ "[INFO] " ++ show (length rows) ++ " rows of ((SIdx, SIdx), SimDeg) are read into memory."
-
-         let sIdxPair2SimMap = Map.fromList rows                               -- Map (SIdx, SIdx) SimDeg
+         let sIdxPair2SimMap = Map.fromList rows                                -- Map (SIdx, SIdx) SimDeg
          let simList = map (meanRulesSimOnOneSample sIdxPair2SimMap srList) srList     -- [SimDeg]
          let meanSim = foldl (+) 0.0 simList / (fromIntegral (length simList))         -- SimDeg
          putStrLn $ "[INFO] Average similarity degree is " ++ show meanSim

@@ -63,9 +63,30 @@ module CL (
     doCombAxiom,      -- Term -> (Term, Bool)
     oneStepReduct,    -- Term -> (Term, Bool)
     reduct,      -- Int -> Int - > Term -> Term
+
+    SimpleType(..),   -- Simple Type for CL terms
+    isBasicType,      -- SimpleType -> Bool
+    isImplicationalType,   -- SimpleType -> Bool
+    antecedent,       -- SimpleType -> Maybe SimpleType
+    consequent,       -- SimpleType -> Maybe SimpleType
+    isStrOfSimpleType,     -- String -> Bool
+    indexOfArrow,     -- Int -> Int -> String -> Int
+    indexOfArrow',    -- Int -> Int -> String -> Int
+    getSimpleTypeFromStr,   -- String -> SimpleType
+    getCanonicalStrOfSimpleType,   -- String -> String
+
+    LambdaTerm(..),  -- Term | Lambda AvVar LambdaTerm
+    isStrOfLambdaTerm,      -- String -> Bool
+    getLTermFromStr, -- String -> LambdaTerm
+    getLTermFromSimpleType, -- Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
   ) where
 
 import Utils
+import Data.List (isPrefixOf)
+import Data.List.Utils (replace)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Text.Regex.Posix
 
 -- Terms are divided into constant, variable and juxtapositioned ones.
 data Term = ConstTerm String | VarTerm String | JuxTerm Term Term deriving (Eq)
@@ -451,3 +472,243 @@ reduct idx idxMax t
                     False -> t
     where
       (t', flag) = oneStepReduct t
+
+{- Define simple type for CL terms.
+ - Given a set of basic types (that we denote by P), types are defined as follows.
+ - If p <- P then p is a type;
+ - If A, B are types then (A -> B) is a type.
+ - Constructor Basic creates basic type, for instances, Basic "A", Basic "s", and Basic "np".
+ - Constructor Implicational creates implicational type, for instances, Implicational (Basic "A") (Basic "B").
+ -}
+data SimpleType = Basic String | Implicational SimpleType SimpleType deriving (Eq)
+
+-- Define relation Ord between two simple types such that two types can be compared.
+instance Ord SimpleType where
+    Basic a < Basic b = a < b
+    Basic _ < Implicational _ _ = True
+    Implicational _ _ < Basic _ = False
+    Implicational a b < Implicational c d = (a < c) || (a == c && b < d)
+    Basic a <= Basic b = a < b || a == b
+    Basic _ <= Implicational _ _ = True
+    Implicational _ _ <= Basic _ = False
+    Implicational a b <= Implicational c d = (Implicational a b < Implicational c d) || (Implicational a b == Implicational c d)
+
+-- Define how a simple type shows as a letter string, where no brackets are omitted.
+instance Show SimpleType where
+    show (Basic t) = t
+    show (Implicational t1 t2) = "(" ++ (show t1) ++ " -> " ++ (show t2) ++ ")"
+
+isBasicType :: SimpleType -> Bool
+isBasicType (Basic _) = True
+isBasicType _ = False
+
+isImplicationalType :: SimpleType -> Bool
+isImplicationalType (Implicational _ _) = True
+isImplicationalType _ = False
+
+{- Besides interior functions, data constructors are not seen from outside of modules.
+ - To have access to these constructors, related functions are defined.
+ -}
+
+-- Get antecedent of an implicational formula.
+antecedent :: SimpleType -> Maybe SimpleType
+antecedent (Basic _) = Nothing
+antecedent (Implicational ante _) = Just ante
+
+-- Get consequent of an implicational formula.
+consequent :: SimpleType -> Maybe SimpleType
+consequent (Basic _) = Nothing
+consequent (Implicational _ cons) = Just cons
+
+{- Decide whether a string is well-formatted for a simple type.
+ - "A" is a simple type, "(A -> B)" is a simple type, and "((A -> B) -> C)" is also simple type.
+ -}
+isStrOfSimpleType :: String -> Bool
+isStrOfSimpleType str
+    | indexOfArrow 0 0 str == -1 = str =~ "^[A-Za-z]+$"
+    | otherwise = isStrOfSimpleType anteStr && isStrOfSimpleType consStr
+    where
+      idx = indexOfArrow 0 0 str
+      anteStr = tail $ take idx str
+      consStr = init $ drop (idx + 4) str
+
+{- Get the index of " -> ", which will be -1 for basic types.
+ - To remember how many left brackets have been met, the integer nlb is needed.
+ - The index is initialized as 0.
+ - If there are the outest brackets, they are NOT omitted.
+ -}
+indexOfArrow :: Int -> Int -> String -> Int
+indexOfArrow nlb i str
+    | i > length str - 4 = -1
+    | x == '(' = indexOfArrow (nlb + 1) (i+1) str
+    | x == ')' = indexOfArrow (nlb - 1) (i+1) str
+    | arrow == " -> " && nlb == 1 = i
+    | otherwise = indexOfArrow nlb (i+1) str
+        where
+        x = str!!i
+        arrow = take 4 $ drop i str   -- Substring with lenghth 4 beginning at index i
+
+{- Get the index of " -> ", which will be -1 for basic types.
+ - To remember how many left brackets have been met, the integer nlb is needed.
+ - The index is initialized as 0.
+ - If there are the outest brackets, they are omitted..
+ -}
+indexOfArrow' :: Int -> Int -> String -> Int
+indexOfArrow' nlb i str
+    | i > length str - 4 = -1
+    | x == '(' = indexOfArrow' (nlb + 1) (i+1) str
+    | x == ')' = indexOfArrow' (nlb - 1) (i+1) str
+    | arrow == " -> " && nlb == 0 = i
+    | otherwise = indexOfArrow' nlb (i+1) str
+        where
+        x = str!!i
+        arrow = take 4 $ drop i str   -- Substring with lenghth 4 beginning at index i
+
+{- Get a simple type from its string.
+ - The format of string conforms the output of show command on the simple type.
+ - Basic type such as "A", and Implicational type such as "(A -> B)".
+ -}
+getSimpleTypeFromStr :: String -> SimpleType
+getSimpleTypeFromStr str
+    | not (isStrOfSimpleType str) = error $ "getSimpleTypeFromStr: Format error in " ++ str
+    | head str /= '(' && last str /= ')' = Basic str
+    | otherwise = Implicational (getSimpleTypeFromStr anteStr) (getSimpleTypeFromStr consStr)
+      where
+        idx = indexOfArrow 0 0 str
+        anteStr = tail $ take idx str
+        consStr = init $ drop (idx + 4) str
+
+{- Remedy a string of a simple type such that no brackets are omitted, that is, it conforms the output of Show command on this type.
+ - (1) every arrow "->" is seperated to adjacent type names by one space,
+ - (2) all brackets '(' and ')' omitted by priority of right association are added.
+ - The result string may be called canonical string.
+ - Algo: If the checked string is of a basic type
+ -         then return the checked string
+ -         else ensure the checked string bracketed with '(' and ')'
+ -              recursively check the antecedent and the consequent of this implicational type.
+ -}
+getCanonicalStrOfSimpleType :: String -> IO String
+getCanonicalStrOfSimpleType str =
+    if str =~ "^[A-Za-z][A-Za-z0-9]*$"
+      then return str                                -- Basic type
+      else do
+        let str1 = filter (/= ' ') str               -- Throw off space chars
+        let str2 = replace "->" " -> " str1          -- Implement (1)
+--        putStrLn $ "str2 = " ++ str2 ++ ", indexOfArrow' = " ++ show (indexOfArrow' 0 0 str2)
+        let str3 = case indexOfArrow' 0 0 str2 of
+                     -1 -> str2                      -- Outest brackets are there
+                     _ -> "(" ++ str2 ++ ")"
+        let idx = indexOfArrow 0 0 str3
+--        putStrLn $ "idx = " ++ show idx ++ ", str3 = " ++ str3
+        let ante = tail $ take idx str3
+        let cons = init $ drop (idx + 4) str3
+        ante' <- getCanonicalStrOfSimpleType ante
+        cons' <- getCanonicalStrOfSimpleType cons
+        return $ "(" ++ ante' ++ " -> " ++ cons' ++ ")"
+
+{- Lambda term
+ - A variable is a term, a lambda abstract is a term, and application of one term to another is also a term.
+ -}
+data LambdaTerm = Var String | Lambda String LambdaTerm | Apply LambdaTerm LambdaTerm deriving Eq
+
+{- Define how a lambda term shows.
+ - For variable terms, show them literally, such as "x", "x12", etc.
+ - For abstracted terms, show as "(\v. t)".
+ - For application terms, show as "(M N)".
+ -}
+instance Show LambdaTerm where
+    show (Var t) = t
+    show (Lambda v t) = "(\\" ++ v ++ ". " ++ show t ++ ")"
+    show (Apply t1 t2) = "(" ++ show t1 ++ " " ++ show t2 ++ ")"
+
+-- Define relation Ord between two lambda terms.
+instance Ord LambdaTerm where
+    Var a < Var b = a < b
+    Var _ < Lambda _ _ = True
+    Var _ < Apply _ _ = True
+    Lambda _ a < Lambda _ b = a < b
+    Lambda _ _ < Apply _ _ = True
+    Apply a b < Apply c d = a < c || a == c && b < d
+    Var a <= Var b = a <= b
+    Var _ <= Lambda _ _ = True
+    Var _ <= Apply _ _ = True
+    Lambda _ a <= Lambda _ b = a <= b
+    Lambda _ _ <= Apply _ _ = True
+    Apply a b <= Apply c d = a <= c || a == c && b <= d
+
+-- Decide a string as well-formatted or not if for a lambda term.
+isStrOfLambdaTerm :: String -> Bool
+isStrOfLambdaTerm str
+    | str =~ "^[A-Za-z][A-Za-z0-9]*$" = True
+    | str =~ "^\\(\\\\[a-z][a-z0-9]*\\.[ ][A-Za-z][A-Za-z0-9]*\\)$" = True
+    | str =~ "^\\([A-Za-z][A-Za-z0-9]*[ ][A-Za-z][A-Za-z0-9]*\\)$" = True
+    | otherwise = False
+
+{- Get lambda term from its string.
+ - Variable term: x, x1, ...
+ - Abstracted term: (\x. t)
+ - Apply term: (M N)
+ -}
+getLTermFromStr :: String -> LambdaTerm
+getLTermFromStr str
+    | not (isStrOfLambdaTerm str) = error $ "getLTermFromStr: Format error: " ++ str
+    | head str /= '(' = Var str
+    | not (isPrefixOf "(\\" str) = Apply (getLTermFromStr (tail t1Str)) (getLTermFromStr (init t2Str))
+    | otherwise = Lambda (init (drop 2 t1Str)) (getLTermFromStr (init t2Str))
+    where
+       ws = words str
+       t1Str = ws!!0
+       t2Str = ws!!1
+
+{- Get lambda term from its simple type under context of {(LambdaTerm : SimpleType)}.
+ - To get closed lambda term, the initial context should be empty.
+ - To ensure a new variable is selected, an integer counter is used whose initial value may be 0.
+ - If no lambda term exists, return Nothing.
+ - Algo.
+ -   if the asked type is T = Implicational A B, then x:A is introduced into the context, and
+ -     recursively construct term t for type B, return \x. t.
+ -   else -- The asked type is Basic T
+ -     look up term h with type T in current context.
+ -     if success, then return h;
+ -     else
+ -       For each term g with type U -> T in current context,
+ -       recursively construct term u for type U.
+ -       if success, then return g u;
+ -       else return Nothing       -- No inhabitant for this type
+ - Backtracing is needed whenever constructing term u fails.
+ - If initial context is empty, only closed lambda terms can be constructed.
+ -}
+getLTermFromSimpleType :: Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
+getLTermFromSimpleType intCnt termTypeContext (Implicational ante cons) = do
+    let abVar = "x" ++ show intCnt                                        -- New variable
+    let newContext = Map.insert (Var abVar) ante termTypeContext          -- Introduce new variable and its type into context
+--    putStrLn $ "[INFO] New context member: " ++ abVar ++ ":" ++ show ante
+    term <- getLTermFromSimpleType (intCnt + 1) newContext cons           -- Construct term of new target type in new context
+    case term of
+      Just t -> return (Just (Lambda abVar t))                            -- \x. t
+      Nothing -> return Nothing
+getLTermFromSimpleType intCnt termTypeContext (Basic target) = do
+    let termTargetList = Map.toList $ Map.filterWithKey (\k v -> v == Basic target) termTypeContext    -- [(term1, Basic target), ..]
+    if termTargetList /= []
+      then do
+        putStrLn $ show (length termTargetList) ++ " term(s) is(are) found, and they are:\n" ++ show termTargetList ++"\nOnly first term is returned."
+        return (Just (fst (termTargetList!!0)))                           -- Just LambdaTerm, the first term with type target
+      else do
+        let termUTList = Map.toList $ Map.filterWithKey (\k v -> case consequent v of
+                                                                   Just t -> t == Basic target
+                                                                   Nothing -> False
+                                                        ) termTypeContext    -- [(term1, U1->T), ..]
+        putStrLn $ "getLTermFromSimpleType: termUTList: " ++ show termUTList
+        term <- processTermUTList termUTList intCnt termTypeContext
+        return term
+          where
+            processTermUTList :: [(LambdaTerm, SimpleType)] -> Int -> Map LambdaTerm SimpleType -> IO (Maybe LambdaTerm)
+            processTermUTList [] _ _ = return Nothing
+            processTermUTList ((g, typeUT):tuts) intCnt termTypeContext = do
+                u <- getLTermFromSimpleType intCnt termTypeContext (case antecedent typeUT of
+                                                                      Just t -> t
+                                                                      Nothing -> error "getLTermFromSimpleType: Impossible"
+                                                                   )     -- To get term u with type U
+                case u of
+                  Just x -> return (Just (Apply g x))
+                  Nothing -> processTermUTList tuts intCnt termTypeContext

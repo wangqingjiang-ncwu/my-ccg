@@ -46,6 +46,7 @@ library
     , massiv
     , mysql-haskell
     , random
+    , regex-posix
     , scientific
     , streaming
     , text
@@ -93,6 +94,7 @@ executable my-ccg-exe
     , my-ccg
     , mysql-haskell
     , random
+    , regex-posix
     , scientific
     , streaming
     , text
@@ -158,6 +160,7 @@ test-suite my-ccg-test
     , my-ccg
     , mysql-haskell
     , random
+    , regex-posix
     , scientific
     , streaming
     , text

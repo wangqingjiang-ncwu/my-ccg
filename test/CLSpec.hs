@@ -49,3 +49,36 @@ spec = do
       doCombAxiom (JuxTerm (JuxTerm (JuxTerm (ConstTerm "B") (ConstTerm "x")) (VarTerm "y")) (VarTerm "z")) `shouldBe` (JuxTerm (ConstTerm "x") (JuxTerm (VarTerm "y") (VarTerm "z")), True)
     it "The result of reduct 0 5 (JuxTerm (JuxTerm (JuxTerm (ConstTerm \"B\") (ConstTerm \"x\")) (VarTerm \"y\")) (VarTerm \"z\")) is JuxTerm (ConstTerm \"x\") (JuxTerm (VarTerm \"y\") (VarTerm \"z\"))" $ do
       reduct 0 5 (JuxTerm (JuxTerm (JuxTerm (ConstTerm "B") (ConstTerm "x")) (VarTerm "y")) (VarTerm "z")) `shouldBe` JuxTerm (ConstTerm "x") (JuxTerm (VarTerm "y") (VarTerm "z"))
+
+    it "The result of isBasicType (Basic \"s\") is True" $ do
+      isBasicType (Basic "s") `shouldBe` True
+    it "The result of isBasicType (Implicational (Basic x) (Basic y)) is True" $ do
+      isBasicType (Implicational (Basic "x") (Basic "y")) `shouldBe` False
+    it "The result of isImplicationaType (Implicational (Basic x) (Basic y)) is True" $ do
+      isImplicationalType (Implicational (Basic "x") (Basic "y")) `shouldBe` True
+    it "The result of show (Implicational (Basic x) (Basic y)) is (x -> y)" $ do
+      show (Implicational (Basic "x") (Basic "y")) `shouldBe` "(x -> y)"
+    it "The result of getSimpleTypeFromStr \"A\" is Basic \"A\"." $ do
+      getSimpleTypeFromStr "A" `shouldBe` (Basic "A" :: SimpleType)
+    it "The result of getSimpleTypeFromStr \"(A -> B)\" is Implicational (Basic \"A\") (Basic \"B\")." $ do
+      getSimpleTypeFromStr "(A -> B)" `shouldBe` (Implicational (Basic "A") (Basic "B") :: SimpleType)
+
+    it "The result of isStrOfSimpleType \"A\" is True." $ do
+      isStrOfSimpleType "A" `shouldBe` True
+    it "The result of isStrOfSimpleType \"(A -> B)\")) is True." $ do
+      isStrOfSimpleType "(A -> B)" `shouldBe` True
+    it "The result of isStrOfSimpleType \"1A\" is False." $ do
+      isStrOfSimpleType "1A" `shouldBe` False
+    it "The result of isStrOfSimpleType \"(A -> )\" is False." $ do
+      isStrOfSimpleType "(A -> )" `shouldBe` False
+
+    it "The result of getLTermFromStr \"a\" is a." $ do
+      getLTermFromStr "a" `shouldBe` (Var "a")
+    it "The result of getLTermFromStr \"(\\x. M)\" is Lambda x M" $ do
+      getLTermFromStr "(\\x. M)" `shouldBe` (Lambda "x" (Var "M"))
+{-
+    it "The result of isStrOfLambdaTerm \"(\\x.M)\" is False" $ do
+      isStrOfLambdaTerm "(\\x.M)" `shouldBe` False
+    it "The result of isStrOfLambdaTerm \"(\\x. M)\" is True" $ do
+      isStrOfLambdaTerm "(\\x. M)" `shouldBe` True
+ -}

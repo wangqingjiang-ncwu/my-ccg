@@ -106,16 +106,18 @@ module Utils (
     nodePairsBetwTwOBiTree,   -- BiTree a -> BiTree a -> [(a,a)]
 --    stringToBiTree,     -- (Read a) => String -> BiTree a
     forest2BiTree,      -- [BiTree a] -> BiTree a
-    jaccardSimIndex,    -- (Eq a) => [a] -> [a] -> Double
-    jaccardSimIndex',   -- (Eq a) => [[a]] -> Double
+    jaccardSimIndex,    -- Eq a => [a] -> [a] -> Double
+    jaccardSimIndex',   -- Eq a => [[a]] -> Double
+    findSubstringIndex, -- Eq a => [a] -> [a] -> Int
     ) where
 
 import Data.Tuple
-import Data.List (elemIndex, intersect, union)
+import Data.List (elemIndex, intersect, union, isPrefixOf, tails)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.String as DS
 import Text.Printf
+import Data.Maybe
 
 -- Functions on four tuple.
 
@@ -905,3 +907,7 @@ jaccardSimIndex' :: (Eq a) => [a] -> [[a]] -> Double
 jaccardSimIndex' s1 ss = foldl (+) 0.0 indices / ((fromIntegral . length) indices)
     where
     indices = map (jaccardSimIndex s1) ss
+
+-- Find index where a substring starts in a list. If the substring is NOT in the list, return -1.
+findSubstringIndex :: Eq a => [a] -> [a] -> Int
+findSubstringIndex sub str = fromMaybe (-1) $ elemIndex True $ map (isPrefixOf sub) (tails str)

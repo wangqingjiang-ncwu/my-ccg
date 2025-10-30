@@ -22,6 +22,7 @@ import Phrase (sortPhraCateBySpan')
 import Corpus
 import SentParse
 import Database
+import CL
 import Statistics
 import Utils
 import AmbiResol
@@ -852,9 +853,13 @@ doExperiments username = do
     putStrLn " 2 -> Test context similarity degree 1.0 only happens between one StruGene sample and itself"
     putStrLn " 3 -> Test identity between two parsing scripts"
     putStrLn " 4 -> Test the ratio of StruGene2 samples which include duplicate clauTags"
+    putStrLn " 5 -> Test isStrOfSimpleType in Module CL"
+    putStrLn " 6 -> Test getCanonicalStrOfSimpleType in Module CL"
+    putStrLn " 7 -> Test isStrOfLambdaTerm in Module CL"
+    putStrLn " 8 -> Test getLTermFromSimpleType in Module CL"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -864,6 +869,10 @@ doExperiments username = do
                "2" -> doTestSim1HappenBetweenOneStruGeneSampleAndItself username
                "3" -> doTestScriptIdentity username
                "4" -> doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags username
+               "5" -> doTestIsStrOfSimpleType username
+               "6" -> doTestGetCanonicalStrOfSimpleType username
+               "7" -> doTestIsStrOfLambdaTerm username
+               "8" -> doTestGetLTermFromSimpleType username
              doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
@@ -981,6 +990,111 @@ doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags username = do
 
           _ -> putStrLn $ "syntax_ambig_resol_model: " ++ syntax_ambig_resol_model ++ "has no ratio definition."
       else putStrLn "doTestRatioOfStruGene2SamplesIncludingDuplicateClauTags: Test is cancelled."
+
+{- B.5 Test the function isStrOfSimpleType in Module CL.
+ -}
+doTestIsStrOfSimpleType :: String -> IO ()
+doTestIsStrOfSimpleType username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Input a string, from which a simple type is tried to construct"
+    putStrLn " 0 -> Go back to the upper layer"
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+        case line of
+          "?" -> putStr ""                                     -- Do nothing
+          "1" -> do
+            putStr "Please input a string: "
+            inStr <- getLine
+            let res = isStrOfSimpleType inStr
+            putStrLn $ "Is it a simple type? " ++ case res of
+                                                    True -> "Yes"
+                                                    False -> "No"
+        doTestIsStrOfSimpleType username                      -- Rear recursion
+
+{- B.6 Test the function getCanonicalStrOfSimpleType in Module CL.
+ -}
+doTestGetCanonicalStrOfSimpleType :: String -> IO ()
+doTestGetCanonicalStrOfSimpleType username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Input a string of a simple type, from which a canonical string without omitted brackets returns"
+    putStrLn " 0 -> Go back to the upper layer"
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+        case line of
+          "?" -> putStr ""                                     -- Do nothing
+          "1" -> do
+            putStr "Please input a string: "
+            inStr <- getLine
+            res <- getCanonicalStrOfSimpleType inStr
+            putStrLn $ "Canonical string is: " ++ res
+        doTestGetCanonicalStrOfSimpleType username             -- Rear recursion
+
+{- B.7 Test the function isStrOfLambdaTerm in Module CL.
+ -}
+doTestIsStrOfLambdaTerm :: String -> IO ()
+doTestIsStrOfLambdaTerm username = do
+    let res1 = isStrOfLambdaTerm "x"
+    let res2 = isStrOfLambdaTerm "\\x.M"
+    let res3 = isStrOfLambdaTerm "(\\x.M)"
+    let res4 = isStrOfLambdaTerm "(\\x. M)"
+    let res5 = isStrOfLambdaTerm "(\\x. (\\x1.M))"
+    let res6 = isStrOfLambdaTerm "(\\x. (\\x2. M))"
+    let res7 = isStrOfLambdaTerm "M N"
+    let res8 = isStrOfLambdaTerm "(M N )"
+    let res9 = isStrOfLambdaTerm "( M N)"
+    let res10 = isStrOfLambdaTerm "(M N)"
+    let res11 = isStrOfLambdaTerm "(M (\\x. N))"
+    let res12 = isStrOfLambdaTerm "((M N) (\\x. N))"
+    let res13 = isStrOfLambdaTerm "(( M N) (\\x. N))"
+    let res14 = isStrOfLambdaTerm "x "
+    let res15 = isStrOfLambdaTerm "x&"
+
+    putStrLn $ "String '" ++ "x" ++ "' is a lambda term? " ++ (show res1)
+    putStrLn $ "String '" ++ "\\x.M" ++ "' is a lambda term? " ++ (show res2)
+    putStrLn $ "String '" ++ "(\\x.M)" ++ "' is a lambda term? " ++ (show res3)
+    putStrLn $ "String '" ++ "(\\x. M)" ++ "' is a lambda term? " ++ (show res4)
+    putStrLn $ "String '" ++ "(\\x. (\\x1.M))" ++ "' is a lambda term? " ++ (show res5)
+    putStrLn $ "String '" ++ "(\\x. (\\x2. M))" ++ "' is a lambda term? " ++ (show res6)
+    putStrLn $ "String '" ++ "M N" ++ "' is a lambda term? " ++ (show res7)
+    putStrLn $ "String '" ++ "(M N )" ++ "' is a lambda term? " ++ (show res8)
+    putStrLn $ "String '" ++ "( M N)" ++ "' is a lambda term? " ++ (show res9)
+    putStrLn $ "String '" ++ "(M N)" ++ "' is a lambda term? " ++ (show res10)
+    putStrLn $ "String '" ++ "(M (\\x. N))" ++ "' is a lambda term? " ++ (show res11)
+    putStrLn $ "String '" ++ "(( M N) (\\x. N))" ++ "' is a lambda term? " ++ (show res13)
+    putStrLn $ "String '" ++ "x " ++ "' is a lambda term? " ++ (show res14)
+    putStrLn $ "String '" ++ "x&" ++ "' is a lambda term? " ++ (show res15)
+
+{- B.8 Test the function getLTermFromSimpleType in Module CL.
+ -}
+doTestGetLTermFromSimpleType :: String -> IO ()
+doTestGetLTermFromSimpleType username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Input a string, from which a lambda term is tried to construct"
+    putStrLn " 0 -> Go back to the upper layer"
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+        case line of
+          "?" -> putStr ""                                     -- Do nothing
+          "1" -> do
+            putStr "Please input a string of a simple type (brackets may be omitted): "
+            inStr <- getLine
+            canStr <- getCanonicalStrOfSimpleType inStr                     -- Canonical String
+            if not (isStrOfSimpleType canStr)
+              then putStrLn "Input is NOT a string of a simple type."
+              else do                
+                let type1 = getSimpleTypeFromStr canStr
+                term <- getLTermFromSimpleType 0 Map.empty type1                -- Maybe LambdaTerm
+                putStrLn $ "The corresponding lambda term: " ++ show term
+        doTestGetLTermFromSimpleType username                -- Rear recursion
 
 -- C. Various maintenance tools.
 doMaintenance :: String -> IO ()

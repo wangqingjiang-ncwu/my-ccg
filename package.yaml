@@ -37,6 +37,7 @@ dependencies:
 - massiv
 - streaming
 - cassava
+- regex-posix
 
 library:
   source-dirs: src

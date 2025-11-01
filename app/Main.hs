@@ -857,9 +857,10 @@ doExperiments username = do
     putStrLn " 6 -> Test getCanonicalStrOfSimpleType in Module CL"
     putStrLn " 7 -> Test isStrOfLambdaTerm in Module CL"
     putStrLn " 8 -> Test getLTermFromSimpleType in Module CL"
+    putStrLn " 9 -> Test getCLTermFromLambdaTerm in Module CL"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -873,6 +874,7 @@ doExperiments username = do
                "6" -> doTestGetCanonicalStrOfSimpleType username
                "7" -> doTestIsStrOfLambdaTerm username
                "8" -> doTestGetLTermFromSimpleType username
+               "9" -> doTestGetCLTermFromLambdaTerm username
              doExperiments username                            -- Rear recursion
 
 {- B.1 Parse the sentence indicated by serial_num, here 'username' has not been used.
@@ -1090,11 +1092,42 @@ doTestGetLTermFromSimpleType username = do
             canStr <- getCanonicalStrOfSimpleType inStr                     -- Canonical String
             if not (isStrOfSimpleType canStr)
               then putStrLn "Input is NOT a string of a simple type."
-              else do                
+              else do
                 let type1 = getSimpleTypeFromStr canStr
                 term <- getLTermFromSimpleType 0 Map.empty type1                -- Maybe LambdaTerm
                 putStrLn $ "The corresponding lambda term: " ++ show term
         doTestGetLTermFromSimpleType username                -- Rear recursion
+
+{- B.9 Test the function getCLTermFromLambdaTerm in Module CL.
+ -}
+doTestGetCLTermFromLambdaTerm :: String -> IO ()
+doTestGetCLTermFromLambdaTerm username = do
+    putStrLn " ? -> Display command list"
+    putStrLn " 1 -> Input a string of simple type, from which a CL term is tried to construct"
+    putStrLn " 0 -> Go back to the upper layer"
+
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","0"] True
+    if line == "0"
+      then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
+      else do
+        case line of
+          "?" -> putStr ""                                     -- Do nothing
+          "1" -> do
+            putStr "Please input a string of a simple type (brackets may be omitted): "
+            inStr <- getLine
+            canStr <- getCanonicalStrOfSimpleType inStr                         -- Canonical String
+            if not (isStrOfSimpleType canStr)
+              then putStrLn "Input is NOT a string of a simple type."
+              else do
+                let type1 = getSimpleTypeFromStr canStr
+                putStrLn $ "  The corresponding simple type: " ++ show type1
+                term <- getLTermFromSimpleType 0 Map.empty type1                -- Maybe LambdaTerm
+                putStrLn $ "  The corresponding lambda term: " ++ show term
+                cLTerm <- case term of
+                            Just t -> getCLTermFromLambdaTerm (fromMaybe' term)
+                            Nothing -> return Nothing
+                putStrLn $ "  The corresponding CL term: " ++ show cLTerm
+        doTestGetCLTermFromLambdaTerm username                -- Rear recursion
 
 -- C. Various maintenance tools.
 doMaintenance :: String -> IO ()

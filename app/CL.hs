@@ -76,15 +76,26 @@ module CL (
     getCanonicalStrOfSimpleType,   -- String -> String
 
     LambdaTerm(..),  -- Term | Lambda AvVar LambdaTerm
-    isStrOfLambdaTerm,      -- String -> Bool
+    isLVarTerm,      -- LambdaTerm -> Bool
+    isAbstactTerm,   -- LambdaTerm -> Bool
+    isApplyTerm,     -- LambdaTerm -> Bool
+    getVarName,      -- LambdaTerm -> Maybe String
+    getAbstractedVar,   -- LambdaTerm -> Maybe LambdaTerm
+    getAbstractedTerm,  -- LambdaTerm -> Maybe LambdaTerm
+    getFuncTerm,     -- LambdaTerm -> Maybe LambdaTerm
+    getParaTerm,     -- LambdaTerm -> Maybe LambdaTerm
+
+    isStrOfLambdaTerm,             -- String -> Bool
     getLTermFromStr, -- String -> LambdaTerm
-    getLTermFromSimpleType, -- Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
+    getLTermFromSimpleType,        -- Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
+    getCLTermFromLambdaTerm,       -- LambdaTerm -> IO (Maybe Term)
   ) where
 
 import Utils
 import Data.List (isPrefixOf)
 import Data.List.Utils (replace)
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Text.Regex.Posix
 
@@ -611,6 +622,57 @@ getCanonicalStrOfSimpleType str =
  -}
 data LambdaTerm = Var String | Lambda String LambdaTerm | Apply LambdaTerm LambdaTerm deriving Eq
 
+{- Decide whether a lambda term is Variable term. If it is, return True; Otherwise, return False.
+ - Variable term uses constructor Var.
+ -}
+isLVarTerm :: LambdaTerm -> Bool         -- LVar means Lambda Var term.
+isLVarTerm (Var _) = True
+isLVarTerm _ = False
+
+{- Decide whether a lambda term is abstracted term. If it is, return True; Otherwise, return False.
+ - Abstracted term uses constructor Lambda.
+ -}
+isAbstactTerm :: LambdaTerm -> Bool
+isAbstactTerm (Lambda _ _) = True
+isAbstactTerm _ = False
+
+{- Decide whether a lambda term is application term. If it is, return True; Otherwise, return False.
+ - Application term uses constructor Apply.
+ -}
+isApplyTerm :: LambdaTerm -> Bool
+isApplyTerm (Apply _ _) = True
+isApplyTerm _ = False
+
+{- Get the name of varible term.
+ -}
+getVarName :: LambdaTerm -> Maybe String
+getVarName (Var name) = Just name
+getVarName _ = Nothing
+
+{- Get the name of abstracted varible.
+ -}
+getAbstractedVar :: LambdaTerm -> Maybe LambdaTerm
+getAbstractedVar (Lambda vname _) = Just (Var vname)
+getAbstractedVar _ = Nothing
+
+{- Get the abstacted lambda term.
+ -}
+getAbstractedTerm :: LambdaTerm -> Maybe LambdaTerm
+getAbstractedTerm (Lambda _ term) = Just term
+getAbstractedTerm _ = Nothing
+
+{- Get the functional term of application.
+ -}
+getFuncTerm :: LambdaTerm -> Maybe LambdaTerm
+getFuncTerm (Apply func _) = Just func
+getFuncTerm _ = Nothing
+
+{- Get the parameter term of application.
+ -}
+getParaTerm :: LambdaTerm -> Maybe LambdaTerm
+getParaTerm (Apply _ para) = Just para
+getParaTerm _ = Nothing
+
 {- Define how a lambda term shows.
  - For variable terms, show them literally, such as "x", "x12", etc.
  - For abstracted terms, show as "(\v. t)".
@@ -660,6 +722,9 @@ getLTermFromStr str
        t1Str = ws!!0
        t2Str = ws!!1
 
+{- Get
+ -}
+
 {- Get lambda term from its simple type under context of {(LambdaTerm : SimpleType)}.
  - To get closed lambda term, the initial context should be empty.
  - To ensure a new variable is selected, an integer counter is used whose initial value may be 0.
@@ -672,11 +737,12 @@ getLTermFromStr str
  -     if success, then return h;
  -     else
  -       For each term g with type U -> T in current context,
- -       recursively construct term u for type U.
- -       if success, then return g u;
- -       else return Nothing       -- No inhabitant for this type
+ -         recursively construct term u for type U.
+ -         if success, then return g u;
+ -         else return Nothing       -- No inhabitant for this type
  - Backtracing is needed whenever constructing term u fails.
  - If initial context is empty, only closed lambda terms can be constructed.
+ - Not every type has corresponding lambda term, such as basic (atomic) types.
  -}
 getLTermFromSimpleType :: Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
 getLTermFromSimpleType intCnt termTypeContext (Implicational ante cons) = do
@@ -712,3 +778,92 @@ getLTermFromSimpleType intCnt termTypeContext (Basic target) = do
                 case u of
                   Just x -> return (Just (Apply g x))
                   Nothing -> processTermUTList tuts intCnt termTypeContext
+
+{- Get CL term from its lambda term.
+ - If the lambda term is closed one, its corresponding CL term exists.
+ - If no CL term exists, return Nothing.
+ - Iteration Algo.:
+ -   Iterately check lambda term until no lambda abstract exists.
+ -   During every iteration, sequentially check the following rules and use the first available one to eliminate one variable.
+ -   (k) [x]. M = K M, x ∉FV(M)
+ -   (i) [x]. x = I
+ -   (η) [x]. (M x) = M, x ∉FV(M)
+ -   (b) [x]. (M N) = B M ([x].N), x ∉FV(M)
+ -   (c) [x]. (M N) = C ([x]. M) N, x ∉FV(N)
+ -   (s) [x]. (M N) = S ([x].M) ([x].N)
+ - Recursive Algo.:
+ -   (Basic) If Lambda term is a variable term, return CL varible term.
+ -   (Recursive) For Lambda abstracted term, sequentially check those rules and use the first available one.
+ -   For Lambda application term, recursively find CL terms of Lambda functional term and parameter term, and juxtapose their results.
+ -}
+getCLTermFromLambdaTerm :: LambdaTerm -> IO (Maybe Term)
+getCLTermFromLambdaTerm (Var vName) = return (Just (VarTerm vName))          -- Varterm
+getCLTermFromLambdaTerm (Lambda vName aTerm) = do                            -- \vName. aTerm
+    putStrLn $ "  vName: " ++ vName ++ ", aTerm: " ++ show aTerm
+    maybeCLTerm <- getCLTermFromLambdaTerm aTerm             -- Recursively find CL Term of Lambda abstracted term
+    let cLTerm = fromMaybe nullTerm maybeCLTerm              -- Term
+    putStrLn $ "  maybeCLTerm: " ++ show maybeCLTerm ++ ", cLTerm: " ++ show cLTerm
+    if cLTerm == nullTerm
+      then return Nothing                                    -- Fail to get CL term
+      else do
+        let fvs = fvOfTerm cLTerm                            -- Find free variables, and save them as [VarTerm]
+        let varTerm = VarTerm vName                          -- Construct CL variable term
+        putStrLn $ "  cLTerm: " ++ show cLTerm ++ ", fvs: " ++ show fvs ++ ", varTerm: " ++ show varTerm
+        if not (elem varTerm fvs)                            -- The variable does not occur freely in the abstracted term
+          then do
+            putStrLn $ "  return: " ++ show (Just (JuxTerm (ConstTerm "K") cLTerm))
+            return (Just (JuxTerm (ConstTerm "K") cLTerm))   -- Using Rule k
+          else if varTerm == cLTerm                          -- The variable is same with the abstracted term
+                 then do
+                   putStrLn $ "  return: " ++ show (Just (ConstTerm "I"))
+                   return (Just (ConstTerm "I"))             -- Using Rule i
+                 else if isCompoundTerm cLTerm
+                        then do
+                          let jux1Term = fromMaybe' $ fstTerm cLTerm      -- Term
+                          let jux2Term = fromMaybe' $ sndTerm cLTerm      -- Term
+                          if not (elem varTerm (fvOfTerm jux1Term))
+                            then if jux2Term == varTerm          -- Certainly not being nullTerm
+                                   then do
+                                     putStrLn $ " return: " ++ show (Just jux1Term)
+                                     return (Just jux1Term)      -- Using Rule η
+                                   else do                          -- Using Rule b
+                                     if jux2Term == nullTerm
+                                       then do
+                                         putStrLn "  jux2Term is nullTerm, and Nothing is returned."
+                                         return Nothing
+                                       else do
+                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term))
+                                         return (Just (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term))
+
+                            else if not (elem varTerm (fvOfTerm jux2Term))
+                                   then do
+                                     if jux1Term == nullTerm
+                                       then do
+                                         putStrLn "  jux1Term is nullTerm, and Nothing is returned."
+                                         return Nothing
+                                       else do
+                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "C") jux1Term) jux2Term))
+                                         return (Just (JuxTerm (JuxTerm (ConstTerm "C") jux1Term) jux2Term))
+                                   else do                                      -- -- Using Rule s
+                                     if jux1Term == nullTerm || jux2Term == nullTerm
+                                       then do
+                                         putStrLn "  Both jux1Term and jux2Term are nullTerm, and Nothing is returned."
+                                         return Nothing
+                                       else do
+                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "S") jux1Term) jux2Term))
+                                         return (Just (JuxTerm (JuxTerm (ConstTerm "S") jux1Term) jux2Term))
+
+                        else error $ "getCLTermFromLambdaTerm: Not being compound term: " ++ show cLTerm
+
+getCLTermFromLambdaTerm (Apply funcTerm paraTerm) = do
+    maybeFuncCLTerm <- getCLTermFromLambdaTerm funcTerm
+    maybeParaCLTerm <- getCLTermFromLambdaTerm paraTerm
+    let funcCLTerm = fromMaybe nullTerm maybeFuncCLTerm
+    let paraCLTerm = fromMaybe nullTerm maybeParaCLTerm
+    if funcCLTerm == nullTerm || paraCLTerm == nullTerm
+      then do
+        putStrLn "  Both funcCLTerm and paraCLTerm are nullTerm, and Nothing is returned."
+        return Nothing
+      else do
+        putStrLn $ "  return: " ++ show (Just (JuxTerm funcCLTerm paraCLTerm))
+        return (Just (JuxTerm funcCLTerm paraCLTerm))

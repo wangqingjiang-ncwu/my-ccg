@@ -72,6 +72,34 @@ spec = do
     it "The result of isStrOfSimpleType \"(A -> )\" is False." $ do
       isStrOfSimpleType "(A -> )" `shouldBe` False
 
+    it "The result of isLVarTerm (Var \"A\") is True." $ do
+      isLVarTerm (Var "A") `shouldBe` True
+    it "The result of isLVarTerm (Lambda \"A\" (Var \"B\")) is True." $ do
+      isLVarTerm (Lambda "A" (Var "B")) `shouldBe` False
+    it "The result of isAbstactTerm (Var \"A\") is False." $ do
+      isAbstactTerm (Var "A") `shouldBe` False
+    it "The result of isAbstactTerm (Lambda \"A\" (Var \"B\")) is True." $ do
+      isAbstactTerm (Lambda "A" (Var "B")) `shouldBe` True
+    it "The result of isApplyTerm (Var \"A\") is False." $ do
+      isApplyTerm (Var "A") `shouldBe` False
+    it "The result of isApplyTerm (Lambda \"A\" (Var \"B\"), Var \"C\") is True." $ do
+      isApplyTerm (Apply (Lambda "A" (Var "B")) (Var "C")) `shouldBe` True
+    it "The result of getVarName (Var \"A\") is Just \"A\"." $ do
+      getVarName (Var "A" ) `shouldBe` Just "A"
+    it "The result of getVarName (Lambda \"A\" (Var \"B\")) is Nothing." $ do
+      getVarName (Lambda "A" (Var "B")) `shouldBe` Nothing
+    it "The result of getAbstractedVar (Lambda \"A\" (Var \"B\")) is Just (Var \"A\")." $ do
+      getAbstractedVar (Lambda "A" (Var "B")) `shouldBe` Just (Var "A")
+    it "The result of getAbstractedTerm (Lambda \"A\" (Var \"B\")) is Just (Var \"B\")." $ do
+      getAbstractedTerm (Lambda "A" (Var "B")) `shouldBe` Just (Var "B")
+    it "The result of getFuncTerm (Apply (Var \"A\") (Var \"B\")) is Just (Var \"A\")." $ do
+      getFuncTerm (Apply (Var "A") (Var "B")) `shouldBe` Just (Var "A")
+    it "The result of getParaTerm (Apply (Var \"A\") (Var \"B\")) is Just (Var \"B\")." $ do
+      getParaTerm (Apply (Var "A") (Var "B")) `shouldBe` Just (Var "B")
+
+
+
+
     it "The result of getLTermFromStr \"a\" is a." $ do
       getLTermFromStr "a" `shouldBe` (Var "a")
     it "The result of getLTermFromStr \"(\\x. M)\" is Lambda x M" $ do

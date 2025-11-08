@@ -1094,7 +1094,7 @@ doTestGetLTermFromSimpleType username = do
               then putStrLn "Input is NOT a string of a simple type."
               else do
                 let type1 = getSimpleTypeFromStr canStr
-                term <- getLTermFromSimpleType 0 Map.empty type1                -- Maybe LambdaTerm
+                (_, term) <- getLTermFromSimpleType 0 Map.empty type1           -- Maybe LambdaTerm
                 putStrLn $ "The corresponding lambda term: " ++ show term
         doTestGetLTermFromSimpleType username                -- Rear recursion
 
@@ -1121,12 +1121,14 @@ doTestGetCLTermFromLambdaTerm username = do
               else do
                 let type1 = getSimpleTypeFromStr canStr
                 putStrLn $ "  The corresponding simple type: " ++ show type1
-                term <- getLTermFromSimpleType 0 Map.empty type1                -- Maybe LambdaTerm
+                (_, term) <- getLTermFromSimpleType 0 Map.empty type1           -- Maybe LambdaTerm
                 putStrLn $ "  The corresponding lambda term: " ++ show term
                 cLTerm <- case term of
                             Just t -> getCLTermFromLambdaTerm (fromMaybe' term)
-                            Nothing -> return Nothing
-                putStrLn $ "  The corresponding CL term: " ++ show cLTerm
+                            Nothing -> return nullTerm
+                if cLTerm /= nullTerm
+                  then putStrLn $ "  The corresponding CL term: " ++ show cLTerm
+                  else putStrLn $ "  The corresponding CL term: Nothing"
         doTestGetCLTermFromLambdaTerm username                -- Rear recursion
 
 -- C. Various maintenance tools.

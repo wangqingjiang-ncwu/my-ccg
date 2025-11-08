@@ -69,6 +69,8 @@ module CL (
     isImplicationalType,   -- SimpleType -> Bool
     antecedent,       -- SimpleType -> Maybe SimpleType
     consequent,       -- SimpleType -> Maybe SimpleType
+    allAntes,         -- SimpleType -> [SimpleType]
+    finalCons,        -- SimpleType -> SimpleType
     isStrOfSimpleType,     -- String -> Bool
     indexOfArrow,     -- Int -> Int -> String -> Int
     indexOfArrow',    -- Int -> Int -> String -> Int
@@ -87,8 +89,10 @@ module CL (
 
     isStrOfLambdaTerm,             -- String -> Bool
     getLTermFromStr, -- String -> LambdaTerm
-    getLTermFromSimpleType,        -- Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
-    getCLTermFromLambdaTerm,       -- LambdaTerm -> IO (Maybe Term)
+    fvOfLTerm,       -- LambdaTerm -> [LambdaTerm]
+    getLTermFromSimpleType,        -- Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Int, Maybe LambdaTerm)
+    cLTerm2LambdaTerm,             -- Term -> LambdaTerm
+    getCLTermFromLambdaTerm,       -- LambdaTerm -> IO Term
   ) where
 
 import Utils
@@ -531,6 +535,18 @@ consequent :: SimpleType -> Maybe SimpleType
 consequent (Basic _) = Nothing
 consequent (Implicational _ cons) = Just cons
 
+-- Consider a type as that of a curried function, return its all arguments type.
+allAntes :: SimpleType -> [SimpleType]
+allAntes (Basic _) = []
+allAntes (Implicational ante cons) = ante : allAntes cons
+
+{- Consider a type as that of a curried function, return its final value type.
+ - For atomic (namely basic) types, return atomic type itself.
+ -}
+finalCons :: SimpleType -> SimpleType
+finalCons (Basic t) = Basic t
+finalCons (Implicational ante cons) = finalCons cons
+
 {- Decide whether a string is well-formatted for a simple type.
  - "A" is a simple type, "(A -> B)" is a simple type, and "((A -> B) -> C)" is also simple type.
  -}
@@ -722,16 +738,26 @@ getLTermFromStr str
        t1Str = ws!!0
        t2Str = ws!!1
 
-{- Get
+{- Get free variables in a lambda term.
+ - If the lambda term is a variable term, return LambdaTerm list with it as only element.
+ - If the lambda term is an abstracted term, return LambdaTerm list including free variables in the abstacted term except of the abstracted variable.
+ - If the lambda term is a application term, return free variables in the function term and in the parameter term.
  -}
+fvOfLTerm :: LambdaTerm -> [LambdaTerm]
+fvOfLTerm (Var t) = [Var t]
+fvOfLTerm (Lambda vName aTerm) = filter ((/=) (Var vName)) $ fvOfLTerm aTerm
+fvOfLTerm (Apply aTerm bTerm) = fvOfLTerm aTerm ++ fvOfLTerm bTerm
 
 {- Get lambda term from its simple type under context of {(LambdaTerm : SimpleType)}.
  - To get closed lambda term, the initial context should be empty.
  - To ensure a new variable is selected, an integer counter is used whose initial value may be 0.
  - If no lambda term exists, return Nothing.
+ - To support iteration, the next variable index is also returned.
  - Algo.
- -   if the asked type is T = Implicational A B, then x:A is introduced into the context, and
- -     recursively construct term t for type B, return \x. t.
+ -   if the asked type is T = Implicational A B, then x:A is introduced into the context, where
+ -     the variable x must be a new one, namely never come to being before, and
+ -     recursively construct term t for type B.
+ -     if t can be construected successfully, return \x. t; Otherwise, return Nothing.
  -   else -- The asked type is Basic T
  -     look up term h with type T in current context.
  -     if success, then return h;
@@ -744,40 +770,62 @@ getLTermFromStr str
  - If initial context is empty, only closed lambda terms can be constructed.
  - Not every type has corresponding lambda term, such as basic (atomic) types.
  -}
-getLTermFromSimpleType :: Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm)
+getLTermFromSimpleType :: Int -> Map LambdaTerm SimpleType -> SimpleType -> IO (Int, Maybe LambdaTerm)
 getLTermFromSimpleType intCnt termTypeContext (Implicational ante cons) = do
     let abVar = "x" ++ show intCnt                                        -- New variable
     let newContext = Map.insert (Var abVar) ante termTypeContext          -- Introduce new variable and its type into context
---    putStrLn $ "[INFO] New context member: " ++ abVar ++ ":" ++ show ante
-    term <- getLTermFromSimpleType (intCnt + 1) newContext cons           -- Construct term of new target type in new context
+    putStrLn $ "[INFO] New context member: " ++ abVar ++ ":" ++ show ante
+    (newIntCnt, term) <- getLTermFromSimpleType (intCnt + 1) newContext cons    -- Construct term of new target type in new context
     case term of
-      Just t -> return (Just (Lambda abVar t))                            -- \x. t
-      Nothing -> return Nothing
+      Just t -> return (newIntCnt, Just (Lambda abVar t))                       -- (varIdx, \x.t)
+      Nothing -> return (intCnt, Nothing)
 getLTermFromSimpleType intCnt termTypeContext (Basic target) = do
-    let termTargetList = Map.toList $ Map.filterWithKey (\k v -> v == Basic target) termTypeContext    -- [(term1, Basic target), ..]
-    if termTargetList /= []
+    putStrLn $ "[INFO] termTypeContext: " ++ show (Map.toList termTypeContext)
+    putStrLn $ "[INFO] intCnt: " ++ show intCnt ++ ", target: " ++ show (Basic target)
+    let terms = map fst $ Map.toList $ Map.filterWithKey (\k v -> v == Basic target) termTypeContext    -- [LambdaTerm]
+    putStrLn $ "[INFO] " ++ show (length terms) ++ " term(s) is(are) found, and they are:\n" ++ show terms
+    if terms /= []
       then do
-        putStrLn $ show (length termTargetList) ++ " term(s) is(are) found, and they are:\n" ++ show termTargetList ++"\nOnly first term is returned."
-        return (Just (fst (termTargetList!!0)))                           -- Just LambdaTerm, the first term with type target
+        putStrLn "[INFO] Only first term is returned."
+        return (intCnt, Just (terms!!0))                                        -- (Int, Just LambdaTerm)
       else do
-        let termUTList = Map.toList $ Map.filterWithKey (\k v -> case consequent v of
-                                                                   Just t -> t == Basic target
-                                                                   Nothing -> False
-                                                        ) termTypeContext    -- [(term1, U1->T), ..]
-        putStrLn $ "getLTermFromSimpleType: termUTList: " ++ show termUTList
-        term <- processTermUTList termUTList intCnt termTypeContext
-        return term
-          where
-            processTermUTList :: [(LambdaTerm, SimpleType)] -> Int -> Map LambdaTerm SimpleType -> IO (Maybe LambdaTerm)
-            processTermUTList [] _ _ = return Nothing
-            processTermUTList ((g, typeUT):tuts) intCnt termTypeContext = do
-                u <- getLTermFromSimpleType intCnt termTypeContext (case antecedent typeUT of
-                                                                      Just t -> t
-                                                                      Nothing -> error "getLTermFromSimpleType: Impossible"
-                                                                   )     -- To get term u with type U
-                case u of
-                  Just x -> return (Just (Apply g x))
-                  Nothing -> processTermUTList tuts intCnt termTypeContext
+        let termUTList = Map.toList $ Map.filterWithKey (\k v -> finalCons v == Basic target) termTypeContext
+                                                                                -- [(term1, U1 -> U2 -> ... -> Uk -> T), ..]
+        putStrLn $ "[INFO] termUTList: " ++ show termUTList
+        (newIntCnt, term) <- processTermUTList termUTList intCnt termTypeContext
+        if term == Nothing
+          then return (intCnt, Nothing)                                         -- Construct unsuccessfullly
+          else return (newIntCnt, term)
+    where
+        {- For every pair of term and type, try to construct terms for all antecedents in curried type.
+         - If one pair fails in construction, the next pair will be tried.
+         - Once successfully construct, return the term of final consequent.
+         - If all pairs of term and type do not find the term of final consequent, return Nothing.
+         -}
+        processTermUTList :: [(LambdaTerm, SimpleType)] -> Int -> Map LambdaTerm SimpleType -> IO (Int, Maybe LambdaTerm)
+        processTermUTList [] intCnt _ = return (intCnt, Nothing)
+        processTermUTList ((g, typeUT):tuts) intCnt termTypeContext = do
+            let uTypes = allAntes typeUT                                        -- [SimpleType], types of U1, U2, ..., Uk.
+            (newIntCnt, uTerms) <- constructTermsForAllAntes intCnt termTypeContext uTypes    -- (Int, [Maybe LambdaTerm])
+            case not (elem Nothing uTerms) of
+              True -> do
+                let uTerms' = map fromMaybe' uTerms                             -- [LambdaTerm]
+                return (newIntCnt, Just (foldl (\x y -> Apply x y) g uTerms'))
+              False -> processTermUTList tuts intCnt termTypeContext            -- Try next type when construct unsuccessfullly
+
+        constructTermsForAllAntes :: Int -> Map LambdaTerm SimpleType -> [SimpleType] -> IO (Int, [Maybe LambdaTerm])
+        constructTermsForAllAntes intCnt _ [] = return (intCnt, [])
+        constructTermsForAllAntes intCnt termTypeContext (t:ts) = do
+            (newIntCnt, term) <- getLTermFromSimpleType intCnt termTypeContext t
+            (newIntCnt', terms) <- constructTermsForAllAntes newIntCnt termTypeContext ts
+            return (newIntCnt', term:terms)
+
+{- Convert CL term to Lambda term.
+ -}
+cLTerm2LambdaTerm :: Term -> LambdaTerm
+cLTerm2LambdaTerm (ConstTerm cName) = Var cName
+cLTerm2LambdaTerm (VarTerm vName) = Var vName
+cLTerm2LambdaTerm (JuxTerm funcTerm paraTerm) = Apply (cLTerm2LambdaTerm funcTerm) (cLTerm2LambdaTerm paraTerm)
 
 {- Get CL term from its lambda term.
  - If the lambda term is closed one, its corresponding CL term exists.
@@ -792,78 +840,66 @@ getLTermFromSimpleType intCnt termTypeContext (Basic target) = do
  -   (c) [x]. (M N) = C ([x]. M) N, x ∉FV(N)
  -   (s) [x]. (M N) = S ([x].M) ([x].N)
  - Recursive Algo.:
- -   (Basic) If Lambda term is a variable term, return CL varible term.
+ -   (Basic) If Lambda term is an atomic variable term, return CL varible term.
  -   (Recursive) For Lambda abstracted term, sequentially check those rules and use the first available one.
  -   For Lambda application term, recursively find CL terms of Lambda functional term and parameter term, and juxtapose their results.
  -}
-getCLTermFromLambdaTerm :: LambdaTerm -> IO (Maybe Term)
-getCLTermFromLambdaTerm (Var vName) = return (Just (VarTerm vName))          -- Varterm
-getCLTermFromLambdaTerm (Lambda vName aTerm) = do                            -- \vName. aTerm
-    putStrLn $ "  vName: " ++ vName ++ ", aTerm: " ++ show aTerm
-    maybeCLTerm <- getCLTermFromLambdaTerm aTerm             -- Recursively find CL Term of Lambda abstracted term
-    let cLTerm = fromMaybe nullTerm maybeCLTerm              -- Term
-    putStrLn $ "  maybeCLTerm: " ++ show maybeCLTerm ++ ", cLTerm: " ++ show cLTerm
+getCLTermFromLambdaTerm :: LambdaTerm -> IO Term
+getCLTermFromLambdaTerm (Var vName) = do
+    putStrLn $ "  Recursively into: Var term: " ++ show (Var vName)
+    return (VarTerm vName)          -- Varterm
+getCLTermFromLambdaTerm (Lambda vName aTerm) = do                -- \vName. aTerm
+    putStrLn $ "  Recursively into: Lambda term: " ++ show (Lambda vName aTerm)
+    cLTerm <- getCLTermFromLambdaTerm aTerm                      -- Term
     if cLTerm == nullTerm
-      then return Nothing                                    -- Fail to get CL term
+      then return nullTerm
       else do
-        let fvs = fvOfTerm cLTerm                            -- Find free variables, and save them as [VarTerm]
-        let varTerm = VarTerm vName                          -- Construct CL variable term
-        putStrLn $ "  cLTerm: " ++ show cLTerm ++ ", fvs: " ++ show fvs ++ ", varTerm: " ++ show varTerm
-        if not (elem varTerm fvs)                            -- The variable does not occur freely in the abstracted term
+        let aTerm' = cLTerm2LambdaTerm cLTerm                    -- LambdaTerm
+        let fvs = fvOfLTerm aTerm'                               -- Find free variables, and save them as [Var String]
+        let varTerm = Var vName                                  -- Construct the Lambda term for bound variable
+        putStrLn $ "  LambdaTerm: " ++ show (Lambda vName aTerm') ++ ", fvs: " ++ show fvs
+        if not (elem varTerm fvs)                                -- The variable does not occur freely in the functional body
           then do
-            putStrLn $ "  return: " ++ show (Just (JuxTerm (ConstTerm "K") cLTerm))
-            return (Just (JuxTerm (ConstTerm "K") cLTerm))   -- Using Rule k
-          else if varTerm == cLTerm                          -- The variable is same with the abstracted term
+            putStrLn $ "  Rule (k) returns: " ++ show (JuxTerm (ConstTerm "K") cLTerm)
+            return (JuxTerm (ConstTerm "K") cLTerm)              -- Using Rule k
+          else if varTerm == aTerm'                              -- The bound variable is same with the functional body
                  then do
-                   putStrLn $ "  return: " ++ show (Just (ConstTerm "I"))
-                   return (Just (ConstTerm "I"))             -- Using Rule i
-                 else if isCompoundTerm cLTerm
+                   putStrLn $ "  Rule (i) returns: " ++ show (ConstTerm "I")
+                   return (ConstTerm "I")                        -- Using Rule i
+                 else if isApplyTerm aTerm'
                         then do
-                          let jux1Term = fromMaybe' $ fstTerm cLTerm      -- Term
-                          let jux2Term = fromMaybe' $ sndTerm cLTerm      -- Term
-                          if not (elem varTerm (fvOfTerm jux1Term))
-                            then if jux2Term == varTerm          -- Certainly not being nullTerm
+                          let funcTerm = fromMaybe' $ getFuncTerm aTerm'        -- LambdaTerm
+                          let paraTerm = fromMaybe' $ getParaTerm aTerm'        -- LambdaTerm
+                          let fvs1 = fvOfLTerm funcTerm                         -- [LambdaTerm]
+                          let fvs2 = fvOfLTerm paraTerm                         -- [LambdaTerm]
+                          let jux1Term = fromMaybe' $ fstTerm cLTerm            -- Term
+                          let jux2Term = fromMaybe' $ sndTerm cLTerm            -- Term
+                          if not (elem varTerm fvs1) && elem varTerm fvs2
+                            then if paraTerm == varTerm
                                    then do
-                                     putStrLn $ " return: " ++ show (Just jux1Term)
-                                     return (Just jux1Term)      -- Using Rule η
-                                   else do                          -- Using Rule b
-                                     if jux2Term == nullTerm
-                                       then do
-                                         putStrLn "  jux2Term is nullTerm, and Nothing is returned."
-                                         return Nothing
-                                       else do
-                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term))
-                                         return (Just (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term))
+                                     putStrLn $ " Rule (eta) returns: " ++ show jux1Term
+                                     return jux1Term             -- Using Rule η
+                                   else do                       -- Using Rule b
+                                     jux2Term' <- getCLTermFromLambdaTerm $ Lambda vName paraTerm    -- Term
+                                     putStrLn $ "  Rule (b) returns: " ++ show (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term')
+                                     return (JuxTerm (JuxTerm (ConstTerm "B") jux1Term) jux2Term')
 
-                            else if not (elem varTerm (fvOfTerm jux2Term))
+                            else if elem varTerm fvs1 && not (elem varTerm fvs2)
                                    then do
-                                     if jux1Term == nullTerm
-                                       then do
-                                         putStrLn "  jux1Term is nullTerm, and Nothing is returned."
-                                         return Nothing
-                                       else do
-                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "C") jux1Term) jux2Term))
-                                         return (Just (JuxTerm (JuxTerm (ConstTerm "C") jux1Term) jux2Term))
-                                   else do                                      -- -- Using Rule s
-                                     if jux1Term == nullTerm || jux2Term == nullTerm
-                                       then do
-                                         putStrLn "  Both jux1Term and jux2Term are nullTerm, and Nothing is returned."
-                                         return Nothing
-                                       else do
-                                         putStrLn $ "  return: " ++ show (Just (JuxTerm (JuxTerm (ConstTerm "S") jux1Term) jux2Term))
-                                         return (Just (JuxTerm (JuxTerm (ConstTerm "S") jux1Term) jux2Term))
+                                     jux1Term' <- getCLTermFromLambdaTerm $ Lambda vName funcTerm    -- Term
+                                     putStrLn $ "  Rule (c) returns: " ++ show (JuxTerm (JuxTerm (ConstTerm "C") jux1Term') jux2Term)
+                                     return (JuxTerm (JuxTerm (ConstTerm "C") jux1Term') jux2Term)
+                                   else do                       -- Using Rule s
+                                     jux1Term' <- getCLTermFromLambdaTerm $ Lambda vName funcTerm    -- Term
+                                     jux2Term' <- getCLTermFromLambdaTerm $ Lambda vName paraTerm    -- Term
+                                     putStrLn $ "  Rule (s) returns: " ++ show (JuxTerm (JuxTerm (ConstTerm "S") jux1Term') jux2Term')
+                                     return (JuxTerm (JuxTerm (ConstTerm "S") jux1Term') jux2Term')
 
-                        else error $ "getCLTermFromLambdaTerm: Not being compound term: " ++ show cLTerm
+                        else error $ "getCLTermFromLambdaTerm: Not being application term: " ++ show aTerm
 
 getCLTermFromLambdaTerm (Apply funcTerm paraTerm) = do
-    maybeFuncCLTerm <- getCLTermFromLambdaTerm funcTerm
-    maybeParaCLTerm <- getCLTermFromLambdaTerm paraTerm
-    let funcCLTerm = fromMaybe nullTerm maybeFuncCLTerm
-    let paraCLTerm = fromMaybe nullTerm maybeParaCLTerm
-    if funcCLTerm == nullTerm || paraCLTerm == nullTerm
-      then do
-        putStrLn "  Both funcCLTerm and paraCLTerm are nullTerm, and Nothing is returned."
-        return Nothing
-      else do
-        putStrLn $ "  return: " ++ show (Just (JuxTerm funcCLTerm paraCLTerm))
-        return (Just (JuxTerm funcCLTerm paraCLTerm))
+--    putStrLn $ "  Recursively into: Apply term: " ++ show (Apply funcTerm paraTerm)
+    jux1Term <- getCLTermFromLambdaTerm funcTerm
+    jux2Term <- getCLTermFromLambdaTerm paraTerm
+--    putStrLn $ "  Application returns: " ++ show (JuxTerm jux1Term jux2Term)
+    return (JuxTerm jux1Term jux2Term)

@@ -58,6 +58,10 @@ spec = do
       isImplicationalType (Implicational (Basic "x") (Basic "y")) `shouldBe` True
     it "The result of show (Implicational (Basic x) (Basic y)) is (x -> y)" $ do
       show (Implicational (Basic "x") (Basic "y")) `shouldBe` "(x -> y)"
+    it "The result of allAntes (Implicational (Basic x) (Implicational (Basic y) (Basic z))) is [Basic x, Basic y]" $ do
+      allAntes (Implicational (Basic "x") (Implicational (Basic "y") (Basic "z"))) `shouldBe` [Basic "x", Basic "y"]
+    it "The result of finalCons (Implicational (Basic x) (Implicational (Basic y) (Basic z))) is (Basic z)" $ do
+      finalCons (Implicational (Basic "x") (Implicational (Basic "y") (Basic "z"))) `shouldBe` (Basic "z")
     it "The result of getSimpleTypeFromStr \"A\" is Basic \"A\"." $ do
       getSimpleTypeFromStr "A" `shouldBe` (Basic "A" :: SimpleType)
     it "The result of getSimpleTypeFromStr \"(A -> B)\" is Implicational (Basic \"A\") (Basic \"B\")." $ do
@@ -96,10 +100,14 @@ spec = do
       getFuncTerm (Apply (Var "A") (Var "B")) `shouldBe` Just (Var "A")
     it "The result of getParaTerm (Apply (Var \"A\") (Var \"B\")) is Just (Var \"B\")." $ do
       getParaTerm (Apply (Var "A") (Var "B")) `shouldBe` Just (Var "B")
-
-
-
-
+    it "The result of fvOfLTerm (Var \"A\") is [Var \"A\"]." $ do
+      fvOfLTerm (Var "A") `shouldBe` [Var "A"]
+    it "The result of fvOfLTerm (Apply (Var \"A\") (Var \"B\")) is [Var \"A\", Var \"B\"]." $ do
+      fvOfLTerm (Apply (Var "A") (Var "B")) `shouldBe` [Var "A", Var "B"]
+    it "The result of fvOfLTerm (Lambda \"x\" (Var \"y\")) is [Var \"y\"]." $ do
+      fvOfLTerm (Lambda "x" (Var "y")) `shouldBe` [Var "y"]
+    it "The result of fvOfLTerm (Lambda \"x\" (Lambda \"y\" (Apply (Var \"x\") (Var \"z\")))) is [Var \"z\"]." $ do
+      fvOfLTerm (Lambda "x" (Lambda "y" (Apply (Var "x") (Var "z")))) `shouldBe` [Var "z"]
     it "The result of getLTermFromStr \"a\" is a." $ do
       getLTermFromStr "a" `shouldBe` (Var "a")
     it "The result of getLTermFromStr \"(\\x. M)\" is Lambda x M" $ do
@@ -110,3 +118,10 @@ spec = do
     it "The result of isStrOfLambdaTerm \"(\\x. M)\" is True" $ do
       isStrOfLambdaTerm "(\\x. M)" `shouldBe` True
  -}
+
+    it "The result of cLTerm2LambdaTerm (VarTerm \"x\" ) is (Var \"x\")." $ do
+      cLTerm2LambdaTerm (VarTerm "x") `shouldBe` (Var "x")
+    it "The result of cLTerm2LambdaTerm (ConstTerm \"a\") is (Var \"a\")." $ do
+      cLTerm2LambdaTerm (ConstTerm "a") `shouldBe` (Var "a")
+    it "The result of cLTerm2LambdaTerm (JuxTerm (VarTerm \"b\") (ConstTerm \"c\")) is (Apply (Var \"b\") (Var \"c\"))" $ do
+      cLTerm2LambdaTerm (JuxTerm (VarTerm "b") (ConstTerm "c")) `shouldBe` (Apply (Var "b") (Var "c"))

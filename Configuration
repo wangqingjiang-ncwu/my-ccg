@@ -239,3 +239,6 @@ slr_raw_corpus:treebank_including_SLR_for_creating_stru_gene3_202508
 
 # MySQL Table storing ripe SLR samples
 slr_ripe_corpus:slr_corpus_202509
+
+# Whether omit the clause (k) in Schonfinkel's variable elimination algorithm.
+omitClauseK:False

@@ -1094,9 +1094,9 @@ doTestGetLTermFromSimpleType username = do
               then putStrLn "Input is NOT a string of a simple type."
               else do
                 let type1 = getSimpleTypeFromStr canStr
-                (_, term) <- getLTermFromSimpleType 0 Map.empty type1           -- Maybe LambdaTerm
+                term <- getLTermFromSimpleType Map.empty type1              -- Maybe LambdaTerm
                 putStrLn $ "The corresponding lambda term: " ++ show term
-        doTestGetLTermFromSimpleType username                -- Rear recursion
+        doTestGetLTermFromSimpleType username                               -- Rear recursion
 
 {- B.9 Test the function getCLTermFromLambdaTerm in Module CL.
  -}
@@ -1113,6 +1113,11 @@ doTestGetCLTermFromLambdaTerm username = do
         case line of
           "?" -> putStr ""                                     -- Do nothing
           "1" -> do
+            confInfo <- readFile "Configuration"
+            let omitClauseK = read (getConfProperty "omitClauseK" confInfo) :: Bool
+            if omitClauseK
+              then putStrLn "[INFO] Omit clause (k)"
+              else putStrLn "[INFO] Do not omit clause (k)"
             putStr "Please input a string of a simple type (brackets may be omitted): "
             inStr <- getLine
             canStr <- getCanonicalStrOfSimpleType inStr                         -- Canonical String
@@ -1121,7 +1126,7 @@ doTestGetCLTermFromLambdaTerm username = do
               else do
                 let type1 = getSimpleTypeFromStr canStr
                 putStrLn $ "  The corresponding simple type: " ++ show type1
-                (_, term) <- getLTermFromSimpleType 0 Map.empty type1           -- Maybe LambdaTerm
+                (term, _) <- getLTermFromSimpleType Map.empty type1             -- Maybe LambdaTerm
                 putStrLn $ "  The corresponding lambda term: " ++ show term
                 cLTerm <- case term of
                             Just t -> getCLTermFromLambdaTerm (fromMaybe' term)

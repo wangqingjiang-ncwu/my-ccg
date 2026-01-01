@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power
 -- All rights reserved.
 -- This module was originally written by Han DONG at 2025, which serves as creating similarity degree between every pair of ContestOfSG.
 

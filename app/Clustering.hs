@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power
 -- All rights reserved.
 -- This module was originally written by Qian-qian WANG at 2023. The original goal was to cluster the samples of ambiguity resolution.
 -- To complete clustering, the distances between phrases shoule be defined firstly. Unfortunately it is not a simple problem.

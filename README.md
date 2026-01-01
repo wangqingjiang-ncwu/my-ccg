@@ -1,13 +1,16 @@
 # my-ccg
 
-Copyright (c) 2019-2023 China University of Water Resources and Electric Power,
+Copyright (c) 2019-2026 China University of Water Resources and Electric Power,
 All rights reserved.
 
 This is a Haskell implemented, Combinatory Categorial Grammar based Chinese syntatic and semantic parser.
 
 From version 1.0, many changes were completed, not limited to:
-(1) An interactive syntactic and semantic parser is implemented. Sentential parsing is considered as a process of computing transitive closure of syntax type combinations. During every time of combinatory transition, syntax type conversions are selected on demand by user, then syntax type combinations are finished by machine, finally syntactic ambiguities are resolved by user, and the resultant transitive closure includes only one parsing tree instead of a syntactic forest.
-(2) Introducing Clause Theory, a sentence is considered as a sequence of clauses. When parsing a sentence including multiple clauses, user can select to start parsing from a certain clause, which avoids repeat of analyzing the formerly parsed clauses. By storing selections of non-classical syntactic types and removed phrases, every clause might be parsed again automatically.
-(3) A marking system of categorial conversions has already been formed, which includes various non-classical syntactic types used by parts of speech and phrasal structures. By augmenting with categorial conversions, Combinatory Categorial Grammar can express inflectional-absent Chinese.
+(1) An interactive syntactic and semantic parser was implemented. Sentential parsing was considered as a process of computing transitive closure of syntax type combinations. During every time of combinatory transition, syntax type conversions were selected on demand by user, then syntax type combinations were finished by machine, finally syntactic ambiguities were resolved by user, and the resultant transitive closure includes only one parsing tree instead of a syntactic forest.
+(2) Introducing Clause Theory, a sentence was considered as a sequence of clauses. When parsing a sentence including multiple clauses, user could select to start parsing from a certain clause, which avoided repeat of analyzing the formerly parsed clauses. By storing selections of non-classical syntactic types and removed phrases, every clause might be parsed again automatically.
+(3) A marking system of categorial conversions had already been formed, which included various non-classical syntactic types used by parts of speech and phrasal structures. By augmenting with categorial conversions, Combinatory Categorial Grammar could express inflectional-absent Chinese.
+(4) Combinatory Logic was implemented, and CL terms served as semantic representations instead of lambda-terms.
+(5) Disambiguation on categorial conversions and syntactic structures were implemented as machine algorithms, such that the whole sentential structural parsing could be done without human interventions.
+(6) The repeatable parsing of sentential structural was implemented based upon scripts, which were created during human-machine interactive parsing.
 
-The current version is 2.6.
+The current version is 0.2.7.0.

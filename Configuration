@@ -60,7 +60,7 @@ phrasyn:phrasyn0
 #   - stru_gene3_202508
 #   - stru_gene3a_202508
 #   - stru_gene3a_phrasyn0_202509
-syntax_ambig_resol_model:stru_gene3a_phrasyn0_202509
+syntax_ambig_resol_model:stru_gene_202501
 
 # Category ambiguity resolution model also is the name of MySQL table storing the samples of that model.
 # Possible values of this property:

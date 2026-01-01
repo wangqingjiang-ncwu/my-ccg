@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module Statistics (
@@ -557,13 +557,16 @@ countInScript bottomSn topSn funcIndex = do
  -}
 countInStruGene :: String -> Int -> Int -> Int -> IO ()
 countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
+    let startIdx' = toMySQLInt32U startIdx
+    let endIdx' = toMySQLInt32U endIdx
+
     -- 1. Get total number of structural genes.
     if funcIndex == 1
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambig_resol_model
+         let sqlstat = DS.fromString $ "select count(*) from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
          stmt <- prepareStmt conn sqlstat
-         (defs, is) <- queryStmt conn stmt []
+         (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
          row <- S.read is
          let totalNum = case row of                           -- [Int], here a string is the parsing script of a sentence.
                           Just x -> x
@@ -577,9 +580,9 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 2
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select overType, count(*) from " ++ syntax_ambig_resol_model ++ " group by overType order by overType"
+         let sqlstat = DS.fromString $ "select overType, count(*) from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ? group by overType order by overType"
          stmt <- prepareStmt conn sqlstat
-         (defs, is) <- queryStmt conn stmt []
+         (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
          overType2FrequencyList <- readStreamByInt8Int64 [] is                  -- [[Int]], here every row has two integers, overType and its occuring frequency.
          putStrLn $ "countInStruGene: " ++ syntax_ambig_resol_model ++ ": Frequencies of different overlapping types [(OverType, Freq)]: " ++ show overType2FrequencyList
          close conn
@@ -589,9 +592,9 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 3
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType from " ++ syntax_ambig_resol_model
+         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
          stmt <- prepareStmt conn sqlstat
-         (defs, is) <- queryStmt conn stmt []
+         (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
          leftOver_RightOver_OverTypeList <- readStreamByTextTextInt8 [] is           -- [String], here the string is "LeftOver_RightOver_OverType"
          let leftOver_RightOver_OverType2FreqMap = keyToMap leftOver_RightOver_OverTypeList Map.empty           -- Map Sting Int, namely Map <LRO> <LRONum>.
          putStrLn $ "countInStruGene: " ++ syntax_ambig_resol_model ++ ": The total number of different LROs: " ++ show (Map.size leftOver_RightOver_OverType2FreqMap)
@@ -613,9 +616,9 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 4
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType, prior from " ++ syntax_ambig_resol_model
+         let sqlstat = DS.fromString $ "select leftOver, rightOver, overType, prior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
          stmt <- prepareStmt conn sqlstat
-         (defs, is) <- queryStmt conn stmt []
+         (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
          leftOver_RightOver_OverType_PriorList <- readStreamByTextTextInt8Text [] is        -- [String], here the string is "LeftOver_RightOver_OverType_Prior"
          let leftOver_RightOver_OverType_Prior2FreqMap = keyToMap leftOver_RightOver_OverType_PriorList Map.empty
                                                                                             -- Map Sting Int, namely Map <LROP> <LROPNum>.
@@ -638,9 +641,9 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     if funcIndex == 5
        then do
          conn <- getConn
-         let sqlstat = DS.fromString $ "select overType, sum(lpHitCount + rpHitCount + nothHitCount) as hitCount from " ++ syntax_ambig_resol_model ++ " group by overType order by overType"
+         let sqlstat = DS.fromString $ "select overType, sum(lpHitCount + rpHitCount + nothHitCount) as hitCount from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ? group by overType order by overType"
          stmt <- prepareStmt conn sqlstat
-         (defs, is) <- queryStmt conn stmt []
+         (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
          overType2HitCountList <- readStreamByInt8Decimal [] is                 -- [(Int,Double)], here every row has overType and its hit count.
          putStrLn $ "countInStruGene: " ++ syntax_ambig_resol_model ++ ": HitCounts of different overlapping types [(OverType, HitCount)]: " ++ show (map (\x->(fst x, floor (snd x))) overType2HitCountList)
          close conn
@@ -649,14 +652,12 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
     -- 6.  Get similarity degree between every pair of categories.
     if funcIndex == 6
        then do
-         confInfo <- readFile "Configuration"
-         let syntax_ambig_resol_model = getConfProperty "syntax_ambig_resol_model" confInfo
          conn <- getConn
          typePair2SimTuple <- case syntax_ambig_resol_model of
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -667,7 +668,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -678,7 +679,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
              let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
              let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
@@ -731,7 +732,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -742,7 +743,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -753,7 +754,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
              let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
              let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
@@ -806,7 +807,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -817,7 +818,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -828,7 +829,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3a_phrasyn0_202509"] -> do
              let sqlstat = DS.fromString $ "select leftOverTree, rightOverTree from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextStrList <- readStreamByTextText [] is                             -- [(String, String)]
              let contextList = map (\x -> ((traverseBiTree . readBiTreePhraSyn0FromStr) (fst x), (traverseBiTree . readBiTreePhraSyn0FromStr) (snd x))) contextStrList
@@ -881,7 +882,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -891,7 +892,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene3_202508"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOverTree, rightOverTree, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), (traverseBiTree . readBiTreePhraSynFromStr) (snd4 x), (traverseBiTree . readBiTreePhraSynFromStr) (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -956,7 +957,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
            x | elem x ["stru_gene_202501"] -> do
              let sqlstat = DS.fromString $ "select leftExtend, leftOver, rightOver, rightExtend from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              contextOfOTStrList <- readStreamByTextTextTextText [] is               -- [(String, String, String, String)]
              let contextOfOTList = map (\x -> (readPhraSynListFromStr (fst4 x), readPhraSynFromStr (snd4 x), readPhraSynFromStr (thd4 x), readPhraSynListFromStr (fth4 x))) contextOfOTStrList
@@ -1067,7 +1068,7 @@ countInStruGene syntax_ambig_resol_model startIdx endIdx funcIndex = do
              conn <- getConn
              let sqlstat = DS.fromString $ "select clauTagPrior from " ++ syntax_ambig_resol_model ++ " where id >= ? and id <= ?"
              stmt <- prepareStmt conn sqlstat
-             (defs, is) <- queryStmt conn stmt [toMySQLInt32U startIdx, toMySQLInt32U endIdx]
+             (defs, is) <- queryStmt conn stmt [startIdx', endIdx']
 
              rows <- S.toList is             -- [[MySqlText]]
              if rows == []

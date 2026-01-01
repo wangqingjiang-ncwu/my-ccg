@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 module Database (

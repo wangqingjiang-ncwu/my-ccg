@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power
 -- All rights reserved.
 
 -- Sentential Parsing by scripts were orignally written by Qian-qian WANG at 2023.

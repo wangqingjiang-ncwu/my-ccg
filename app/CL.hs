@@ -1,4 +1,4 @@
--- Copyright (c) 2019-2025 China University of Water Resources and Electric Power.
+-- Copyright (c) 2019-2026 China University of Water Resources and Electric Power.
 -- All rights reserved.
 
 {- This module includes types and functions about Combinatory Logic, the original version of which was written by Liu Pan-pan and Wang Qing-jiang at 2023
@@ -755,15 +755,15 @@ fvOfLTerm (Apply aTerm bTerm) = fvOfLTerm aTerm ++ fvOfLTerm bTerm
  - To ensure a new variable is selected, call function 'nextVarName' to get next variable name.
  - If no lambda term exists, return Nothing.
  - Algo.
- -   if the asked type is T = Implicational A B, then x:A is introduced into the context, where
- -     the variable x must be a new one, namely never come to being before, and
- -     recursively construct term t for type B in new context.
- -     if t can be constructed successfully, return \x. t and original context; Otherwise, return Nothing and original context.
- -   else -- The asked type is Basic T
- -     look up term h with type T in current context.
- -     if success, then return h and new context in which term h is removed;
- -     else
- -       For each term g with type U1 -> U2 -> ... -> Uk -> T in current context,
+ -   if (term h with type T in current context)
+ -     then return h and new context in which term h is removed;
+ -     else if (the asked type is T = Implicational A B)
+ -       then x:A is introduced into the context, where
+ -            the variable x must be a new one, namely never come to being before, and
+ -            recursively construct term t for type B in new context.
+ -            if t can be constructed successfully, return \x. t and original context; Otherwise, return Nothing and original context.
+ -       else -- The asked type is Basic T
+ -         For each term g with type U1 -> U2 -> ... -> Uk -> T in current context,
  -         recursively construct term ui for type Ui.
  -         if success, then return g u1 u2 ... uk;
  -         else return Nothing and current context.                             -- No inhabitant for this type
@@ -771,18 +771,10 @@ fvOfLTerm (Apply aTerm bTerm) = fvOfLTerm aTerm ++ fvOfLTerm bTerm
  - If initial context is empty, only closed lambda terms can be constructed.
  -}
 getLTermFromSimpleType :: Map LambdaTerm SimpleType -> SimpleType -> IO (Maybe LambdaTerm, Map LambdaTerm SimpleType)
-getLTermFromSimpleType termTypeContext (Implicational ante cons) = do
-    abVar <- nextVarName termTypeContext                            -- New variable name
-    let newContext = Map.insert (Var abVar) ante termTypeContext    -- Introduce new variable and its type into context
-    putStrLn $ "[INFO] New context member: " ++ abVar ++ ":" ++ show ante
-    (term, _) <- getLTermFromSimpleType newContext cons             -- Construct term of new target type in new context
-    case term of
-      Just t -> return (Just (Lambda abVar t), termTypeContext)     -- (\x. t, Map LambdaTerm SimpleType)
-      Nothing -> return (Nothing, termTypeContext)
-getLTermFromSimpleType termTypeContext (Basic target) = do
+getLTermFromSimpleType termTypeContext targetType = do
     putStrLn $ "[INFO] termTypeContext: " ++ show (Map.toList termTypeContext)
-    putStrLn $ "[INFO] Target type: " ++ show (Basic target)
-    let termTypeMap =  Map.filterWithKey (\k v -> v == Basic target) termTypeContext    -- [LambdaTerm]
+    putStrLn $ "[INFO] Target type: " ++ show targetType
+    let termTypeMap =  Map.filterWithKey (\k v -> v == targetType) termTypeContext    -- [LambdaTerm]
     putStrLn $ "[INFO] " ++ show (Map.size termTypeMap) ++ " pairs of (term:type) are found, and they are: " ++ show termTypeMap
     if termTypeMap /= Map.empty
       then do
@@ -791,35 +783,47 @@ getLTermFromSimpleType termTypeContext (Basic target) = do
         let newContext = Map.delete term termTypeContext           -- Map LambdaTerm SimpleType
         return (Just term, newContext)                             -- (Just LambdaTerm)
       else do
-        let termUTList = Map.toList $ Map.filterWithKey (\k v -> finalCons v == Basic target) termTypeContext
+        case targetType of
+          (Implicational ante cons) -> do
+            putStrLn $ "[INFO] Implicational simple type: " ++ show (Implicational ante cons)
+            abVar <- nextVarName termTypeContext                            -- New variable name
+            let newContext = Map.insert (Var abVar) ante termTypeContext    -- Introduce new variable and its type into context
+            putStrLn $ "[INFO] New context member: " ++ abVar ++ ":" ++ show ante
+            (term, _) <- getLTermFromSimpleType newContext cons             -- Construct term of new target type in new context
+            case term of
+              Just t -> return (Just (Lambda abVar t), termTypeContext)     -- (\x. t, Map LambdaTerm SimpleType)
+              Nothing -> return (Nothing, termTypeContext)
+          Basic target -> do
+            let termUTList = Map.toList $ Map.filterWithKey (\k v -> finalCons v == Basic target) termTypeContext
                                                                    -- [(term1, U1 -> U2 -> ... -> Uk -> T), ..]
-        putStrLn $ "[INFO] termUTList: " ++ show termUTList
-        term <- processTermUTList termUTList termTypeContext
-        return (term, termTypeContext)                             -- No matter whether 'term' is Nothing, return old context.
+            putStrLn $ "[INFO] termUTList: " ++ show termUTList
+            term <- processTermUTList termUTList termTypeContext
+            return (term, termTypeContext)                             -- No matter whether 'term' is Nothing, return old context.
 
-    where
-        {- For every pair of term and type, try to construct terms for all antecedents in curried type.
-         - If one pair fails in construction, the next pair will be tried.
-         - Once successfully construct, return the term of final consequent.
-         - If all pairs of term and type do not find the term of final consequent, return Nothing.
-         -}
-        processTermUTList :: [(LambdaTerm, SimpleType)] -> Map LambdaTerm SimpleType -> IO (Maybe LambdaTerm)
-        processTermUTList [] termTypeContext = return Nothing
-        processTermUTList ((g, typeUT):tuts) termTypeContext = do
-            let uTypes = allAntes typeUT                                        -- [SimpleType], types of U1, U2, ..., Uk.
-            uTerms <- constructTermsForAllAntes termTypeContext uTypes          -- [Maybe LambdaTerm]
-            case not (elem Nothing uTerms) of
-              True -> do
-                let uTerms' = map fromMaybe' uTerms                             -- [LambdaTerm]
-                return (Just (foldl (\x y -> Apply x y) g uTerms'))
-              False -> processTermUTList tuts termTypeContext                   -- Try next type under original context when construction fails.
+            where
+              {- For every pair of term and type, try to construct terms for all antecedents in curried type.
+               - If one pair fails in construction, the next pair will be tried.
+               - Once successfully construct, return the term of final consequent.
+               - If all pairs of term and type do not find the term of final consequent, return Nothing.
+               -}
+              processTermUTList :: [(LambdaTerm, SimpleType)] -> Map LambdaTerm SimpleType -> IO (Maybe LambdaTerm)
+              processTermUTList [] termTypeContext = return Nothing
+              processTermUTList ((g, typeUT):tuts) termTypeContext = do
+                  let uTypes = allAntes typeUT                                        -- [SimpleType], types of U1, U2, ..., Uk.
+                  putStrLn $ "[INFO] uTypes: " ++ show uTypes                         -- Print [SimpleType]
+                  uTerms <- constructTermsForAllAntes termTypeContext uTypes          -- [Maybe LambdaTerm]
+                  case not (elem Nothing uTerms) of
+                    True -> do
+                      let uTerms' = map fromMaybe' uTerms                             -- [LambdaTerm]
+                      return (Just (foldl (\x y -> Apply x y) g uTerms'))
+                    False -> processTermUTList tuts termTypeContext                   -- Try next type under original context when construction fails.
 
-        constructTermsForAllAntes :: Map LambdaTerm SimpleType -> [SimpleType] -> IO ([Maybe LambdaTerm])
-        constructTermsForAllAntes termTypeContext [] = return []
-        constructTermsForAllAntes termTypeContext (t:ts) = do
-            (term, newContext) <- getLTermFromSimpleType termTypeContext t
-            terms <- constructTermsForAllAntes newContext ts
-            return (term:terms)
+              constructTermsForAllAntes :: Map LambdaTerm SimpleType -> [SimpleType] -> IO ([Maybe LambdaTerm])
+              constructTermsForAllAntes termTypeContext [] = return []
+              constructTermsForAllAntes termTypeContext (t:ts) = do
+                  (term, newContext) <- getLTermFromSimpleType termTypeContext t
+                  terms <- constructTermsForAllAntes newContext ts
+                  return (term:terms)
 
 -- Find the next variable name in term-type context.
 nextVarName :: Map LambdaTerm SimpleType -> IO String

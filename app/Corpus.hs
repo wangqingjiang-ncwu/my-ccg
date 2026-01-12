@@ -285,25 +285,46 @@ getCateSent2ForASent sn = do
 -- To initialize the column cate_sent by the column raw_sent2, translate each part of speech to its category.
 posToCate :: IO ()
 posToCate = do
-    conn <- getConn
-    stmt <- prepareStmt conn "select raw_sent2,serial_num from corpus"
-    (defs, is) <- queryStmt conn stmt []                          --([ColumnDef], InputStream [MySQLValue])
-    rows <- S.toList is
-    putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be consumed.
-    let cate_sent_sns = rawToCate rows
+    confInfo <- readFile "Configuration"                          -- Read the local configuration file
+    let sent_source = getConfProperty "sent_source" confInfo      -- 'corpus' or 'corpus_pccg'
 
---  putStrLn $ "Maximal length of cate_sent is " ++ (show $ maxStrLen $ map (fromMySQLText . head) cate_sent_sns)
---  forM_ defs $ \colName -> (putStrLn $ show colName)            -- Get names of columns from results.
-    putStrLn $ show (cate_sent_sns!!0)
-    putStrLn $ show (cate_sent_sns!!1)
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
 
-    let stmt1 = "update corpus set cate_sent = ? where serial_num = ?"
-    oks <- executeMany conn stmt1 cate_sent_sns                   -- Update column cate_sent.
---  oks <- executeMany conn stmt1 (take 3738 cate_sent_sns)       -- Restricted by Network.Socket.sendbuf
-    putStrLn $ show (length oks) ++ " rows have been updated."
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else do
+        putStrLn $ "sent_source: " ++ sent_source
+        putStrLn $ "startSn: " ++ line1
+        putStrLn $ "endSn: " ++ line2
+        contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+        if contOrNot == "c"
+          then do
+            conn <- getConn
+            let sqlstat = DS.fromString $ "select raw_sent2,serial_num from " ++ sent_source ++ " where serial_num >= ? and serial_num <= ?"
+            stmt <- prepareStmt conn sqlstat
+            (defs, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]     --([ColumnDef], InputStream [MySQLValue])
+            rows <- S.toList is
+            putStrLn $ (show (length rows)) ++ " rows has been read."     --Select's result must be consumed.
+            let cate_sent_sns = rawToCate rows
 
-    closeStmt conn stmt
-    close conn                                                    -- Explicitly close the connection.
+--            putStrLn $ "Maximal length of cate_sent is " ++ (show $ maxStrLen $ map (fromMySQLText . head) cate_sent_sns)
+--            forM_ defs $ \colName -> (putStrLn $ show colName)          -- Get names of columns from results.
+            putStrLn $ show (cate_sent_sns!!0)
+            putStrLn $ show (cate_sent_sns!!1)
+
+            let sqlstat2 = DS.fromString $ "update " ++ sent_source ++ " set cate_sent = ? where serial_num = ?"
+            oks <- executeMany conn sqlstat2 cate_sent_sns                -- Update column cate_sent.
+--            oks <- executeMany conn stmt1 (take 3738 cate_sent_sns)     -- Restricted by Network.Socket.sendbuf
+            putStrLn $ show (length oks) ++ " rows have been updated."
+
+            closeStmt conn stmt
+            close conn                                                    -- Explicitly close the connection.
+          else putStrLn "Command was cancelled."
 
 -- Another version of posToCate used to initialize the column cate_sent for one sentence.
 posToCateForASent :: SentIdx -> IO ()
@@ -357,23 +378,43 @@ getCateSymbFromPos pos (c:cs)      --Here, (c:cs) is just the list posCate
     | otherwise = getCateSymbFromPos pos cs
 
 {- Keep column cate_sent not changed, while column cate_sent2 modified manually. The initial values of column
-   cate_sent2 are copied from column cate_sent. Actually cate_sent2 can be copied again from cate_sent where
-   cate_check = 0. In other words, cate_check will be set 1 after cate_sent2 is checked by hand.
+   cate_sent2 are copied from column cate_sent. Actually cate_sent2 can be copied again from cate_sent.
  -}
 copyCate :: IO ()
 copyCate = do
-    conn <- getConn
-    stmt <- prepareStmt conn "select cate_sent,serial_num from corpus where cate_check = 0"
-    (def, is) <- queryStmt conn stmt []                                         --Get [[<cate_sent>, <serial_num>]]
-    rows <- S.toList is
-    putStrLn $ (show $ length rows) ++ " rows has been read."
-    closeStmt conn stmt
+    confInfo <- readFile "Configuration"                          -- Read the local configuration file
+    let sent_source = getConfProperty "sent_source" confInfo      -- 'corpus' or 'corpus_pccg'
 
-    let stmt1 = "update corpus set cate_sent2 = ? where serial_num = ?"
-    oks <- executeMany conn stmt1 rows                              -- Update column cate_sent2 whose cate_check = 0.
---  oks <- executeMany conn stmt1 (take 3500 rows)                  -- Restricted by Network.Socket.sendbuf
-    putStrLn $ show (length oks) ++ " rows have been updated."
-    close conn                                                      -- Close the connection.
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else do
+        putStrLn $ "sent_source: " ++ sent_source
+        putStrLn $ "startSn: " ++ line1
+        putStrLn $ "endSn: " ++ line2
+        contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+        if contOrNot == "c"
+          then do
+            conn <- getConn
+            let sqlstat = DS.fromString $ "select cate_sent,serial_num from " ++ sent_source ++ " where serial_num >= ? and serial_num <= ?"
+            stmt <- prepareStmt conn sqlstat
+            (def, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]    --Get [[<cate_sent>, <serial_num>]]
+            rows <- S.toList is
+            putStrLn $ (show $ length rows) ++ " rows has been read."
+            closeStmt conn stmt
+
+            let sqlstat2 = DS.fromString $ "update " ++ sent_source ++ " set cate_sent2 = ? where serial_num = ?"
+            oks <- executeMany conn sqlstat2 rows                   -- Update column cate_sent2 whose cate_check = 0.
+--            oks <- executeMany conn sqlstat2 (take 3500 rows)     -- Restricted by Network.Socket.sendbuf
+            putStrLn $ show (length oks) ++ " rows have been updated."
+            close conn                                              -- Close the connection.
+          else putStrLn "Command was cancelled."
 
 {- Another version for copyCate, which complete copy column cate_sent to column cate_sent2 for given row. Actually
    cate_sent2 can be copied again from cate_sent when cate_check = 0. In other words, cate_check will be set 1 after cate_sent2 is checked by hand.

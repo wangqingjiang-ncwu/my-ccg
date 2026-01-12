@@ -756,7 +756,7 @@ fvOfLTerm (Apply aTerm bTerm) = fvOfLTerm aTerm ++ fvOfLTerm bTerm
  - If no lambda term exists, return Nothing.
  - Algo.
  -   if (term h with type T in current context)
- -     then return h and new context in which term h is removed;
+ -     then return h and new context in which term h is NOT removed;
  -     else if (the asked type is T = Implicational A B)
  -       then x:A is introduced into the context, where
  -            the variable x must be a new one, namely never come to being before, and
@@ -780,7 +780,8 @@ getLTermFromSimpleType termTypeContext targetType = do
       then do
         putStrLn "[INFO] Only first term is returned."
         let term = fst $ Map.elemAt 0 termTypeMap                  -- LambdaTerm
-        let newContext = Map.delete term termTypeContext           -- Map LambdaTerm SimpleType
+--        let newContext = Map.delete term termTypeContext           -- Map LambdaTerm SimpleType
+        let newContext = termTypeContext                           -- Do NOT delete the term with designated target type from context.
         return (Just term, newContext)                             -- (Just LambdaTerm)
       else do
         case targetType of

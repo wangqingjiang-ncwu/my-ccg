@@ -26,6 +26,7 @@ tree_field:tree
 # When parsing trees manually, tree_target and script_target should be 'corpus' such that the parsing results are stored in 'corpus'.
 # Other values of tree_target:
 #   - corpus
+#   - corpus_pccg
 #   - treebank_including_SLR
 #   - treebank_by_strugene2_identity_sim_euclidean_Hit
 #   - treebank_by_strugene2_identity_sim_euclidean_MaxFreq
@@ -40,7 +41,7 @@ tree_field:tree
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3_202508
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_202508
 #   - tree_target:treebank_including_SLR_for_creating_stru_gene3a_phrasyn0_202509
-tree_target:treebank_including_SLR_for_creating_stru_gene3a_phrasyn0_202509
+tree_target:corpus_pccg
 
 # Model of phrasal Syntax. Now two models are available: phrasyn0 and phrasyn
 # phrasyn0: (Category, Tag, PhraStru)

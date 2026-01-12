@@ -27,6 +27,7 @@ module Category (
     rightCate,     -- Category -> Category
     midSlash,      -- Category -> a
     derivate,      -- Category -> Slash -> Category -> Category
+    purifySlash,   -- Category -> Category
     pronCate,      -- Category, "np"
 --    pronCate4Numeral,     -- Category, "np/#np"
     ndCate,        -- Category, "np\*np"
@@ -73,7 +74,7 @@ module Category (
 
 type Slash = String
 slashes :: [Slash]
-slashes = ["/.","\\.","/#","\\#","/x","\\x","/*","\\*"]
+slashes = ["/.","\\.","/#","\\#","/x","\\x","/*","\\*"] ++ ["/"]                -- Compatible with pure-CCG
 
 type Prim = String
 primitives :: [Prim]
@@ -270,6 +271,13 @@ midSlash (Derivative _ s _) = s
 
 derivate :: Category -> Slash -> Category -> Category
 derivate  cate1 slash cate2 = Derivative cate1 slash cate2
+
+-- Change every slash in a category into '/'.
+purifySlash :: Category -> Category
+purifySlash Nil = Nil
+purifySlash X = X
+purifySlash (Primitive a) = Primitive a
+purifySlash (Derivative a _ b) = Derivative (purifySlash a) "/" (purifySlash b)
 
 pronCate :: Category
 pronCate = getCateFromString "np"

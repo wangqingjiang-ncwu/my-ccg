@@ -1146,9 +1146,12 @@ doMaintenance username = do
     putStrLn " 4 -> Remove StruGene2 samples using PhraSyn0 definition"
     putStrLn " 5 -> Count clausal ambiguity at StruGene2 samples"
     putStrLn " 6 -> Count Prior ambiguity at StruGene2 samples"
+    putStrLn " 7 -> Create CCG marked sentences from their revised part-of-speech marks"
+    putStrLn " 8 -> Copy CCG marked sentences indicated by serial_num range to column cate_sent2"
+    putStrLn " 9 -> Change categories in CCGC2 trees and scripts into those in pure-CCG trees and scripts"
     putStrLn " 0 -> Go back to the upper layer"
 
-    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","0"] True
+    line <- getLineUntil "Please input command [RETURN for ?]: " ["?","1","2","3","4","5","6","7","8","9","0"] True
     if line == "0"
       then putStrLn "Go back to the upper layer."              -- Naturally return to upper layer.
       else do
@@ -1160,6 +1163,9 @@ doMaintenance username = do
                "4" -> doRemoveStruGene2SamplesUsingPhraSyn0 username
                "5" -> doCountClausalAmbigAtSGSamples username
                "6" -> doCountPriorAmbigAtSGSamples username
+               "7" -> posToCate                                -- Defined in Module 'Corpus'
+               "8" -> copyCate                                 -- Defined in Module 'Corpus'
+               "9" -> purifySlashInTreeAndScript               -- Defined in Module 'Maintain'
              doMaintenance username                            -- Rear recursion
 
 -- C_1. Rearrange index column in a certain table.

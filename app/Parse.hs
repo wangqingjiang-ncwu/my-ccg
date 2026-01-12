@@ -111,8 +111,7 @@ cateComb onOff pc1 pc2
       s_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
       ctspaBysToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_O_VO, elem Os onOff]
           where
-          vCate2 = [verbCate, verbCate2]
-          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate2)]
+          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate)]
       s_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
       ctspaBysToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_O_PO, elem Os onOff]         -- Prepositional object
           where
@@ -152,20 +151,15 @@ cateComb onOff pc1 pc2
  - (4) "s 的",
  - (5) "'把' s", obsoleted!
  -}
-      s_N_Conj = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
-      ctspaBysToN_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_Conj, elem Ns onOff]
+      s_N_HX = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]
+      ctspaBysToN_HX = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_HX, elem Ns onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == conjCate]
       s_N_XX = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
       ctspaBysToN_XX = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_XX, cate2 <- csp_2, elem Ns onOff]
           where
           csp_2 = removeDup [x| x <- csp2, fst3 x == ndCate, thd3 x == "HX"]
-{-
-      s_N_AHn = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, fst3 csp == sCate]                                -- replaced with Hn/s
-      ctspaBysToN_AHn = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- s_N_AHn, elem Ns onOff]
-          where
-          csp_1 = removeDup [x| x <- csp1, thd3 x == "U1P"]
- -}
+
       s_N_U1P = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp1, fst3 csp == sCate]
       ctspaBysToN_U1P = [rule cate1 cate2 | rule <- [appB], cate1 <- s_N_U1P, cate2 <- csp_2, elem Ns onOff]
           where
@@ -176,7 +170,7 @@ cateComb onOff pc1 pc2
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == prep4BaCate]
  -}
-      ctspaBysToN = ctspaBysToN_Conj ++ ctspaBysToN_XX ++ ctspaBysToN_U1P
+      ctspaBysToN = ctspaBysToN_HX ++ ctspaBysToN_XX ++ ctspaBysToN_U1P
       catesBysToN = [(fst5 cate, "N/s-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaBysToN]
 
 {- According to Jia-xuan Shen's theory, successive inclusions from noun to verb, and to adjective, and non-inflectionship
@@ -305,8 +299,8 @@ cateComb onOff pc1 pc2
  - (4) The verb's type follows adverb type (s\.np)/#(s\.np),
  - (5) '被' makes transitive verbs change into a predicate. This rule is obsoleted.
  -}
-      vt_P_Conj = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
-      ctspaByvtToP_Conj = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_Conj, elem Pvt onOff]
+      vt_P_HX = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp2, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
+      ctspaByvtToP_HX = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- vt_P_HX, elem Pvt onOff]
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == conjCate]
       vt_P_XX = removeDup [(predCate, snd3 csp, thd3 csp) | csp <- csp1, elem True (map (\x-> cateEqual x (fst3 csp)) [verbCate,verbCate2])]
@@ -331,7 +325,7 @@ cateComb onOff pc1 pc2
           where
           csp_1 = removeDup [x| x <- csp1, fst3 x == advCate]
  -}
-      ctspaByvtToP = ctspaByvtToP_Conj ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP ++ ctspaByvtToP_DHv
+      ctspaByvtToP = ctspaByvtToP_HX ++ ctspaByvtToP_XX ++ ctspaByvtToP_SP ++ ctspaByvtToP_DHv
       catesByvtToP = [(fst5 cate, "P/vt-" ++ snd5 cate, thd5 cate, fth5 cate, fif5 cate) | cate <- ctspaByvtToP]
 
 {- The conversion from transitive verb's types to object-extractioned type happens when the preposition '被' type happens to the left of this verb.
@@ -444,8 +438,7 @@ cateComb onOff pc1 pc2
       a_O_VO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
       ctspaByaToO_VO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_O_VO, elem Oa onOff]
           where
-          vCate2 = [verbCate, verbCate2]
-          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vCate2)]
+          csp_1 = removeDup [x| x <- csp1, elem True (map (\y-> cateEqual y (fst3 x)) vpCate)]
       a_O_PO = removeDup [(npCate, snd3 csp, thd3 csp) | csp <- csp2, cateEqual (fst3 csp) adjCate]
       ctspaByaToO_PO = [rule cate1 cate2 | rule <- [appF], cate1 <- csp_1, cate2 <- a_O_PO, elem Oa onOff]
           where

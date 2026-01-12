@@ -19,6 +19,7 @@ module Maintain (
     removeStruGene2SamplesUsingPhraSyn0,      -- IO ()
     countClausalAmbigAtSGSamples,             -- IO ()
     countPriorAmbigAtSGSamples,               -- IO ()
+    purifySlashInTreeAndScript,               -- IO ()
     ) where
 
 import Control.Monad
@@ -34,6 +35,7 @@ import AmbiResol
 import Output
 import Corpus
 import Phrase
+import Category (purifySlash)
 import Utils
 
 {- Set attribue 'ipc' of certain rows as an user of this software. In table corpus,
@@ -174,10 +176,10 @@ sortPhraseInTreeAndScript startSn endSn = do
       then putStrLn "addHX2TreeAndScript: No sentence is asked to do this operation."
       else do
           let rows2Memory = map (\row -> (fst3 row, (readTrees . snd3) row, (readScripts . thd3) row)) rowsParsed       -- [(SendIdx, [Tree], [Script])]
---          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScript (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory
+--          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory
 
           let rows2Memory' = map (\row -> (fst3 row, (sortPhraseInTree4ASent . snd3) row, (sortPhraseInScript4ASent . thd3) row)) rows2Memory
---          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScript (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory'
+--          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory'
 
           let rows' = map (\row -> [(toMySQLText . nTreeToString . snd3) row, (toMySQLText . nScriptToString . thd3) row, (toMySQLInt32 . fst3) row]) rows2Memory'
           let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
@@ -223,11 +225,11 @@ addHX2TreeAndScript startSn endSn = do
       else do
           let rows2Memory = map (\row -> (fst3 row, (readTrees . snd3) row, (readScripts . thd3) row)) rowsParsed       -- [(SendIdx, [Tree], [Script])]
 --          putStrLn "addHX2TreeAndScript: Original trees and scripts: "
---          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScript (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory
+--          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory
 
           let rows2Memory' = map (\row -> (fst3 row, (addHX2Tree4ASent . snd3) row, (addHX2Script4ASent . thd3) row)) rows2Memory
 --          putStrLn "addHX2TreeAndScript: Structure HX-added trees and scripts: "
---          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScript (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory'
+--          mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory'
 
           let rows' = map (\row -> [(toMySQLText . nTreeToString . snd3) row, (toMySQLText . nScriptToString . thd3) row, (toMySQLInt32 . fst3) row]) rows2Memory'
           let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
@@ -343,5 +345,80 @@ countPriorAmbigAtSGSamples = do
         let ratio = fromIntegral numOfRowsHavingPriorAmbi / fromIntegral (length rows)
         putStrLn $ " Ratio of samples having Prior ambiguity on all samples is " ++ (printf "%.4f" (ratio :: Double))
         close conn
-
       else putStrLn "countPriorAmbigAtSGSamples: Operation was canceled."
+
+{- Update Field tree and script in treebank to make all slashes to '/'.
+ - Slashes in CCG parsing trees are '\' and '/', while they have types '.', '#', 'x' or '*'.
+ - Slashes in pure-CCG parsing trees are '/', and they have no types.
+ -}
+purifySlashInTreeAndScript :: IO ()
+purifySlashInTreeAndScript = do
+    confInfo <- readFile "Configuration"                                        -- Read the local configuration file
+    let tree_source = getConfProperty "tree_source" confInfo
+    let tree_target = getConfProperty "tree_target" confInfo
+
+    putStr "Please input serial_num of start sentence: "
+    line1 <- getLine
+    let startSn = read line1 :: Int
+    putStr "Please input serial_num of end sentence: "
+    line2 <- getLine
+    let endSn = read line2 :: Int
+
+    if startSn > endSn
+      then putStrLn "No sentence is designated."
+      else do
+        putStrLn $ "tree_source: " ++ tree_source
+        putStrLn $ "tree_target: " ++ tree_target
+        putStrLn $ "startSn: " ++ line1
+        putStrLn $ "endSn: " ++ line2
+        contOrNot <- getLineUntil ("Continue or not [c/n]? (RETURN for 'n') ") ["c","n"] False
+        if contOrNot == "c"
+          then do
+            conn <- getConn
+            let sqlstat = DS.fromString $ "select serial_num, tree, script from " ++ tree_source ++ " where serial_num >= ? && serial_num <= ?"
+            stmt <- prepareStmt conn sqlstat
+            (_, is) <- queryStmt conn stmt [toMySQLInt32 startSn, toMySQLInt32 endSn]     -- read rows whose serial_nums are in designated range.
+            rows <- readStreamByInt32TextText [] is                             -- [(SendIdx, TreesStr, ScriptsStr)]
+            let rowsParsed = [x | x <- rows, snd3 x /= "[]"]                    -- After parsed, a row has non-empty Field 'tree'.
+
+            if (rowsParsed == [])
+              then putStrLn "purifySlashInTreeAndScript: No sentence is asked to do this operation."
+              else do
+                let rows2Memory = map (\row -> (fst3 row, (readTrees . snd3) row, (readScripts . thd3) row)) rowsParsed     -- [(SendIdx, [Tree], [Script])]
+--                putStrLn "purifySlashInTreeAndScript: Original trees and scripts: "
+--                mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory
+
+                let rows2Memory' = map (\row -> (fst3 row, (purifySlashInTree4ASent . snd3) row, (purifySlashInScript4ASent . thd3) row)) rows2Memory
+--                putStrLn "purifySlashInTreeAndScript: Slash purified trees and scripts: "
+--                mapM_ (\row -> (putStr "(" >>= \_ -> putStr (show (fst3 row)) >>= \_ -> putStr "," >>= \_ -> showTrees (snd3 row) >>= \_ -> putStr "," >>= \_ -> showScripts (thd3 row) >>= \_ -> putStrLn ")")) rows2Memory'
+
+                let rows' = map (\row -> [(toMySQLText . nTreeToString . snd3) row, (toMySQLText . nScriptToString . thd3) row, (toMySQLInt32 . fst3) row]) rows2Memory'
+                let sqlstat1 = DS.fromString $ "update " ++ tree_target ++ " set tree = ?, script = ? where serial_num = ?"
+                oks <- executeMany conn sqlstat1 rows'
+                putStrLn $ show (length oks) ++ " rows have been updated."      -- Only rows with their values changed are affected rows.
+
+            close conn                       -- Close the connection.
+          else putStrLn "Command was cancelled."
+
+{- For a sentence, parsing result is [Tree], namely [(ClauIdx, [PhraCate])].
+ - This function is to purify slashes in all PhraCate values.
+ -}
+purifySlashInTree4ASent :: [Tree] -> [Tree]
+purifySlashInTree4ASent [] = []
+purifySlashInTree4ASent [(clauIdx, pcs)] = [(clauIdx, map purifySlashInPhrase pcs)]
+purifySlashInTree4ASent (t:ts) = purifySlashInTree4ASent [t] ++ purifySlashInTree4ASent ts
+
+{- For a sentence, parsing script is [Script], namely [(ClauIdx, [[Rule]], [BanPCs])].
+ - This function is to purify slashes in all PhraCate values in every BanPCs.
+ -}
+purifySlashInScript4ASent :: [Script] -> [Script]
+purifySlashInScript4ASent [] = []
+purifySlashInScript4ASent [(clauIdx, ruleSets, banPCSets)] = [(clauIdx, ruleSets, map (map purifySlashInPhrase) banPCSets)]
+purifySlashInScript4ASent (s:ss) = purifySlashInScript4ASent [s] ++ purifySlashInScript4ASent ss
+
+{- For a phrase, it is represented as ((Start, Span), [(Category, Tag, Seman, PhraStru, Act)], SecStart), here CTSPA has only one member.
+ - This function is to check Field Category, and change slashes in this Field into '/'.
+ -}
+purifySlashInPhrase :: PhraCate -> PhraCate
+purifySlashInPhrase ((start, span), [(cate, tag, seman, phraStru, act)], secStart)
+    = ((start, span), [(purifySlash cate, tag, seman, phraStru, act)], secStart)

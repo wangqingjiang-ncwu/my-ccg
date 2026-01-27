@@ -492,14 +492,20 @@ countInScript bottomSn topSn funcIndex = do
          let sentClauTransConvList = map (map snd3) sentClauScriptList
                                                               -- [[[[Rule]]]], conversional rules(#4) used in every transition(#3) in parsing every clause(#2) in sentence list(#1).
          let f' = foldl (++) []
-         let convRuleList = (nub . f' . f' . f') sentClauTransConvList     -- [Rule]
+         let convRuleList = (f' . f' . f') sentClauTransConvList          -- [Rule]
+         let uniConvRuleList = nub convRuleList
+         let convRule2FreqList = (reverse . sortOn snd . map (\x -> (head x, length x)) . group . sort) convRuleList     -- [(Rule, Int)]
+
          let sentClauTransConvNumList = map (map (map length)) sentClauTransConvList
                                                               -- [[[num]]], list of numbers of conversional rules (#3) in parsing every clause(#2) in sentence list(#1).
          let sentClauConvTotalList = map (map (foldl (+) 0)) sentClauTransConvNumList
                                                               -- [[total]], list of totals of conversional rules in parsing every clause(#2) in sentence list(#1).
          putStrLn $ "countInScript: The conversion rules list of every clause in every sentences: " ++ show sentClauTransConvList
          putStrLn $ "countInScript: The total num. of conversional rules used in parsing every clause in every sentences: " ++ show sentClauConvTotalList
+         putStrLn $ "countInScript: Unique conversion rules: " ++ show uniConvRuleList ++ ", count " ++ (show . length) uniConvRuleList
          putStrLn $ "countInScript: Conversion rules: " ++ show convRuleList ++ ", count " ++ (show . length) convRuleList
+         putStrLn $ "countInScript: List of (Conversion rule, Frequency): " ++ show convRule2FreqList ++ ", count " ++ (show . length) convRule2FreqList
+
        else putStr ""
 
     if funcIndex == 5                                         -- Frequency of using type conversions in transitive computing for every clausal length.

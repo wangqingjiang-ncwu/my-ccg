@@ -21,6 +21,7 @@ module Parse (
     findDescen,        -- PhraCate -> [PhraCate] -> [PhraCate]
     findAnces,         -- PhraCate -> [PhraCate] -> [PhraCate]
     findATree,         -- PhraCate -> [PhraCate] -> BiTree PhraCate
+    findAllTree,       -- PhraCate -> [PhraCate] -> [BiTree PhraCate]
     findForest,        -- [PhraCate] -> [BiTree PhraCate]
     growForest,        -- OnOff -> [[PhraCate]] -> [PhraCate] -> [[PhraCate]]
     growTree,          -- OnOff -> [PhraCate] -> [PhraCate] -> [[PhraCate]]
@@ -1366,6 +1367,24 @@ findATree root clo
                    _ -> parents!!0                 -- Suppose the root has only one pair of parents.
         father = fst parent
         mother = snd parent
+
+{- Find all syntactic trees with a given phrasal category as its root from the transitive closure of phrasal categories.
+ - Algo.:
+ -   (1) If the phrase is nil (nilPhra), return an empty tree ([Empty]);
+ -   (2) If the phrase is a word (span is 0), return a single-node tree ([Node PhraCate Empty Empty]);
+ -   (3) Otherwise, return
+ -}
+findAllTree :: PhraCate -> [PhraCate] -> [BiTree PhraCate]
+findAllTree root clo
+    | root == nilPhra = [Empty]
+    | spOfCate root == 0 = [Node root Empty Empty]
+    | otherwise = concat [ mkNode f m | (f, m) <- parents ]
+      where
+        parents = findSplitCate root clo  -- [(PhraCate, PhraCate)]
+        mkNode father mother =
+            let leftTrees  = findAllTree father clo
+                rightTrees = findAllTree mother clo
+            in [ Node root l r | l <- leftTrees, r <- rightTrees ]
 
 {- Find the forest of syntactic trees from a list of phrasal categories.
  - Step 1. Filter all roots by attribue Act being True.

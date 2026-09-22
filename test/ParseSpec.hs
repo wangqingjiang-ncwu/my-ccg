@@ -419,3 +419,11 @@ spec = do
       let pc14_4 = createPhraCate 14 4 [(predCate, "Cv/d-<", "((到' ((二十九' 分之') 百')) 提高')", "HvC", True)] 15
       let pcClo = [pc14,pc15,pc16,pc17,pc17_1,pc16_2,pc15_3,pc14_4]
       findDescen pc15_3 pcClo `shouldBe` [pc14_4]
+
+    it "The result of findAllTree ((17,1),[(s\\.np,Cv/a-<,(二十九' 分之)',HvC,True)],18) [((16,0),[(np/*np,Desig,百',DE,False)],16), ((17,0),[(s\\.np,Desig,分之',DE,False)],17), ((18,0),[(np/*np,Desig,二十九',DE,False)],18), ((17,1),[(s\\.np,Cv/a-<,二十九' 分之',HvC,True)],18)] is [[Node pc17_1 (Node pc17 Empty Empty) (Node pc18 Empty Empty)]]" $ do
+      let pc16 = createPhraCate 16 0 [(numeralCate, "Desig", "百'", "DE", False)] 16
+      let pc17 = createPhraCate 17 0 [(predCate, "Desig", "分之'", "DE", False)] 17
+      let pc18 = createPhraCate 18 0 [(numeralCate, "Desig", "二十九'", "DE", False)] 18
+      let pc17_1 = createPhraCate 17 1 [(predCate, "Cv/a-<", "(二十九' 分之')", "HvC", True)] 18
+      let pcClo = [pc16,pc17,pc18,pc17_1]
+      findAllTree pc17_1 pcClo `shouldBe` [Node pc17_1 (Node pc17 Empty Empty) (Node pc18 Empty Empty)]
